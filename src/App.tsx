@@ -184,7 +184,6 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 const today = new Date();
 const daysUntil = (dateStr: string) => Math.ceil((new Date(dateStr).getTime() - today.getTime()) / 86400000);
 const formatDate = (dateStr: string) => new Date(dateStr + "T00:00:00").toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" });
-const fmtCurrency = (amount: number, currency: string) => `${CURRENCIES[currency]?.symbol || "₹"}${Number(amount || 0).toLocaleString("en-IN")}`;
 
 // ─── GLOBAL STYLES ────────────────────────────────────────────────────────────
 const globalStyle = `
@@ -911,7 +910,7 @@ const SetupScreen = ({ onSetup }: { onSetup: (s: WeddingSetup & { demo: boolean 
       <div style={{ position:"relative",zIndex:1,width:"100%",maxWidth:400,animation:"fadeIn 0.6s ease" }}>
         <div style={{ textAlign:"center",marginBottom:32 }}>
           <div style={{ fontSize:52,marginBottom:12 }}>💍</div>
-          <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:32,color:"#fff",fontWeight:900,marginBottom:8 }}>Shaadi Planner</h1>
+          <h1 style={{ fontFamily:"'Playfair Display',serif",fontSize:32,color:"#fff",fontWeight:900,marginBottom:8 }}>Shaadi Wala</h1>
           <p style={{ color:"rgba(255,255,255,0.8)",fontSize:14 }}>Plan your perfect day, stress-free</p>
           <div style={{ color:COLORS.lightGold,letterSpacing:3,marginTop:8,fontSize:12 }}>🪔 ✨ 💐 ✨ 🪔</div>
         </div>
