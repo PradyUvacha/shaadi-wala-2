@@ -1,73 +1,170 @@
-# React + TypeScript + Vite
+# Shaadi Wala
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Shaadi Wala is an Indian wedding companion for a couple and their two families. This repo is the web app (Vite, React, TypeScript) and the Capacitor Android project. Accounts and wedding data live in Supabase. Each wedding is private to its members through Postgres row-level security.
 
-Currently, two official plugins are available:
+The first release covers sign-up, a wedding, a Hindu ritual checklist, budget with family split and part-payments, guests and RSVP, and a timeline. Invite links, the onboarding wizard, analytics, in-app feedback, and in-app account deletion have seams in the code and are not finished yet.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Requirements
 
-## React Compiler
+- Node.js 22 or newer
+- For a local database: Docker, then the [Supabase CLI](https://supabase.com/docs/guides/cli)
+- For Android: JDK 21, Android SDK 36, and `ANDROID_HOME` pointing at the SDK
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Configuration
 
-## Expanding the ESLint configuration
+Copy the example env file and fill in the anon key when you have it. Do not commit `.env`.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cp .env.example .env
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Public anon key. Safe in the client because RLS restricts every wedding to its members. |
+| `VITE_AUTH_REDIRECT_URL` | Optional. Web builds use the current origin plus `/auth`. Android builds use `in.shaadiwala.app://auth/callback`. |
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+The production project is already created:
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Project ref: `ujglzkfxgewqupkeqyek`
+- URL: `https://ujglzkfxgewqupkeqyek.supabase.co`
+- Region: ap-south-1 (Mumbai)
+- Plan: Free
+
+`.env.example` already uses that URL. Leave the anon key blank in git. Add the real key only as an environment variable (local `.env`, Vercel, or the shell that builds the Android app). Never put the service-role key in the client, in Vercel, or in this repo.
+
+Vite inlines `VITE_*` values at build time. An Android build made without the anon key opens the “not configured” screen and can still preview the demo on the device.
+
+## Database
+
+Schema, RLS, the `create_wedding` function, and the `hindu-starter` ritual template are in `supabase/migrations/20261024180000_init.sql`.
+
+Apply it to the hosted project in either of these ways:
+
+1. Open the SQL editor in the [project dashboard](https://supabase.com/dashboard/project/ujglzkfxgewqupkeqyek) and run the migration file.
+2. From this repo, with the Supabase CLI logged in:
+
+```bash
+npx supabase link --project-ref ujglzkfxgewqupkeqyek
+npx supabase db push
 ```
+
+For a local stack (Docker required):
+
+```bash
+npx supabase start
+```
+
+Local API URL is `http://127.0.0.1:54321`. Copy the local anon key from `npx supabase status` into `.env`. Local email confirmation is off, and mail is captured by Inbucket at `http://127.0.0.1:54324`. Point Android builds at the hosted HTTPS project. A device cannot use the cleartext local API.
+
+Until the migration is applied, the app tells you the schema is missing instead of failing silently.
+
+## Web app
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. With both env vars set you can create an account, create a wedding, and add tasks, budget items, guests, and timeline events. Reload the page and the data is still there.
+
+Without the anon key, use **Preview the demo on this device**. That copy stays in `sessionStorage` for the tab and is cleared when you sign in for real.
+
+```bash
+npm test
+npm run lint
+npm run build
+```
+
+CI on GitHub runs those three commands on Node 22. It does not build the Android app and it does not need secrets.
+
+## Google sign-in
+
+1. In Google Cloud, create an OAuth client of type **Web application**.
+2. Authorized redirect URI: `https://ujglzkfxgewqupkeqyek.supabase.co/auth/v1/callback`
+3. In Supabase → Authentication → Providers → Google, paste that client id and secret.
+4. In Supabase → Authentication → URL configuration, set the site URL to `https://shaadi-wala-2.vercel.app` and allow these redirects:
+   - `https://shaadi-wala-2.vercel.app/auth`
+   - `http://localhost:5173/auth`
+   - `http://127.0.0.1:5173/auth`
+   - `in.shaadiwala.app://auth/callback`
+
+Email and password work without Google. On the Free plan, confirmation emails are rate-limited. For the first couples, either turn off “Confirm email” in Supabase Auth or configure custom SMTP.
+
+## Vercel
+
+The project stays a static SPA. `vercel.json` rewrites every path to `index.html`.
+
+Set only these environment variables, then redeploy:
+
+- `VITE_SUPABASE_URL` = `https://ujglzkfxgewqupkeqyek.supabase.co`
+- `VITE_SUPABASE_ANON_KEY` = the anon key
+
+Do not set the service-role key.
+
+## Android
+
+The package id is `in.shaadiwala.app`. It is final. The web app, Capacitor, and Gradle all read it from `app.config.json`, together with the display name and the version:
+
+```json
+{
+  "appId": "in.shaadiwala.app",
+  "appName": "Shaadi Wala",
+  "versionCode": 1,
+  "versionName": "SW_1.0_Checklist-Budget-Guests-Timeline_2026-10-24"
+}
+```
+
+`versionName` must match `SW_<version>_<Key-Features>_<YYYY-MM-DD>`. Features are hyphenated words with no spaces, for example `SW_1.0_Checklist-Budget-Guests_2026-11-17`. `versionCode` stays a positive integer. Raise it by 1 for every Play upload. Change both values only in `app.config.json`. The native package declaration in `MainActivity.java` matches the final id; changing the id later means regenerating `android/`.
+
+After this project exists, sync with `npx cap sync android`. Do not run `npx cap add android` again. That command rewrites the manifest and string resources.
+
+### Debug APK
+
+```bash
+export ANDROID_HOME="$HOME/Android/Sdk"   # this machine may use a different SDK path
+npm run android:debug
+```
+
+The script builds the web app, syncs Capacitor, and runs `./gradlew assembleDebug`. The APK is `android/app/build/outputs/apk/debug/app-debug.apk`. Debug builds are signed with the Android debug keystore. APKs are gitignored.
+
+Min SDK 24, compile and target SDK 36. Google sign-in on device returns through `in.shaadiwala.app://auth/callback`.
+
+### Release bundle and Play signing
+
+```bash
+keytool -genkeypair -v \
+  -keystore android/shaadi-wala-upload.keystore \
+  -alias shaadiwala \
+  -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Copy `android/keystore.properties.example` to `android/keystore.properties` and fill in the store password, key alias, and key password. Both the keystore and `keystore.properties` are gitignored.
+
+```bash
+npm run android:release
+```
+
+That produces `android/app/build/outputs/bundle/release/app-release.aab` when the properties file is present. Upload the AAB to the Play Console internal testing track and enroll it in Play App Signing. Keep the upload keystore offline. The debug keystore is not a Play upload key.
+
+## Product notes
+
+Creating a wedding can start from the Hindu checklist (32 rituals, on by default), the Priya & Rahul demo, or an empty list. The Tasks tab can load any missing checklist items. Renaming a ritual does not cause a duplicate.
+
+Home totals count Indian rupees. A budget item can be paid by the bride’s side, the groom’s side, both, or a custom payer, and it can record part-payments.
+
+These are reserved for a later change:
+
+- Invite a partner or family member by link (`/invite/:token`)
+- Onboarding steps in `src/features/onboarding/steps.ts`
+- `track()` in `src/lib/analytics.ts` (development console only)
+- Feedback insert helper, with no form yet
+- Account deletion. The Account screen button explains that it is not available. Deleting a user has to be a service-role edge function so it can remove the auth user. Do not ship the service-role key in the app.
+
+## What you still need to add
+
+- `VITE_SUPABASE_ANON_KEY` locally, on Vercel, and in the shell that builds the Android app
+- Run the SQL migration on project `ujglzkfxgewqupkeqyek`
+- Google OAuth web client id and secret, plus the redirect allow-list above
+- An upload keystore and `android/keystore.properties` before the first Play AAB
+- SMTP, or confirmation emails turned off, before inviting the first couples

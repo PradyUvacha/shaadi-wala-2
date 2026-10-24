@@ -1,0 +1,49 @@
+import { createContext, useContext } from 'react'
+import type {
+  BudgetDraft,
+  CreateWeddingInput,
+  GuestDraft,
+  Milestone,
+  MilestoneDraft,
+  PartPaymentDraft,
+  Task,
+  TaskDraft,
+  WeddingBundle,
+  WeddingSettings,
+} from '../types.ts'
+
+export type WeddingMode = 'remote' | 'preview' | null
+
+export type WeddingContextValue = {
+  ready: boolean
+  mode: WeddingMode
+  bundle: WeddingBundle | null
+  notice: string | null
+  error: string | null
+  clearNotice: () => void
+  clearError: () => void
+  reload: () => void
+  startPreview: () => void
+  createWedding: (input: CreateWeddingInput) => Promise<void>
+  updateSettings: (settings: WeddingSettings) => Promise<void>
+  saveTask: (draft: TaskDraft, id?: string) => Promise<void>
+  deleteTask: (id: string) => Promise<void>
+  toggleTask: (task: Task) => Promise<void>
+  loadHinduChecklist: () => Promise<number>
+  saveBudgetItem: (draft: BudgetDraft, id?: string) => Promise<void>
+  deleteBudgetItem: (id: string) => Promise<void>
+  addPayment: (budgetItemId: string, payment: PartPaymentDraft) => Promise<void>
+  saveGuest: (draft: GuestDraft, id?: string) => Promise<void>
+  deleteGuest: (id: string) => Promise<void>
+  saveMilestone: (draft: MilestoneDraft, id?: string) => Promise<void>
+  deleteMilestone: (id: string) => Promise<void>
+  toggleMilestone: (milestone: Milestone) => Promise<void>
+}
+
+export const WeddingContext = createContext<WeddingContextValue | null>(null)
+
+export function useWedding(): WeddingContextValue {
+  const value = useContext(WeddingContext)
+  if (!value) throw new Error('useWedding must be used within WeddingProvider')
+  return value
+}

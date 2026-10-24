@@ -1,0 +1,47 @@
+# Local Supabase stack for Shaadi Wala.
+# Hosted project ref: ujglzkfxgewqupkeqyek (ap-south-1). Do not put API keys in this file.
+# The Android redirect scheme matches app.config.json appId and is final: in.shaadiwala.app
+
+project_id = "shaadi-wala"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+smtp_port = 54325
+pop3_port = 54326
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = [
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5173/auth",
+  "http://localhost:5173",
+  "http://localhost:5173/auth",
+  "https://shaadi-wala-2.vercel.app",
+  "https://shaadi-wala-2.vercel.app/auth",
+  "in.shaadiwala.app://auth/callback",
+]
+jwt_expiry = 3600
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = false
