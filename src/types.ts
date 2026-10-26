@@ -6,13 +6,11 @@ export const MILESTONE_STATUSES = ['Upcoming', 'Completed'] as const
 export const MEALS = ['', 'Vegetarian', 'Non-Vegetarian', 'Jain', 'Vegan'] as const
 export const CURRENCY_CODES = ['INR', 'USD', 'EUR', 'GBP'] as const
 export const PAYERS = ['bride', 'groom', 'both', 'custom'] as const
-export const CEREMONIES = ['Roka', 'Sagai', 'Haldi', 'Mehendi', 'Sangeet', 'Wedding', 'Vidaai', 'Reception'] as const
 export const MEMBER_ROLES = ['bride', 'groom', 'family', 'friend', 'planner'] as const
 export const INVITE_ROLES = MEMBER_ROLES
 export const TEMPLATE_SLUG = 'hindu-starter'
 
 export type Category = (typeof CATEGORIES)[number]
-export type Ceremony = (typeof CEREMONIES)[number]
 export type Priority = (typeof PRIORITIES)[number]
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 export type RsvpStatus = (typeof RSVP_STATUSES)[number]
@@ -30,7 +28,7 @@ export type TemplateTask = {
   description: string
   category: Category
   priority: Priority
-  ceremony: Ceremony
+  ceremony: string
   sortOrder: number
 }
 
@@ -164,7 +162,7 @@ export type WeddingBundle = {
 
 export type CreateWeddingInput = WeddingSettings & {
   seed: 'template' | 'demo' | 'empty'
-  ceremonies?: Ceremony[]
+  ceremonies?: string[]
 }
 
 export type WeddingInvite = {

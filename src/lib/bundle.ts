@@ -17,7 +17,7 @@ import type {
   WeddingFunction,
   WeddingSettings,
 } from '../types.ts'
-import { moveByPosition } from './checklist.ts'
+import { DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { moneyAmountError, validateBudgetAmounts } from './planning.ts'
 
 export function uid(): string {
@@ -156,6 +156,9 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
   const ensured = named ? { bundle, fn: named } : ensureFunction(bundle, draft.ceremony)
   const fn = ensured.fn
   const base = ensured.bundle
+  if (duplicateRitualName(base.tasks, { functionId: fn.id, title: draft.title, exceptId: id })) {
+    throw new Error(DUPLICATE_RITUAL_MESSAGE)
+  }
   if (id) {
     const current = base.tasks.find((task) => task.id === id)
     if (!current) return base

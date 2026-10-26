@@ -195,6 +195,10 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026190000_feedback_screenshot.sql`)
   file(`${root}supabase/migrations/20261026200000_checklist_templates.sql`)
   file(`${root}supabase/migrations/20261026200000_checklist_templates.sql`)
+  file(`${root}supabase/migrations/20261026210000_checklist_realtime.sql`)
+  file(`${root}supabase/migrations/20261026210000_checklist_realtime.sql`)
+  file(`${root}supabase/migrations/20261026220000_ritual_names.sql`)
+  file(`${root}supabase/migrations/20261026220000_ritual_names.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -444,6 +448,10 @@ describe('approved role permissions', () => {
     expect(psql(`select count(*) from public.checklist_templates where community = 'hindu' and version = 1;`).trim()).toBe('1')
     expect(psql(`select count(*) from public.checklist_template_functions f join public.checklist_templates t on t.id = f.template_id where t.community = 'hindu' and t.version = 1;`).trim()).toBe('8')
     expect(psql(`select count(*) from public.checklist_template_rituals r join public.checklist_template_functions f on f.id = r.function_id join public.checklist_templates t on t.id = f.template_id where t.community = 'hindu' and t.version = 1;`).trim()).toBe('53')
+    expect(Number(psql(`select count(*) from public.checklist_template_rituals r join public.checklist_template_functions f on f.id = r.function_id join public.checklist_templates t on t.id = f.template_id where t.community = 'hindu' and t.version = 1 and r.position > 0;`).trim())).toBeGreaterThanOrEqual(45)
+    expect(psql(`select relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = 'tasks';`).trim()).toBe('f')
+    expect(psql(`select relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = 'wedding_functions';`).trim()).toBe('f')
+    expect(psql(`select string_agg(tablename, ',' order by tablename) from pg_publication_tables where pubname = 'supabase_realtime' and tablename in ('tasks', 'wedding_functions');`).trim()).toBe('tasks,wedding_functions')
     expect(psql(`select community from public.weddings where couple_names = 'Role Fixture';`).trim()).toBe('hindu')
     expect(psql(`select string_agg(name, ',' order by position) from public.wedding_functions where wedding_id = ${wedding};`).trim()).toBe('Roka,Sagai,Haldi,Mehendi,Sangeet,Wedding,Vidaai,Reception')
     expect(psql(`select count(*) from public.tasks where wedding_id = ${wedding} and template_title is not null;`).trim()).toBe('53')
@@ -456,6 +464,35 @@ describe('approved role permissions', () => {
     `)).toBe('Mehendi night')
     expect(asUser(planner, `update public.wedding_functions set name = 'Roka evening' where name = 'Roka' and wedding_id = ${wedding}; select ceremony from public.tasks where template_title = 'Roka Ceremony';`)).toBe('Roka evening')
     expect(asUser(planner, `update public.tasks set title = 'Our roka' where template_title = 'Roka Ceremony'; select title from public.tasks where template_title = 'Roka Ceremony';`)).toBe('Our roka')
+    expect(psql(`select indexdef from pg_indexes where indexname = 'tasks_function_title_ci';`)).toMatch(/lower\(btrim\(title\)\)/)
+    expect(errorOf(planner, `
+      insert into public.tasks (wedding_id, function_id, title, category, priority, status, ceremony)
+      select w.id, f.id, 'our ROKA', 'Other', 'Low', 'Pending', f.name
+      from public.weddings w
+      join public.wedding_functions f on f.wedding_id = w.id and f.name = 'Roka evening'
+      where w.couple_names = 'Role Fixture';
+    `)).toMatch(/tasks_function_title_ci/)
+    expect(asUser(planner, `
+      insert into public.tasks (wedding_id, function_id, title, category, priority, status, ceremony)
+      select w.id, f.id, 'our roka', 'Other', 'Low', 'Pending', f.name
+      from public.weddings w
+      join public.wedding_functions f on f.wedding_id = w.id and f.name = 'Sagai'
+      where w.couple_names = 'Role Fixture';
+      select title from public.tasks where title = 'our roka' and ceremony = 'Sagai';
+    `)).toBe('our roka')
+    let templateClash = ''
+    try {
+      psql(`
+        insert into public.checklist_template_rituals (function_id, title, description, category, priority, position)
+        select function_id, 'roka ceremony', description, category, priority, 99
+        from public.checklist_template_rituals
+        where title = 'Roka Ceremony';
+      `)
+    } catch (caught) {
+      const error = caught as { stderr?: Buffer; message?: string }
+      templateClash = `${error.stderr?.toString() ?? ''}\n${error.message ?? ''}`
+    }
+    expect(templateClash).toMatch(/checklist_template_rituals_function_title_ci/)
     expect(asUser(planner, `
       update public.wedding_functions set position = 1
       where wedding_id = ${wedding} and name in ('Sagai', 'Haldi');

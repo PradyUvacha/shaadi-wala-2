@@ -16,7 +16,7 @@ import type {
   WeddingInvite,
   WeddingSettings,
 } from '../types.ts'
-import { moveByPosition } from './checklist.ts'
+import { DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { assertNoError } from './errors.ts'
 import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
 import {
@@ -161,6 +161,19 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
 
   async function saveTask(weddingId: string, draft: TaskDraft, id?: string): Promise<Task> {
     const placed = await placeTask(weddingId, draft, id)
+    if (placed.functionId) {
+      const siblings = await client.from('tasks').select('id, title').eq('function_id', placed.functionId)
+      assertNoError(siblings.error)
+      const clash = duplicateRitualName(
+        (siblings.data ?? []).map((row) => ({
+          id: String(asRecord(row).id),
+          functionId: placed.functionId ?? null,
+          title: String(asRecord(row).title ?? ''),
+        })),
+        { functionId: placed.functionId, title: placed.title, exceptId: id },
+      )
+      if (clash) throw new Error(DUPLICATE_RITUAL_MESSAGE)
+    }
     if (id) {
       const { data, error } = await client.from('tasks').update(taskUpdate(placed)).eq('id', id).select('*').single()
       assertNoError(error)

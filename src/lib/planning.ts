@@ -1,6 +1,6 @@
 import type { AchievementType } from '../data/content.ts'
 import { ACHIEVEMENTS } from '../data/content.ts'
-import type { BudgetItem, Ceremony, Guest, Payer, SplitDraft, Task, TemplateTask } from '../types.ts'
+import type { BudgetItem, Guest, Payer, SplitDraft, Task, TemplateTask } from '../types.ts'
 
 export function percent(part: number, total: number): number {
   if (!total) return 0
@@ -134,7 +134,7 @@ export function templateToDrafts(items: TemplateTask[]) {
   }))
 }
 
-export function ritualsForCeremonies(items: TemplateTask[], ceremonies: readonly Ceremony[]): TemplateTask[] {
+export function ritualsForCeremonies(items: TemplateTask[], ceremonies: readonly string[]): TemplateTask[] {
   const chosen = new Set(ceremonies)
   return items.filter((item) => chosen.has(item.ceremony))
 }

@@ -23,6 +23,7 @@ import {
   withMilestone,
   withTask,
 } from '../lib/bundle.ts'
+import { acceptsChecklistChange, applyChecklistChange, subscribeWeddingChecklist } from '../lib/checklist.ts'
 import { toErrorMessage } from '../lib/errors.ts'
 import { readPreview, writePreview } from '../lib/preview.ts'
 import { supabase } from '../lib/supabase.ts'
@@ -96,6 +97,18 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     }
     setRemote({ userId, bundle: next, error: null })
   }, [userId])
+
+  useEffect(() => {
+    if (!supabase || mode !== 'remote') return
+    const weddingId = bundle?.wedding.id
+    if (!weddingId) return
+    return subscribeWeddingChecklist(supabase, weddingId, (change) => {
+      const current = bundleRef.current
+      if (!current || current.wedding.id !== weddingId) return
+      if (!acceptsChecklistChange(change, current.membership.role, userId)) return
+      commit(applyChecklistChange(current, change))
+    })
+  }, [mode, bundle?.wedding.id, commit, userId])
 
   const requireBundle = useCallback(() => {
     const current = bundleRef.current

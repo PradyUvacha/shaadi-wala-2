@@ -9,7 +9,11 @@ import { validateWeddingSetup } from '../../lib/planning.ts'
 import { useAuth } from '../../state/auth-context.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
-import { CEREMONIES, type Ceremony, type Side } from '../../types.ts'
+import type { Side } from '../../types.ts'
+
+/** Parked wizard only. The live checklist reads wedding_functions, not this list. */
+const PARKED_CEREMONIES = ['Roka', 'Sagai', 'Haldi', 'Mehendi', 'Sangeet', 'Wedding', 'Vidaai', 'Reception'] as const
+type ParkedCeremony = (typeof PARKED_CEREMONIES)[number]
 import { ONBOARDING_STEPS } from '../onboarding/steps.ts'
 
 /** Parked first-run wizard. Loaded only when legacyOnboardingEnabled is true. */
@@ -23,12 +27,12 @@ export function LegacySetupScreen() {
   const [weddingDate, setWeddingDate] = useState('')
   const [city, setCity] = useState('')
   const [side, setSide] = useState<Side>('bride')
-  const [ceremonies, setCeremonies] = useState<Ceremony[]>([...CEREMONIES])
+  const [ceremonies, setCeremonies] = useState<ParkedCeremony[]>([...PARKED_CEREMONIES])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const current = ONBOARDING_STEPS[step]
 
-  const toggleCeremony = (ceremony: Ceremony) => {
+  const toggleCeremony = (ceremony: ParkedCeremony) => {
     setCeremonies((list) => (list.includes(ceremony) ? list.filter((item) => item !== ceremony) : [...list, ceremony]))
   }
 
@@ -69,7 +73,8 @@ export function LegacySetupScreen() {
     }
   }
 
-  const chosenCount = HINDU_CHECKLIST.filter((item) => ceremonies.includes(item.ceremony)).length
+  const chosen = new Set<string>(ceremonies)
+  const chosenCount = HINDU_CHECKLIST.filter((item) => chosen.has(item.ceremony)).length
 
   return (
     <div style={{ minHeight: '100dvh', background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 55%,${COLORS.saffron}44 100%)`, padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
@@ -103,7 +108,7 @@ export function LegacySetupScreen() {
             <>
               <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 0 }}>{chosenCount} rituals from the Hindu checklist. You can edit or delete any of them later.</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {CEREMONIES.map((ceremony) => (
+                {PARKED_CEREMONIES.map((ceremony) => (
                   <button key={ceremony} type="button" onClick={() => toggleCeremony(ceremony)} style={choice(ceremonies.includes(ceremony))}>
                     {ceremony}
                   </button>

@@ -68,6 +68,17 @@ describe('wedding bundle', () => {
     const removed = removeFunction(renamed, mehendi!.id)
     expect(removed.functions.some((fn) => fn.id === mehendi!.id)).toBe(false)
     expect(removed.tasks.some((task) => task.title === 'Mehendi Ceremony Setup')).toBe(false)
+    const weddingFn = created.functions.find((fn) => fn.name === 'Wedding')
+    const venue = created.tasks.find((task) => task.title === 'Book Wedding Venue')
+    expect(weddingFn && venue).toBeTruthy()
+    expect(() => saveTaskDraft(created, { ...venue!, title: 'book wedding venue', functionId: weddingFn!.id, ceremony: 'Wedding' })).toThrow(
+      /already has a ritual with that name/,
+    )
+    const renamedTitle = saveTaskDraft(created, { ...venue!, title: '  Book Wedding Venue  ' }, venue!.id)
+    expect(renamedTitle.tasks.find((task) => task.id === venue!.id)?.title).toBe('Book Wedding Venue')
+    const mehendiFn = created.functions.find((fn) => fn.name === 'Mehendi')
+    const copied = saveTaskDraft(created, { ...venue!, title: 'Book Wedding Venue', functionId: mehendiFn!.id, ceremony: 'Mehendi' })
+    expect(copied.tasks.filter((task) => task.title === 'Book Wedding Venue')).toHaveLength(2)
     expect(() => saveBudgetDraft(created, {
       category: 'Attire',
       currency: 'INR',

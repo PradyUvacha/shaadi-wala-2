@@ -39,6 +39,7 @@ export function TasksTab() {
   const [functionName, setFunctionName] = useState('')
   const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string } | null>(null)
   const [pendingDelete, setPendingDelete] = useState<WeddingFunction | null>(null)
+  const [pendingRitual, setPendingRitual] = useState<Task | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const stopCelebration = useCallback(() => setCelebrate(false), [])
@@ -151,6 +152,19 @@ export function TasksTab() {
       setBusy(false)
     }
   }
+  const removeRitualNow = async () => {
+    if (!pendingRitual) return
+    setBusy(true)
+    setError(null)
+    try {
+      await deleteTask(pendingRitual.id)
+      setPendingRitual(null)
+    } catch (caught) {
+      setError(toErrorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const ritualCard = (task: Task, siblings: number) => (
     <div key={task.id} style={{ background: COLORS.cardBg, border: `1px solid ${task.status === 'Completed' ? '#4CAF5040' : '#E8D4B0'}`, borderRadius: 14, padding: 14, marginBottom: 10, animation: 'fadeIn 0.3s ease', opacity: task.status === 'Completed' ? 0.75 : 1 }}>
@@ -178,7 +192,7 @@ export function TasksTab() {
             {canEdit && (
               <>
                 <button type="button" aria-label="Edit task" onClick={() => openEdit(task)} style={{ ...iconButton, color: COLORS.gold }}>✏️</button>
-                <button type="button" aria-label="Delete task" onClick={() => void deleteTask(task.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
+                <button type="button" aria-label="Delete task" onClick={() => { setError(null); setPendingRitual(task) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
               </>
             )}
           </div>
@@ -215,7 +229,7 @@ export function TasksTab() {
         ))}
       </div>
 
-      {error && !modalOpen && !functionEditor && !pendingDelete && <div style={{ padding: '0 16px' }}><FormError message={error} /></div>}
+      {error && !modalOpen && !functionEditor && !pendingDelete && !pendingRitual && <div style={{ padding: '0 16px' }}><FormError message={error} /></div>}
 
       <div style={{ padding: '0 16px' }}>
         {visibleGroups.length === 0 && loose.length === 0 ? (
@@ -275,6 +289,16 @@ export function TasksTab() {
         </p>
         <button type="button" disabled={busy} onClick={() => void removeFunctionNow()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
           {busy ? 'Removing…' : 'Remove function'}
+        </button>
+      </Modal>
+
+      <Modal open={pendingRitual !== null} onClose={() => setPendingRitual(null)} title="Remove ritual">
+        <FormError message={error} />
+        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+          Remove {pendingRitual?.title}?
+        </p>
+        <button type="button" disabled={busy} onClick={() => void removeRitualNow()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
+          {busy ? 'Removing…' : 'Remove ritual'}
         </button>
       </Modal>
 
