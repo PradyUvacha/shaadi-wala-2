@@ -29,6 +29,8 @@ describe('phone layout', () => {
     expect(css).toContain('font-size: 16px')
     expect(css).toContain('min-height: 44px')
     expect(css).toContain('.chip-row')
+    expect(css).toMatch(/\.chip-row\s*\{[^}]*flex-wrap:\s*wrap/)
+    expect(css).not.toMatch(/\.chip-row\s*\{[^}]*overflow-x:\s*auto/)
     const setup = readFileSync(new URL('../src/features/wedding/CreateWeddingScreen.tsx', import.meta.url), 'utf8')
     expect(setup).not.toContain('Settings')
     expect(setup).not.toContain('maxWidth')

@@ -57,11 +57,11 @@ textarea { min-height: 72px; }
 }
 .chip-row {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
   padding: 12px 16px 16px;
 }
 .chip-row > * {
