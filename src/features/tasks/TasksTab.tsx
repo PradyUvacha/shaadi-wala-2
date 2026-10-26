@@ -7,7 +7,7 @@ import { percent } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
+import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
 import type { Category, Priority, Task, TaskDraft, TaskStatus, WeddingFunction } from '../../types.ts'
 import { CATEGORIES, PRIORITIES, TASK_STATUSES } from '../../types.ts'
 
@@ -202,7 +202,7 @@ export function TasksTab() {
   )
 
   return (
-    <div style={{ paddingBottom: screenBottom }}>
+    <div style={{ paddingBottom: listAboveFab }}>
       <Celebration active={celebrate} onDone={stopCelebration} />
       <div style={{ background: `linear-gradient(135deg,${COLORS.saffron},${COLORS.crimson})`, padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 6 }}>Task Manager</div>

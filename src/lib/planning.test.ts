@@ -14,7 +14,10 @@ import {
   plannerLevel,
   familySettlement,
   guestHeadcount,
+  defaultPayerForSide,
+  SPLIT_REQUIRED,
   splitsForPayer,
+  splitsForSave,
   settlementSummary,
   splitTotal,
   templateToDrafts,
@@ -61,6 +64,32 @@ describe('budget splits', () => {
     expect(splitsForPayer('bride')).toEqual([{ name: "Bride's Family", pct: 100, side: 'bride' }])
     expect(splitsForPayer('both').map((split) => split.pct)).toEqual([50, 50])
     expect(splitTotal(splitsForPayer('both'))).toBe(100)
+  })
+
+  it('starts a new item on the creator side, or at 50/50 when they have no side', () => {
+    expect(defaultPayerForSide('bride')).toBe('bride')
+    expect(defaultPayerForSide('groom')).toBe('groom')
+    expect(defaultPayerForSide(null)).toBe('both')
+    expect(splitsForSave({ paidBySide: 'bride', splits: [] })).toEqual([{ name: "Bride's Family", pct: 100, side: 'bride' }])
+    expect(splitsForSave({ paidBySide: 'both', splits: [] }).map((split) => split.pct)).toEqual([50, 50])
+    expect(() => splitsForSave({ paidBySide: 'custom', splits: [] })).toThrow(SPLIT_REQUIRED)
+    expect(() => splitsForSave({ paidBySide: 'custom', splits: [{ name: 'Uncle', pct: 40, side: '' }] })).toThrow(SPLIT_REQUIRED)
+    const saved = splitsForSave({ paidBySide: 'custom', splits: [{ name: ' Uncle ', pct: 40, side: 'groom' }] })
+    expect(saved).toEqual([{ name: 'Uncle', pct: 40, side: 'groom' }])
+    const settlement = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 1000,
+        actual: 0,
+        paid: false,
+        paidBySide: 'bride',
+        splits: splitsForSave({ paidBySide: 'bride', splits: [] }).map((split, index) => ({ ...split, id: String(index) })),
+        partPayments: [],
+      },
+    ])
+    expect(settlement.brideShare).toBe(1000)
+    expect(settlement.groomShare).toBe(0)
+    expect(settlementSummary(settlement)).toMatch(/Record a payment/)
   })
 
   it('rejects a split that would pass 100 percent', () => {

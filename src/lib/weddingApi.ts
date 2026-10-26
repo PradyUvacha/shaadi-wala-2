@@ -18,6 +18,7 @@ import type {
 } from '../types.ts'
 import { DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { assertNoError } from './errors.ts'
+import { splitsForSave } from './planning.ts'
 import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
 import {
   budgetInsert,
@@ -211,7 +212,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const itemId = String(asRecord(saved.data).id)
     const cleared = await client.from('budget_splits').delete().eq('budget_item_id', itemId)
     assertNoError(cleared.error)
-    const splits = draft.splits.filter((split) => split.name.trim() && Number(split.pct) > 0)
+    const splits = splitsForSave(draft)
     if (splits.length > 0) {
       const inserted = await client.from('budget_splits').insert(splits.map((split) => splitInsert(itemId, split)))
       assertNoError(inserted.error)

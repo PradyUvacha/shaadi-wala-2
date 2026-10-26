@@ -18,7 +18,7 @@ import type {
   WeddingSettings,
 } from '../types.ts'
 import { DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
-import { moneyAmountError, validateBudgetAmounts } from './planning.ts'
+import { moneyAmountError, splitsForSave, validateBudgetAmounts } from './planning.ts'
 
 export function uid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -231,7 +231,7 @@ export function removeTask(bundle: WeddingBundle, id: string): WeddingBundle {
 export function saveBudgetDraft(bundle: WeddingBundle, draft: BudgetDraft, id?: string): WeddingBundle {
   const invalid = validateBudgetAmounts(draft.estimated, draft.actual)
   if (invalid) throw new Error(invalid)
-  const splits = draft.splits.map(splitFromDraft)
+  const splits = splitsForSave(draft).map(splitFromDraft)
   if (id) {
     const current = bundle.budget.find((item) => item.id === id)
     if (!current) return bundle

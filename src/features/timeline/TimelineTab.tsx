@@ -6,7 +6,7 @@ import { formatDate } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
+import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
 import type { Milestone, MilestoneDraft, MilestoneStatus } from '../../types.ts'
 import { MILESTONE_STATUSES } from '../../types.ts'
 
@@ -53,7 +53,7 @@ export function TimelineTab() {
   }
 
   return (
-    <div style={{ paddingBottom: screenBottom }}>
+    <div style={{ paddingBottom: listAboveFab }}>
       <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>📅 Wedding Timeline</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{sorted.filter((milestone) => milestone.status === 'Completed').length}/{sorted.length} milestones completed</div>

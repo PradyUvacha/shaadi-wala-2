@@ -77,6 +77,24 @@ export function sumAmounts(items: { estimated: number; actual: number }[]): { es
   )
 }
 
+/** A new line follows the creator's side. A planner, who has no side, starts at 50/50. */
+export function defaultPayerForSide(side: 'bride' | 'groom' | null | undefined): Payer {
+  if (side === 'bride' || side === 'groom') return side
+  return 'both'
+}
+
+export const SPLIT_REQUIRED = 'Add at least one family split.'
+
+/** Bride, groom, and both always store their preset rows. Custom must name at least one side. */
+export function splitsForSave(draft: { paidBySide: Payer; splits: SplitDraft[] }): SplitDraft[] {
+  if (draft.paidBySide !== 'custom') return splitsForPayer(draft.paidBySide)
+  const rows = draft.splits.filter(
+    (split) => split.name.trim() && Number(split.pct) > 0 && (split.side === 'bride' || split.side === 'groom'),
+  )
+  if (rows.length === 0) throw new Error(SPLIT_REQUIRED)
+  return rows.map((split) => ({ name: split.name.trim(), pct: Number(split.pct), side: split.side }))
+}
+
 export function splitsForPayer(payer: Payer, custom: SplitDraft[] = []): SplitDraft[] {
   if (payer === 'bride') return [{ name: "Bride's Family", pct: 100, side: 'bride' }]
   if (payer === 'groom') return [{ name: "Groom's Family", pct: 100, side: 'groom' }]

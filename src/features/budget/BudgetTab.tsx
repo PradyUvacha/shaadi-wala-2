@@ -2,25 +2,28 @@ import { useState } from 'react'
 import { Badge, FAB, Field, FormError, MehendiPattern, Modal } from '../../components/ui.tsx'
 import { canEditBudget, canLogPayment, canSeeBudget } from '../../lib/access.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
-import { budgetHeadline, canAddSplit, familySettlement, MAX_BUDGET_AMOUNT, moneyAmountError, otherCurrencyTotals, payerLabel, settlementSummary, splitsForPayer, validateBudgetAmounts } from '../../lib/planning.ts'
+import { budgetHeadline, canAddSplit, defaultPayerForSide, familySettlement, MAX_BUDGET_AMOUNT, moneyAmountError, otherCurrencyTotals, payerLabel, settlementSummary, sideLabel, SPLIT_REQUIRED, splitsForPayer, splitsForSave, validateBudgetAmounts } from '../../lib/planning.ts'
 import { money } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, CURRENCIES } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
+import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
 import type { BudgetDraft, BudgetItem, Category, CurrencyCode, Payer, PartPaymentDraft, PaymentSide } from '../../types.ts'
 import { CATEGORIES, CURRENCY_CODES, PAYERS } from '../../types.ts'
 
-const emptyForm = (): BudgetDraft => ({
-  category: 'Venue',
-  currency: 'INR',
-  estimated: 0,
-  actual: 0,
-  paid: false,
-  notes: '',
-  paidBySide: 'custom',
-  splits: [],
-})
+const emptyForm = (side: 'bride' | 'groom' | null): BudgetDraft => {
+  const paidBySide = defaultPayerForSide(side)
+  return {
+    category: 'Venue',
+    currency: 'INR',
+    estimated: 0,
+    actual: 0,
+    paid: false,
+    notes: '',
+    paidBySide,
+    splits: splitsForPayer(paidBySide),
+  }
+}
 
 export function BudgetTab() {
   const { bundle, mode, saveBudgetItem, deleteBudgetItem, addPayment } = useWedding()
@@ -28,13 +31,15 @@ export function BudgetTab() {
   const seeBudget = mode === 'preview' || canSeeBudget(role)
   const editBudget = mode === 'preview' || canEditBudget(role)
   const logPayment = mode === 'preview' || canLogPayment(role)
+  const creatorSide = bundle?.membership.side ?? null
   const budget = bundle?.budget ?? []
   const [currFilter, setCurrFilter] = useState('All')
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<BudgetItem | null>(null)
   const [payItemId, setPayItemId] = useState<string | null>(null)
   const [payForm, setPayForm] = useState<PartPaymentDraft>({ amount: 0, paidBy: '', paidBySide: '', notes: '', date: '' })
-  const [form, setForm] = useState<BudgetDraft>(emptyForm)
+  const [form, setForm] = useState<BudgetDraft>(() => emptyForm(creatorSide))
+  const [splitSide, setSplitSide] = useState<'bride' | 'groom'>(creatorSide === 'groom' ? 'groom' : 'bride')
   const [splitName, setSplitName] = useState('')
   const [splitPct, setSplitPct] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -47,7 +52,7 @@ export function BudgetTab() {
 
   const openAdd = () => {
     setEditItem(null)
-    setForm(emptyForm())
+    setForm(emptyForm(creatorSide))
     setError(null)
     setModalOpen(true)
   }
@@ -72,6 +77,12 @@ export function BudgetTab() {
       setError(invalid)
       return
     }
+    try {
+      splitsForSave(form)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : SPLIT_REQUIRED)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -89,7 +100,7 @@ export function BudgetTab() {
     setForm((current) => ({
       ...current,
       paidBySide: 'custom',
-      splits: [...current.splits, { name: splitName.trim(), pct, side: '' }],
+      splits: [...current.splits, { name: splitName.trim(), pct, side: splitSide }],
     }))
     setSplitName('')
     setSplitPct('')
@@ -123,7 +134,7 @@ export function BudgetTab() {
   }
 
   return (
-    <div style={{ paddingBottom: screenBottom }}>
+    <div style={{ paddingBottom: listAboveFab }}>
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},#5C0000)`, padding: headerPadding, position: 'relative', overflow: 'hidden' }}>
         <MehendiPattern />
         <div style={{ position: 'relative', zIndex: 1 }}>
@@ -290,6 +301,10 @@ export function BudgetTab() {
           {form.paidBySide === 'custom' && (
             <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
               <input style={{ ...inputStyle, flex: 2 }} value={splitName} onChange={(event) => setSplitName(event.target.value)} placeholder="Name" />
+              <select style={{ ...selectStyle, flex: 1.4 }} aria-label="Split side" value={splitSide} onChange={(event) => setSplitSide(event.target.value === 'groom' ? 'groom' : 'bride')}>
+                <option value="bride">Bride's side</option>
+                <option value="groom">Groom's side</option>
+              </select>
               <input style={{ ...inputStyle, flex: 1 }} type="number" value={splitPct} onChange={(event) => setSplitPct(event.target.value)} placeholder="%" />
               <button type="button" onClick={addSplit} style={{ padding: '10px 14px', borderRadius: 10, background: COLORS.saffron, border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>+</button>
             </div>
@@ -297,7 +312,7 @@ export function BudgetTab() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {form.splits.map((split, index) => (
               <div key={`${split.name}-${index}`} style={{ background: `${COLORS.saffron}22`, border: `1px solid ${COLORS.saffron}55`, borderRadius: 99, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: COLORS.saffron, display: 'flex', gap: 6, alignItems: 'center' }}>
-                {split.name} {split.pct}%
+                {split.name} {split.pct}%{split.side === 'bride' || split.side === 'groom' ? ` · ${sideLabel(split.side)}` : ''}
                 {form.paidBySide === 'custom' && (
                   <button type="button" aria-label="Remove split" onClick={() => setForm((current) => ({ ...current, splits: current.splits.filter((_, splitIndex) => splitIndex !== index) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#AA5500', fontSize: 12 }}>×</button>
                 )}

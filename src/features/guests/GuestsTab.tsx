@@ -5,7 +5,7 @@ import { canEditGuests } from '../../lib/access.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
+import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
 import type { Guest, GuestDraft, RsvpStatus } from '../../types.ts'
 import { MEALS, RSVP_STATUSES } from '../../types.ts'
 import { rsvpBySideEnabled } from '../onboarding/flag.ts'
@@ -80,7 +80,7 @@ export function GuestsTab() {
   const SideField = rsvp?.RsvpSideField
 
   return (
-    <div style={{ paddingBottom: screenBottom }}>
+    <div style={{ paddingBottom: listAboveFab }}>
       <div style={{ background: `linear-gradient(135deg,#4A1060,${COLORS.crimson})`, padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 12 }}>👥 Guest List</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>

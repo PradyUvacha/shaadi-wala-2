@@ -123,8 +123,11 @@ export const DEMO_BUDGET: BudgetDraft[] = [
     actual: 2800,
     paid: false,
     notes: 'Lehenga + Sherwani',
-    paidBySide: 'custom',
-    splits: [],
+    paidBySide: 'both',
+    splits: [
+      { name: "Bride's Family", pct: 50, side: 'bride' },
+      { name: "Groom's Family", pct: 50, side: 'groom' },
+    ],
     partPayments: [],
   },
   {
@@ -134,8 +137,11 @@ export const DEMO_BUDGET: BudgetDraft[] = [
     actual: 22000,
     paid: true,
     notes: '500 cards printed',
-    paidBySide: 'custom',
-    splits: [],
+    paidBySide: 'both',
+    splits: [
+      { name: "Bride's Family", pct: 50, side: 'bride' },
+      { name: "Groom's Family", pct: 50, side: 'groom' },
+    ],
     partPayments: [],
   },
   {
@@ -145,8 +151,11 @@ export const DEMO_BUDGET: BudgetDraft[] = [
     actual: 65000,
     paid: false,
     notes: 'Pandit, transportation, misc',
-    paidBySide: 'custom',
-    splits: [],
+    paidBySide: 'both',
+    splits: [
+      { name: "Bride's Family", pct: 50, side: 'bride' },
+      { name: "Groom's Family", pct: 50, side: 'groom' },
+    ],
     partPayments: [],
   },
 ]
