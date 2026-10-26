@@ -13,7 +13,7 @@ import type { Side } from '../../types.ts'
 export function CreateWeddingScreen() {
   const navigate = useNavigate()
   const { session } = useAuth()
-  const { createWedding } = useWedding()
+  const { createWedding, notice, clearNotice } = useWedding()
   const [displayName, setDisplayName] = useState(displayNameFromUser(session?.user))
   const [coupleNames, setCoupleNames] = useState('')
   const [weddingDate, setWeddingDate] = useState('')
@@ -51,6 +51,12 @@ export function CreateWeddingScreen() {
       <MehendiPattern />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 440, margin: '0 auto' }}>
         <button type="button" onClick={() => navigate('/profile/settings')} style={{ background: 'transparent', border: 'none', color: COLORS.lightGold, fontWeight: 700, cursor: 'pointer', padding: 0 }}>Settings</button>
+        {notice && (
+          <p style={{ background: '#FFF3E0', color: '#5A3010', borderRadius: 12, padding: 12, fontSize: 14 }}>
+            {notice}
+            <button type="button" onClick={clearNotice} style={{ marginLeft: 8, background: 'none', border: 'none', color: COLORS.crimson, fontWeight: 700, cursor: 'pointer' }}>Dismiss</button>
+          </p>
+        )}
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: '#fff', fontSize: 32, margin: '18px 0 8px' }}>Create the wedding</h1>
         <p style={{ color: 'rgba(255,255,255,0.85)', marginTop: 0 }}>You join as the bride or the groom. Then invite the other partner, parents, friends, and a planner. They pick their role and side from the invite.</p>
         <div style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 20, padding: 20 }}>

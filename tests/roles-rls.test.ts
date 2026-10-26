@@ -220,6 +220,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026250000_members_assignment.sql`)
   file(`${root}supabase/migrations/20261026260000_price_answer_leave.sql`)
   file(`${root}supabase/migrations/20261026260000_price_answer_leave.sql`)
+  file(`${root}supabase/migrations/20261026270000_member_realtime.sql`)
+  file(`${root}supabase/migrations/20261026270000_member_realtime.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -477,6 +479,9 @@ describe('approved role permissions', () => {
     expect(psql(`select relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = 'tasks';`).trim()).toBe('f')
     expect(psql(`select relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = 'wedding_functions';`).trim()).toBe('f')
     expect(psql(`select string_agg(tablename, ',' order by tablename) from pg_publication_tables where pubname = 'supabase_realtime' and tablename in ('tasks', 'wedding_functions');`).trim()).toBe('tasks,wedding_functions')
+    expect(psql(`select relreplident from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname = 'wedding_members';`).trim()).toBe('f')
+    expect(psql(`select count(*) from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'wedding_members';`).trim()).toBe('1')
+    expect(asUser(friend, `select count(*) from public.wedding_members where user_id = '${friend}';`)).toBe('1')
     expect(psql(`select community from public.weddings where couple_names = 'Role Fixture';`).trim()).toBe('hindu')
     expect(psql(`select string_agg(name, ',' order by position) from public.wedding_functions where wedding_id = ${wedding};`).trim()).toBe('Roka,Sagai,Haldi,Mehendi,Sangeet,Wedding,Vidaai,Reception')
     expect(psql(`select count(*) from public.tasks where wedding_id = ${wedding} and template_title is not null;`).trim()).toBe('53')

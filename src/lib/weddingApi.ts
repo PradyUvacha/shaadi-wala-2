@@ -19,7 +19,7 @@ import type {
 } from '../types.ts'
 import { rosterDisplayName } from './access.ts'
 import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
-import { assertNoError } from './errors.ts'
+import { assertNoError, DeletedItemError, throwIfWriteMissed, type RowGuard } from './errors.ts'
 import { splitsForSave } from './planning.ts'
 import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
 import {
@@ -166,7 +166,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(profileUpdate.error)
   }
 
-  async function saveTask(weddingId: string, draft: TaskDraft, id?: string): Promise<Task> {
+  async function saveTask(weddingId: string, draft: TaskDraft, id?: string, guard?: RowGuard): Promise<Task> {
     const placed = await placeTask(weddingId, draft, id)
     if (placed.functionId) {
       const siblings = await client.from('tasks').select('id, title').eq('function_id', placed.functionId)
@@ -182,9 +182,11 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       if (clash) throw new Error(DUPLICATE_RITUAL_MESSAGE)
     }
     if (id) {
-      const { data, error } = await client.from('tasks').update(taskUpdate(placed)).eq('id', id).select('*').single()
-      assertNoError(error)
-      return mapTask(asRecord(data))
+      const updated = await requireUpdatedRow(
+        withGuard(client.from('tasks').update(taskUpdate(placed)).eq('id', id), guard).select('*').maybeSingle(),
+        () => client.from('tasks').select('id').eq('id', id).maybeSingle(),
+      )
+      return mapTask(asRecord(updated))
     }
     const sortOrder = (await maxSort(weddingId)) + 1
     const { data, error } = await client.from('tasks').insert(taskInsert(weddingId, placed, sortOrder)).select('*').single()
@@ -212,10 +214,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function saveBudgetItem(weddingId: string, draft: BudgetDraft, id?: string): Promise<BudgetItem> {
     const payload = budgetInsert(weddingId, draft)
     const saved = id
-      ? await client.from('budget_items').update(payload).eq('id', id).select('id').single()
-      : await client.from('budget_items').insert(payload).select('id').single()
-    assertNoError(saved.error)
-    const itemId = String(asRecord(saved.data).id)
+      ? await requireUpdatedRow(
+          client.from('budget_items').update(payload).eq('id', id).select('id').maybeSingle(),
+          () => client.from('budget_items').select('id').eq('id', id).maybeSingle(),
+        )
+      : await client.from('budget_items').insert(payload).select('id').single().then((result) => {
+          assertNoError(result.error)
+          return result.data
+        })
+    const itemId = String(asRecord(saved).id)
     const cleared = await client.from('budget_splits').delete().eq('budget_item_id', itemId)
     assertNoError(cleared.error)
     const splits = splitsForSave(draft)
@@ -244,10 +251,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function saveGuest(weddingId: string, draft: GuestDraft, id?: string) {
     const payload = guestInsert(weddingId, draft)
     const saved = id
-      ? await client.from('guests').update(payload).eq('id', id).select('*').single()
-      : await client.from('guests').insert(payload).select('*').single()
-    assertNoError(saved.error)
-    return mapGuest(asRecord(saved.data))
+      ? await requireUpdatedRow(
+          client.from('guests').update(payload).eq('id', id).select('*').maybeSingle(),
+          () => client.from('guests').select('id').eq('id', id).maybeSingle(),
+        )
+      : await client.from('guests').insert(payload).select('*').single().then((result) => {
+          assertNoError(result.error)
+          return result.data
+        })
+    return mapGuest(asRecord(saved))
   }
 
   async function deleteGuest(id: string): Promise<void> {
@@ -258,10 +270,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function saveMilestone(weddingId: string, draft: MilestoneDraft, id?: string) {
     const payload = milestoneInsert(weddingId, draft)
     const saved = id
-      ? await client.from('timeline_events').update(payload).eq('id', id).select('*').single()
-      : await client.from('timeline_events').insert(payload).select('*').single()
-    assertNoError(saved.error)
-    return mapMilestone(asRecord(saved.data))
+      ? await requireUpdatedRow(
+          client.from('timeline_events').update(payload).eq('id', id).select('*').maybeSingle(),
+          () => client.from('timeline_events').select('id').eq('id', id).maybeSingle(),
+        )
+      : await client.from('timeline_events').insert(payload).select('*').single().then((result) => {
+          assertNoError(result.error)
+          return result.data
+        })
+    return mapMilestone(asRecord(saved))
   }
 
   async function deleteMilestone(id: string): Promise<void> {
@@ -285,18 +302,20 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return insertFunction(weddingId, trimmed)
   }
 
-  async function renameFunction(id: string, name: string): Promise<void> {
+  async function renameFunction(id: string, name: string, guard?: RowGuard): Promise<void> {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name the function.')
     const current = await client.from('wedding_functions').select('id, wedding_id, name').eq('id', id).maybeSingle()
     assertNoError(current.error)
-    if (!current.data) return
+    if (!current.data) throwIfWriteMissed(null, false)
     const record = asRecord(current.data)
     const weddingId = String(record.wedding_id)
     const existing = await findFunctionByName(weddingId, trimmed)
     if (existing && existing.id !== id) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
-    const { error } = await client.from('wedding_functions').update({ name: trimmed }).eq('id', id)
-    assertNoError(error)
+    await requireUpdatedRow(
+      withGuard(client.from('wedding_functions').update({ name: trimmed }).eq('id', id), guard).select('id').maybeSingle(),
+      () => client.from('wedding_functions').select('id').eq('id', id).maybeSingle(),
+    )
   }
 
   async function deleteFunction(id: string): Promise<void> {
@@ -417,7 +436,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function loadFunctions(weddingId: string): Promise<WeddingFunction[]> {
     const { data, error } = await client
       .from('wedding_functions')
-      .select('id, name, position')
+      .select('id, name, position, updated_at')
       .eq('wedding_id', weddingId)
       .order('position')
     assertNoError(error)
@@ -443,7 +462,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const inserted = await client
       .from('wedding_functions')
       .insert({ wedding_id: weddingId, name, position: Number(top.data?.position ?? 0) + 1 })
-      .select('id, name, position')
+      .select('id, name, position, updated_at')
       .single()
     assertNoError(inserted.error)
     return mapFunction(asRecord(inserted.data))
@@ -577,5 +596,23 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const { data, error } = await client.from('budget_items').select(BUDGET_SELECT).eq('id', id).single()
     assertNoError(error)
     return mapBudgetItem(asRecord(data))
+  }
+
+  function withGuard<Q extends { eq: (column: string, value: string) => Q }>(query: Q, guard?: RowGuard): Q {
+    if (guard?.updatedAt && !guard.overwrite) return query.eq('updated_at', guard.updatedAt)
+    return query
+  }
+
+  async function requireUpdatedRow<T>(
+    saved: PromiseLike<{ data: T | null; error: { message: string; code?: string; details?: string | null } | null }>,
+    stillThere: () => PromiseLike<{ data: unknown; error: { message: string; code?: string; details?: string | null } | null }>,
+  ): Promise<T> {
+    const result = await saved
+    assertNoError(result.error)
+    if (result.data) return result.data
+    const still = await stillThere()
+    assertNoError(still.error)
+    throwIfWriteMissed(result.data, Boolean(still.data))
+    throw new DeletedItemError()
   }
 }

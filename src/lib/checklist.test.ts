@@ -48,7 +48,7 @@ function openWedding(): WeddingBundle {
     membership: { id: 'm1', role: 'family', side: 'bride', displayName: 'Parent' },
     displayName: 'Parent',
     members: [],
-    functions: [{ id: 'fn-roka', name: 'Roka', position: 1 }],
+    functions: [{ id: 'fn-roka', name: 'Roka', position: 1, updatedAt: '2026-10-26T00:00:00Z' }],
     tasks: [{
       id: 't1',
       title: 'Roka Ceremony',
@@ -64,6 +64,7 @@ function openWedding(): WeddingBundle {
       position: 1,
       assignedTo: null,
       side: null,
+      updatedAt: '2026-10-26T00:00:00Z',
     }],
     budget: [],
     guests: [],

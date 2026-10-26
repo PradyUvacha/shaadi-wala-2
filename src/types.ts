@@ -61,12 +61,14 @@ export type Task = {
   position: number
   assignedTo: string | null
   side: Side | null
+  updatedAt: string
 }
 
 export type WeddingFunction = {
   id: string
   name: string
   position: number
+  updatedAt: string
 }
 
 export type WeddingMember = {

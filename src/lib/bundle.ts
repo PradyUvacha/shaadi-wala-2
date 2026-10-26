@@ -120,7 +120,7 @@ function ensureFunction(bundle: WeddingBundle, name: string): { bundle: WeddingB
   const existing = bundle.functions.find((fn) => sameFunctionName(fn.name, trimmed))
   if (existing) return { bundle, fn: existing }
   const position = bundle.functions.reduce((max, fn) => Math.max(max, fn.position), 0) + 1
-  const fn: WeddingFunction = { id: uid(), name: trimmed, position }
+  const fn: WeddingFunction = { id: uid(), name: trimmed, position, updatedAt: '' }
   return { bundle: { ...bundle, functions: [...bundle.functions, fn] }, fn }
 }
 
@@ -222,6 +222,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
       position: moved ? nextTaskPosition(base, fn.id) : (draft.position ?? current.position),
       assignedTo: draft.assignedTo === undefined ? current.assignedTo : (draft.assignedTo || null),
       side: current.side ?? null,
+      updatedAt: current.updatedAt,
     }
     return { ...base, tasks: base.tasks.map((task) => (task.id === id ? next : task)) }
   }
@@ -241,6 +242,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
     position: draft.position ?? nextTaskPosition(base, fn.id),
     assignedTo: draft.assignedTo || null,
     side: null,
+    updatedAt: '',
   }
   return { ...base, tasks: [...base.tasks, task] }
 }
@@ -378,14 +380,15 @@ export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
     position: Number.isFinite(task.position) ? task.position : task.sortOrder,
     assignedTo: task.assignedTo ?? null,
     side: task.side === 'bride' || task.side === 'groom' ? task.side : null,
+    updatedAt: task.updatedAt ?? '',
   }))
-  let functions = Array.isArray(bundle.functions) ? bundle.functions.map((fn) => ({ ...fn })) : []
+  let functions = Array.isArray(bundle.functions) ? bundle.functions.map((fn) => ({ ...fn, updatedAt: fn.updatedAt ?? '' })) : []
   if (functions.length === 0 && tasks.length > 0) {
     const names: string[] = []
     for (const task of [...tasks].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))) {
       if (!names.includes(task.ceremony)) names.push(task.ceremony)
     }
-    functions = names.map((name, index) => ({ id: `function-${index + 1}`, name, position: index + 1 }))
+    functions = names.map((name, index) => ({ id: `function-${index + 1}`, name, position: index + 1, updatedAt: '' }))
   }
   const byName = new Map(functions.map((fn) => [fn.name, fn.id]))
   for (const task of tasks) {

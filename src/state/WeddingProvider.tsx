@@ -25,7 +25,8 @@ import {
   withTask,
 } from '../lib/bundle.ts'
 import { acceptsChecklistChange, applyChecklistChange, subscribeWeddingChecklist } from '../lib/checklist.ts'
-import { toErrorMessage } from '../lib/errors.ts'
+import { toErrorMessage, type RowGuard } from '../lib/errors.ts'
+import { LEFT_WEDDING_MESSAGE, membershipAccessChanged, subscribeOwnMembership } from '../lib/membershipSync.ts'
 import { readPreview, writePreview } from '../lib/preview.ts'
 import { supabase } from '../lib/supabase.ts'
 import type { createWeddingApi } from '../lib/weddingApi.ts'
@@ -98,6 +99,18 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     }
   }, [session, userId, reloadKey])
 
+  const leaveOpenWedding = useCallback((message: string) => {
+    bundleRef.current = null
+    modeRef.current = userId ? 'remote' : null
+    if (!userId) {
+      writePreview(null)
+      setPreview(null)
+      return
+    }
+    setRemote({ userId, bundle: null, error: null })
+    setNotice(message)
+  }, [userId])
+
   const commit = useCallback((next: WeddingBundle) => {
     bundleRef.current = next
     if (!userId) {
@@ -119,6 +132,31 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       commit(applyChecklistChange(current, change))
     })
   }, [mode, bundle?.wedding.id, commit, userId])
+
+  useEffect(() => {
+    if (!supabase || mode !== 'remote' || !userId || !bundle?.wedding.id) return
+    return subscribeOwnMembership(supabase, userId, (event) => {
+      const current = bundleRef.current
+      if (!current) return
+      if (event.type === 'removed') {
+        leaveOpenWedding(LEFT_WEDDING_MESSAGE)
+        return
+      }
+      if (!membershipAccessChanged(current.membership, event)) return
+      const api = apiRef.current
+      if (!api) return
+      void api.getMine().then((next) => {
+        if (!bundleRef.current || bundleRef.current.wedding.id !== current.wedding.id) return
+        if (!next) {
+          leaveOpenWedding(LEFT_WEDDING_MESSAGE)
+          return
+        }
+        commit(next)
+      }).catch((caught: unknown) => {
+        setNotice(toErrorMessage(caught))
+      })
+    })
+  }, [mode, userId, bundle?.wedding.id, commit, leaveOpenWedding])
 
   const requireBundle = useCallback(() => {
     const current = bundleRef.current
@@ -173,6 +211,18 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       setRemote(null)
       setReloadKey((current) => current + 1)
     },
+    refreshWedding: async () => {
+      const current = bundleRef.current
+      const api = apiRef.current
+      if (!api || modeRef.current !== 'remote' || !current) return current
+      const next = await api.getMine()
+      if (!next) {
+        leaveOpenWedding(LEFT_WEDDING_MESSAGE)
+        return null
+      }
+      commit(next)
+      return next
+    },
     startPreview: () => {
       const next = createDemoBundle({ side: 'bride', displayName: 'Guest' })
       modeRef.current = 'preview'
@@ -203,7 +253,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       if (modeRef.current === 'remote') await apiRef.current?.updateSettings(current, settings)
       commit(updateBundleSettings(requireBundle(), settings))
     },
-    saveTask: async (draft: TaskDraft, id?: string) => {
+    saveTask: async (draft: TaskDraft, id?: string, guard?: RowGuard) => {
       const current = requireTaskWriter()
       const first = !id && current.tasks.length === 0
       if (modeRef.current === 'preview' || !apiRef.current) {
@@ -211,7 +261,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
         if (first) track('first_task_added')
         return
       }
-      const saved = await apiRef.current.saveTask(current.wedding.id, draft, id)
+      const saved = await apiRef.current.saveTask(current.wedding.id, draft, id, guard)
       const next = await pullChecklist(withTask(requireBundle(), saved))
       commit(next)
       if (first) track('first_task_added')
@@ -235,17 +285,22 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       if (modeRef.current === 'preview' || !apiRef.current) {
         commit(saveTaskDraft(current, draft, task.id))
       } else {
-        const saved = await apiRef.current.saveTask(current.wedding.id, draft, task.id)
+        const saved = await apiRef.current.saveTask(
+          current.wedding.id,
+          draft,
+          task.id,
+          task.updatedAt ? { updatedAt: task.updatedAt } : undefined,
+        )
         commit(withTask(requireBundle(), saved))
       }
     },
-    saveFunction: async (name: string, id?: string) => {
+    saveFunction: async (name: string, id?: string, guard?: RowGuard) => {
       const current = requireChecklist()
       if (modeRef.current === 'preview' || !apiRef.current) {
         commit(id ? renameFunction(current, id, name) : addFunction(current, name))
         return
       }
-      if (id) await apiRef.current.renameFunction(id, name)
+      if (id) await apiRef.current.renameFunction(id, name, guard)
       else await apiRef.current.addFunction(current.wedding.id, name)
       commit(await pullChecklist(requireBundle()))
     },
@@ -373,8 +428,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       if (modeRef.current === 'remote') {
         if (!apiRef.current || !userId) throw new Error('Sign in before leaving a wedding.')
         await apiRef.current.leaveWedding(current.wedding.id)
-        bundleRef.current = null
-        setRemote({ userId, bundle: null, error: null })
+        leaveOpenWedding(LEFT_WEDDING_MESSAGE)
         return
       }
       modeRef.current = null
@@ -397,7 +451,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       }
       commit(removeMemberFromBundle(requireBundle(), memberId))
     },
-  }), [bundle, commit, error, mode, notice, pullChecklist, ready, requireBundle, requireChecklist, requireEditor, requireTaskWriter, userId])
+  }), [bundle, commit, error, leaveOpenWedding, mode, notice, pullChecklist, ready, requireBundle, requireChecklist, requireEditor, requireTaskWriter, userId])
 
   return <WeddingContext.Provider value={value}>{children}</WeddingContext.Provider>
 }

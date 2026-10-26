@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { RowGuard } from '../lib/errors.ts'
 import type {
   BudgetDraft,
   CreateWeddingInput,
@@ -27,14 +28,15 @@ export type WeddingContextValue = {
   clearNotice: () => void
   clearError: () => void
   reload: () => void
+  refreshWedding: () => Promise<WeddingBundle | null>
   startPreview: () => void
   leavePreview: () => void
   createWedding: (input: CreateWeddingInput) => Promise<void>
   updateSettings: (settings: WeddingSettings) => Promise<void>
-  saveTask: (draft: TaskDraft, id?: string) => Promise<void>
+  saveTask: (draft: TaskDraft, id?: string, guard?: RowGuard) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
-  saveFunction: (name: string, id?: string) => Promise<void>
+  saveFunction: (name: string, id?: string, guard?: RowGuard) => Promise<void>
   deleteFunction: (id: string) => Promise<void>
   moveFunction: (id: string, direction: -1 | 1) => Promise<void>
   moveTask: (id: string, direction: -1 | 1) => Promise<void>

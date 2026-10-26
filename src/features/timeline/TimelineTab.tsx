@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { canEditTimeline } from '../../lib/access.ts'
-import { toErrorMessage } from '../../lib/errors.ts'
+import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { formatDate } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
@@ -13,7 +13,7 @@ import { MILESTONE_STATUSES } from '../../types.ts'
 const emptyForm = (): MilestoneDraft => ({ name: '', date: '', status: 'Upcoming', description: '' })
 
 export function TimelineTab() {
-  const { bundle, mode, saveMilestone, deleteMilestone, toggleMilestone } = useWedding()
+  const { bundle, mode, saveMilestone, deleteMilestone, toggleMilestone, refreshWedding } = useWedding()
   const canEdit = mode === 'preview' || canEditTimeline(bundle?.membership.role)
   const milestones = bundle?.milestones ?? []
   const [modalOpen, setModalOpen] = useState(false)
@@ -46,6 +46,14 @@ export function TimelineTab() {
       await saveMilestone(form, editMilestone?.id)
       setModalOpen(false)
     } catch (caught) {
+      const failure = saveErrorPresentation(caught)
+      if (failure.kind === 'deleted') {
+        setModalOpen(false)
+        setEditMilestone(null)
+        setError(DELETED_ITEM_MESSAGE)
+        await refreshWedding()
+        return
+      }
       setError(toErrorMessage(caught))
     } finally {
       setBusy(false)

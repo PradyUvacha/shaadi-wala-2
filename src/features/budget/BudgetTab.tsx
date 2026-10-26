@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge, FAB, Field, FormError, MehendiPattern, Modal } from '../../components/ui.tsx'
 import { canEditBudget, canLogPayment, canSeeBudget } from '../../lib/access.ts'
-import { toErrorMessage } from '../../lib/errors.ts'
+import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { budgetHeadline, canAddSplit, defaultPayerForSide, familySettlement, MAX_BUDGET_AMOUNT, moneyAmountError, otherCurrencyTotals, payerLabel, settlementSummary, sideLabel, SPLIT_REQUIRED, splitsForPayer, splitsForSave, validateBudgetAmounts } from '../../lib/planning.ts'
 import { money } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
@@ -26,7 +26,7 @@ const emptyForm = (side: 'bride' | 'groom' | null): BudgetDraft => {
 }
 
 export function BudgetTab() {
-  const { bundle, mode, saveBudgetItem, deleteBudgetItem, addPayment } = useWedding()
+  const { bundle, mode, saveBudgetItem, deleteBudgetItem, addPayment, refreshWedding } = useWedding()
   const role = bundle?.membership.role
   const seeBudget = mode === 'preview' || canSeeBudget(role)
   const editBudget = mode === 'preview' || canEditBudget(role)
@@ -89,6 +89,14 @@ export function BudgetTab() {
       await saveBudgetItem(form, editItem?.id)
       setModalOpen(false)
     } catch (caught) {
+      const failure = saveErrorPresentation(caught)
+      if (failure.kind === 'deleted') {
+        setModalOpen(false)
+        setEditItem(null)
+        setError(DELETED_ITEM_MESSAGE)
+        await refreshWedding()
+        return
+      }
       setError(toErrorMessage(caught))
     } finally {
       setBusy(false)
@@ -169,6 +177,7 @@ export function BudgetTab() {
 
       <Settlement items={budget} />
 
+      {error && !modalOpen && !payItemId && <div style={{ padding: '0 16px 8px' }}><FormError message={error} /></div>}
       <div style={{ padding: '0 16px' }}>
         {filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>

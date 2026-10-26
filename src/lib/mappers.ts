@@ -22,6 +22,7 @@ export function mapTask(row: Record<string, unknown>): Task {
     position: row.position == null ? Number(row.sort_order ?? 0) : Number(row.position),
     assignedTo: row.assigned_to ? String(row.assigned_to) : null,
     side: row.side === 'bride' || row.side === 'groom' ? row.side : null,
+    updatedAt: row.updated_at ? String(row.updated_at) : '',
   }
 }
 
@@ -30,6 +31,7 @@ export function mapFunction(row: Record<string, unknown>): WeddingFunction {
     id: String(row.id),
     name: String(row.name ?? ''),
     position: Number(row.position ?? 0),
+    updatedAt: row.updated_at ? String(row.updated_at) : '',
   }
 }
 

@@ -25,7 +25,7 @@ describe('app.config.json', () => {
 
   it('follows SW_<version>_<key features>_<date> and keeps versionCode an integer', () => {
     expect(appConfig.versionName).toBe('SW_0.1_FoundationOAuthMixpanel_03Nov26')
-    expect(appConfig.versionCode).toBe(5)
+    expect(appConfig.versionCode).toBe(6)
     expect(isValidVersionName(appConfig.versionName)).toBe(true)
     expect(isValidVersionName('SW_1.0_Checklist-Budget-Guests_2026-11-17')).toBe(true)
     const appSource = readFileSync(new URL('../src/config/app.ts', import.meta.url), 'utf8')
@@ -98,6 +98,7 @@ describe('starter checklist migration', () => {
     expect(readme).toContain('26 Oct 2026 permissions matrix is final')
     expect(readme).toContain('20261026250000_members_assignment.sql')
     expect(readme).toContain('20261026260000_price_answer_leave.sql')
+    expect(readme).toContain('20261026270000_member_realtime.sql')
     expect(sql).toContain('can_edit_wedding')
     expect(sql).toContain("'viewer'")
     expect(sql).toContain('accept_invite')
@@ -224,7 +225,12 @@ describe('v1 product paths', () => {
 
   it('keeps Android target SDK 36 and pads for edge-to-edge safe areas', () => {
     const gradle = readFileSync(new URL('../android/variables.gradle', import.meta.url), 'utf8')
-    expect(gradle).toContain('targetSdkVersion = 36')
+    const targetSdk = gradle.match(/targetSdkVersion = (\d+)/)?.[1]
+    expect(targetSdk).toBe('36')
+    const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
+    expect(readme).toContain(`targets SDK ${targetSdk}`)
+    expect(readme).not.toContain('target SDK 35')
+    expect(readme).not.toContain('targets SDK 35')
     const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
     expect(css).toContain('--safe-area-inset-top')
     expect(css).toContain('--safe-area-inset-bottom')

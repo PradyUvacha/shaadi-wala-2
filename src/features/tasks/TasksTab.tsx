@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { assignableMembers, canEditChecklist, canManageTasks, unassignedSideGroups } from '../../lib/access.ts'
 import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
-import { toErrorMessage } from '../../lib/errors.ts'
+import { DELETED_ITEM_MESSAGE, STALE_WRITE_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS } from '../../styles/tokens.ts'
@@ -24,7 +24,7 @@ const emptyForm = (fn?: WeddingFunction): TaskDraft => ({
 })
 
 export function TasksTab() {
-  const { bundle, mode, saveTask, deleteTask, toggleTask, saveFunction, deleteFunction, moveFunction, moveTask } = useWedding()
+  const { bundle, mode, saveTask, deleteTask, toggleTask, saveFunction, deleteFunction, moveFunction, moveTask, refreshWedding } = useWedding()
   const role = bundle?.membership.role
   const canEdit = mode === 'preview' || canManageTasks(role)
   const canStructure = mode === 'preview' || canEditChecklist(role)
@@ -40,7 +40,10 @@ export function TasksTab() {
   const [form, setForm] = useState<TaskDraft>(emptyForm())
   const [newFunction, setNewFunction] = useState(false)
   const [functionName, setFunctionName] = useState('')
-  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string } | null>(null)
+  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string; updatedAt: string } | null>(null)
+  const [loadedTaskAt, setLoadedTaskAt] = useState('')
+  const [taskConflict, setTaskConflict] = useState(false)
+  const [functionConflict, setFunctionConflict] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<WeddingFunction | null>(null)
   const [pendingRitual, setPendingRitual] = useState<Task | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -78,10 +81,13 @@ export function TasksTab() {
     setNewFunction(functions.length === 0 && canStructure)
     setFunctionName('')
     setError(null)
+    setTaskConflict(false)
     setModalOpen(true)
   }
   const openEdit = (task: Task) => {
     setEditTask(task)
+    setLoadedTaskAt(task.updatedAt)
+    setTaskConflict(false)
     setForm({
       title: task.title,
       description: task.description,
@@ -99,7 +105,7 @@ export function TasksTab() {
     setError(null)
     setModalOpen(true)
   }
-  const save = async () => {
+  const save = async (overwrite = false) => {
     const ceremony = newFunction ? functionName.trim() : form.ceremony.trim()
     if (!form.title.trim()) {
       setError('Add a title.')
@@ -119,8 +125,67 @@ export function TasksTab() {
           functionId: newFunction ? null : form.functionId,
         },
         editTask?.id,
+        editTask ? { updatedAt: loadedTaskAt, overwrite } : undefined,
       )
+      setTaskConflict(false)
       setModalOpen(false)
+    } catch (caught) {
+      const failure = saveErrorPresentation(caught)
+      if (failure.kind === 'deleted') {
+        setTaskConflict(false)
+        setModalOpen(false)
+        setEditTask(null)
+        setError(DELETED_ITEM_MESSAGE)
+        await refreshWedding()
+        return
+      }
+      if (failure.kind === 'stale') {
+        setTaskConflict(true)
+        setError(null)
+        return
+      }
+      setError(failure.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+  const reloadTask = async () => {
+    if (!editTask) return
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await refreshWedding()
+      const latest = next?.tasks.find((task) => task.id === editTask.id)
+      if (!latest) {
+        setModalOpen(false)
+        setEditTask(null)
+        setTaskConflict(false)
+        setError(DELETED_ITEM_MESSAGE)
+        return
+      }
+      openEdit(latest)
+    } catch (caught) {
+      setError(toErrorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const reloadFunction = async () => {
+    if (!functionEditor?.id) return
+    const editorId = functionEditor.id
+    setBusy(true)
+    setError(null)
+    try {
+      const next = await refreshWedding()
+      const latest = next?.functions.find((fn) => fn.id === editorId)
+      if (!latest) {
+        setFunctionEditor(null)
+        setFunctionConflict(false)
+        setError(DELETED_ITEM_MESSAGE)
+        return
+      }
+      setFunctionEditor({ id: latest.id, name: latest.name, updatedAt: latest.updatedAt })
+      setFunctionConflict(false)
     } catch (caught) {
       setError(toErrorMessage(caught))
     } finally {
@@ -136,7 +201,7 @@ export function TasksTab() {
       setError(toErrorMessage(caught))
     }
   }
-  const saveFunctionName = async () => {
+  const saveFunctionName = async (overwrite = false) => {
     const name = functionEditor?.name.trim() ?? ''
     if (!name) {
       setError('Name the function.')
@@ -145,10 +210,28 @@ export function TasksTab() {
     setBusy(true)
     setError(null)
     try {
-      await saveFunction(name, functionEditor?.id ?? undefined)
+      await saveFunction(
+        name,
+        functionEditor?.id ?? undefined,
+        functionEditor?.id ? { updatedAt: functionEditor.updatedAt, overwrite } : undefined,
+      )
+      setFunctionConflict(false)
       setFunctionEditor(null)
     } catch (caught) {
-      setError(toErrorMessage(caught))
+      const failure = saveErrorPresentation(caught)
+      if (failure.kind === 'deleted') {
+        setFunctionConflict(false)
+        setFunctionEditor(null)
+        setError(DELETED_ITEM_MESSAGE)
+        await refreshWedding()
+        return
+      }
+      if (failure.kind === 'stale') {
+        setFunctionConflict(true)
+        setError(null)
+        return
+      }
+      setError(failure.message)
     } finally {
       setBusy(false)
     }
@@ -234,7 +317,7 @@ export function TasksTab() {
 
       {canStructure && (
         <div style={{ margin: '12px 16px 0' }}>
-          <button type="button" onClick={() => { setError(null); setFunctionEditor({ id: null, name: '' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.gold}`, background: 'transparent', color: COLORS.crimson, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.gold}`, background: 'transparent', color: COLORS.crimson, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
             Add function
           </button>
         </div>
@@ -277,7 +360,7 @@ export function TasksTab() {
                           <button type="button" aria-label={`Move ${fn.name} down`} onClick={() => void moveFunction(fn.id, 1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↓</button>
                         </>
                       )}
-                      <button type="button" aria-label={`Rename ${fn.name}`} onClick={() => { setError(null); setFunctionEditor({ id: fn.id, name: fn.name }) }} style={iconButton}>✏️</button>
+                      <button type="button" aria-label={`Rename ${fn.name}`} onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt }) }} style={iconButton}>✏️</button>
                       <button type="button" aria-label={`Delete ${fn.name}`} onClick={() => { setError(null); setPendingDelete(fn) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
                     </div>
                   )}
@@ -302,9 +385,13 @@ export function TasksTab() {
         <Field label="Function name">
           <input style={inputStyle} value={functionEditor?.name ?? ''} onChange={(event) => setFunctionEditor((current) => current ? { ...current, name: event.target.value } : current)} placeholder="Tilak" />
         </Field>
-        <button type="button" disabled={busy} onClick={() => void saveFunctionName()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
-          {busy ? 'Saving…' : functionEditor?.id ? 'Rename' : 'Add function'}
-        </button>
+        {functionConflict ? (
+          <ConflictChoices busy={busy} onReload={() => void reloadFunction()} onOverwrite={() => void saveFunctionName(true)} />
+        ) : (
+          <button type="button" disabled={busy} onClick={() => void saveFunctionName()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
+            {busy ? 'Saving…' : functionEditor?.id ? 'Rename' : 'Add function'}
+          </button>
+        )}
       </Modal>
 
       <Modal open={pendingDelete !== null} onClose={() => setPendingDelete(null)} title="Remove function">
@@ -396,10 +483,30 @@ export function TasksTab() {
         <Field label="Due Date">
           <input style={inputStyle} type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
         </Field>
-        <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
-          {busy ? 'Saving…' : editTask ? 'Save Changes' : 'Add Task'}
-        </button>
+        {taskConflict ? (
+          <ConflictChoices busy={busy} onReload={() => void reloadTask()} onOverwrite={() => void save(true)} />
+        ) : (
+          <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
+            {busy ? 'Saving…' : editTask ? 'Save Changes' : 'Add Task'}
+          </button>
+        )}
       </Modal>
+    </div>
+  )
+}
+
+function ConflictChoices({ busy, onReload, onOverwrite }: { busy: boolean; onReload: () => void; onOverwrite: () => void }) {
+  return (
+    <div>
+      <p style={{ color: '#8B0000', fontSize: 13, margin: '8px 0' }}>{STALE_WRITE_MESSAGE}</p>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" disabled={busy} onClick={onReload} style={{ ...primaryButton('transparent'), color: COLORS.crimson, border: `1px solid ${COLORS.gold}`, flex: 1 }}>
+          Reload
+        </button>
+        <button type="button" disabled={busy} onClick={onOverwrite} style={{ ...primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`), flex: 1 }}>
+          Overwrite
+        </button>
+      </div>
     </div>
   )
 }

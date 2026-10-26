@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
-import { toErrorMessage } from '../../lib/errors.ts'
+import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { canEditGuests } from '../../lib/access.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
@@ -25,7 +25,7 @@ const statusColors: Record<string, string> = { Confirmed: COLORS.green, Pending:
 type RsvpModule = typeof import('./RsvpBySide.tsx')
 
 export function GuestsTab() {
-  const { bundle, mode, saveGuest, deleteGuest } = useWedding()
+  const { bundle, mode, saveGuest, deleteGuest, refreshWedding } = useWedding()
   const canEdit = mode === 'preview' || canEditGuests(bundle?.membership.role)
   const guests = bundle?.guests ?? []
   const [modalOpen, setModalOpen] = useState(false)
@@ -69,6 +69,14 @@ export function GuestsTab() {
       await saveGuest(form, editGuest?.id)
       setModalOpen(false)
     } catch (caught) {
+      const failure = saveErrorPresentation(caught)
+      if (failure.kind === 'deleted') {
+        setModalOpen(false)
+        setEditGuest(null)
+        setError(DELETED_ITEM_MESSAGE)
+        await refreshWedding()
+        return
+      }
       setError(toErrorMessage(caught))
     } finally {
       setBusy(false)
@@ -98,6 +106,7 @@ export function GuestsTab() {
         </div>
       </div>
       {Headcount ? <Headcount guests={guests} /> : null}
+      {error && !modalOpen && <div style={{ padding: '12px 16px 0' }}><FormError message={error} /></div>}
       <div style={{ padding: '14px 16px' }}>
         {guests.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>
