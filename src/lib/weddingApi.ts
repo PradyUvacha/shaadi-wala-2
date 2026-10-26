@@ -231,11 +231,6 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function addPayment(item: BudgetItem, draft: PartPaymentDraft): Promise<BudgetItem> {
     const inserted = await client.from('part_payments').insert(paymentInsert(item.id, draft))
     assertNoError(inserted.error)
-    const updated = await client
-      .from('budget_items')
-      .update({ actual: Number(item.actual || 0) + Number(draft.amount || 0) })
-      .eq('id', item.id)
-    assertNoError(updated.error)
     return requireBudgetItem(item.id)
   }
 

@@ -76,6 +76,7 @@ describe('starter checklist migration', () => {
     expect(sql).toContain('supabase_realtime')
     expect(sql).toContain('replica identity full')
     expect(sql).toContain('tasks_function_title_ci')
+    expect(sql).toContain('sync_budget_actual_from_payment')
     const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
     expect(readme).toContain('M1: Tuesday 3 Nov 2026')
     expect(readme).toContain('M2: Saturday 14 Nov 2026')

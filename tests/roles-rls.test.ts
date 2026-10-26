@@ -199,6 +199,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026210000_checklist_realtime.sql`)
   file(`${root}supabase/migrations/20261026220000_ritual_names.sql`)
   file(`${root}supabase/migrations/20261026220000_ritual_names.sql`)
+  file(`${root}supabase/migrations/20261026230000_budget_payment_actual.sql`)
+  file(`${root}supabase/migrations/20261026230000_budget_payment_actual.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -266,6 +268,8 @@ describe('approved role permissions', () => {
   it('parent/family can view the whole budget and log payments for their own side', () => {
     expect(asUser(family, `select count(*) from public.budget_items;`)).toBe('1')
     expect(asUser(family, `insert into public.part_payments (budget_item_id, amount, paid_by_side) select id, 25, 'bride' from public.budget_items where notes = 'hall'; select count(*) from public.part_payments where paid_by_side = 'bride';`)).toBe('1')
+    expect(psql(`select actual from public.budget_items where notes = 'hall';`).trim()).toBe('25.00')
+    expect(asUser(family, `update public.budget_items set actual = 999 where notes = 'hall'; select actual from public.budget_items where notes = 'hall';`)).toBe('25.00')
     expect(errorOf(family, `insert into public.part_payments (budget_item_id, amount, paid_by_side) select id, 25, 'groom' from public.budget_items where notes = 'hall';`)).toMatch(/row-level security/i)
     expect(asUser(family, `update public.budget_items set notes = 'changed' where notes = 'hall'; select notes from public.budget_items;`)).toBe('hall')
   })
