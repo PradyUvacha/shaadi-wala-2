@@ -182,6 +182,7 @@ describe('v1 product paths', () => {
     expect(feedback).toContain('Screenshot (optional)')
     expect(feedback).not.toContain('do not include a screenshot')
     expect(invite).toContain('inviteCodeProblem')
+    expect(invite).toContain('showInviteChoices')
   })
 
   it('keeps Android target SDK 36 and pads for edge-to-edge safe areas', () => {

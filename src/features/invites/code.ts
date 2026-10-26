@@ -17,3 +17,8 @@ export function inviteCodeProblem(value: string): string | null {
 export function inviteLink(origin: string, code: string): string {
   return `${origin.replace(/\/$/, '')}/invite/${normalizeInviteCode(code)}`
 }
+
+/** A bad /invite/:code link stays visible, but a typed 6-digit code opens the join form. */
+export function showInviteChoices(linkProblem: string | null, code: string): boolean {
+  return isInviteCode(code) || !linkProblem
+}

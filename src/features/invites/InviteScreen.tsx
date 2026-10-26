@@ -7,7 +7,7 @@ import { useAuth } from '../../state/auth-context.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { MEMBER_ROLES, type InviteRole, type MemberRole, type Side, type WeddingInvite } from '../../types.ts'
-import { inviteCodeProblem, inviteLink, isInviteCode, normalizeInviteCode } from './code.ts'
+import { inviteCodeProblem, inviteLink, isInviteCode, normalizeInviteCode, showInviteChoices } from './code.ts'
 import { joinSelectionError, joinSideFor } from './join.ts'
 
 function initialJoinRole(value: string | null): MemberRole | '' {
@@ -37,8 +37,9 @@ export function InviteScreen() {
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const joining = Boolean(token)
-  const joinProblem = linkProblem ? null : joinSelectionError(joinRole, joinSide)
-  const canAccept = isInviteCode(code) && !linkProblem && !joinProblem
+  const showChoices = showInviteChoices(linkProblem, code)
+  const joinProblem = showChoices ? joinSelectionError(joinRole, joinSide) : null
+  const canAccept = isInviteCode(code) && !joinProblem
 
   useEffect(() => {
     if (!session || !bundle || !inviting || joining) return
@@ -106,7 +107,7 @@ export function InviteScreen() {
               </p>
             )}
             <input value={code} onChange={(event) => setCode(normalizeInviteCode(event.target.value))} inputMode="numeric" aria-label="Invite code" placeholder="6-digit code" style={field} />
-            {!linkProblem && (
+            {!showChoices ? null : (
               <>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
                   {MEMBER_ROLES.map((item) => (
