@@ -21,6 +21,7 @@ export function mapTask(row: Record<string, unknown>): Task {
     functionId: row.function_id ? String(row.function_id) : null,
     position: row.position == null ? Number(row.sort_order ?? 0) : Number(row.position),
     assignedTo: row.assigned_to ? String(row.assigned_to) : null,
+    side: row.side === 'bride' || row.side === 'groom' ? row.side : null,
   }
 }
 

@@ -63,6 +63,7 @@ function openWedding(): WeddingBundle {
       functionId: 'fn-roka',
       position: 1,
       assignedTo: null,
+      side: null,
     }],
     budget: [],
     guests: [],

@@ -163,7 +163,11 @@ export function removeMemberFromBundle(bundle: WeddingBundle, memberId: string):
   return {
     ...bundle,
     members: bundle.members.filter((item) => item.id !== memberId),
-    tasks: bundle.tasks.map((task) => (task.assignedTo === member.userId ? { ...task, assignedTo: null } : task)),
+    tasks: bundle.tasks.map((task) => (
+      task.assignedTo === member.userId
+        ? { ...task, assignedTo: null, side: member.side === 'bride' || member.side === 'groom' ? member.side : task.side }
+        : task
+    )),
   }
 }
 
@@ -217,6 +221,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
       functionId: fn.id,
       position: moved ? nextTaskPosition(base, fn.id) : (draft.position ?? current.position),
       assignedTo: draft.assignedTo === undefined ? current.assignedTo : (draft.assignedTo || null),
+      side: current.side ?? null,
     }
     return { ...base, tasks: base.tasks.map((task) => (task.id === id ? next : task)) }
   }
@@ -235,6 +240,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
     functionId: fn.id,
     position: draft.position ?? nextTaskPosition(base, fn.id),
     assignedTo: draft.assignedTo || null,
+    side: null,
   }
   return { ...base, tasks: [...base.tasks, task] }
 }
@@ -371,6 +377,7 @@ export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
     functionId: task.functionId ?? null,
     position: Number.isFinite(task.position) ? task.position : task.sortOrder,
     assignedTo: task.assignedTo ?? null,
+    side: task.side === 'bride' || task.side === 'groom' ? task.side : null,
   }))
   let functions = Array.isArray(bundle.functions) ? bundle.functions.map((fn) => ({ ...fn })) : []
   if (functions.length === 0 && tasks.length > 0) {

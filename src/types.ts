@@ -60,6 +60,7 @@ export type Task = {
   functionId: string | null
   position: number
   assignedTo: string | null
+  side: Side | null
 }
 
 export type WeddingFunction = {

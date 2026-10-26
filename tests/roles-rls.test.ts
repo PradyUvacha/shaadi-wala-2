@@ -48,9 +48,22 @@ function errorOf(userId: string, sql: string): string {
     asUser(userId, sql)
     return ''
   } catch (caught) {
-    const error = caught as { stderr?: string | Buffer; message?: string }
-    return `${error.stderr?.toString() ?? ''}\n${error.message ?? ''}`
+    return errorText(caught)
   }
+}
+
+function dbError(sql: string): string {
+  try {
+    psql(sql)
+    return ''
+  } catch (caught) {
+    return errorText(caught)
+  }
+}
+
+function errorText(caught: unknown): string {
+  const error = caught as { stderr?: string | Buffer; message?: string }
+  return `${error.stderr?.toString() ?? ''}\n${error.message ?? ''}`
 }
 
 function sleep(ms: number) {
@@ -205,6 +218,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026240000_survey_responses.sql`)
   file(`${root}supabase/migrations/20261026250000_members_assignment.sql`)
   file(`${root}supabase/migrations/20261026250000_members_assignment.sql`)
+  file(`${root}supabase/migrations/20261026260000_price_answer_leave.sql`)
+  file(`${root}supabase/migrations/20261026260000_price_answer_leave.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -671,9 +686,9 @@ describe('approved role permissions', () => {
     `)).toBe('t')
     expect(asUser(bride, `
       insert into public.survey_responses (user_id, kind, prompt, willingness, price_choice)
-      values ('${bride}', 'price', 'price', 'about 2000', 'maybe');
-      select price_choice from public.survey_responses where prompt = 'price';
-    `)).toBe('maybe')
+      values ('${bride}', 'price', 'price', '4999', null);
+      select coalesce(price_choice, 'pending') from public.survey_responses where prompt = 'price';
+    `)).toBe('pending')
     expect(asUser(groom, `select count(*) from public.survey_responses;`)).toBe('0')
     expect(errorOf(groom, `
       insert into public.survey_responses (user_id, kind, prompt, nps_score)
@@ -695,11 +710,53 @@ describe('approved role permissions', () => {
       values ('${bride}', 'nps', 'day_14', 11);
       select 1;
     `)).toMatch(/survey_responses_nps_score_range|check/i)
-    expect(errorOf(family, `
+    expect(asUser(family, `
       insert into public.survey_responses (user_id, kind, prompt, willingness)
       values ('${family}', 'price', 'price', '2000');
+      select willingness from public.survey_responses where user_id = '${family}';
+    `)).toBe('2000')
+    expect(errorOf(friend, `
+      insert into public.survey_responses (user_id, kind, prompt, willingness)
+      values ('${friend}', 'price', 'price', 'about 2000');
       select 1;
-    `)).toMatch(/survey_responses_payload|check/i)
+    `)).toMatch(/digits only|0 to 1000000/i)
+    expect(errorOf(friend, `
+      insert into public.survey_responses (user_id, kind, prompt, willingness)
+      values ('${friend}', 'price', 'price', '1000001');
+      select 1;
+    `)).toMatch(/digits only|0 to 1000000/i)
+    expect(errorOf(planner, `
+      insert into public.survey_responses (user_id, kind, prompt, willingness, price_choice)
+      values ('${planner}', 'price', 'price', '1000', 'maybe');
+      select 1;
+    `)).toMatch(/survey_responses_price_choice_values|check/i)
+    expect(asUser(planner, `
+      insert into public.survey_responses (user_id, kind, prompt, willingness)
+      values ('${planner}', 'price', 'price', '0');
+      select willingness from public.survey_responses where user_id = '${planner}';
+    `)).toBe('0')
+    expect(errorOf(bride, `
+      update public.survey_responses set willingness = '1' where prompt = 'price';
+      select 1;
+    `)).toMatch(/permission denied/i)
+    expect(errorOf(bride, `
+      update public.survey_responses set price_choice = 'maybe' where prompt = 'price';
+      select 1;
+    `)).toMatch(/survey_responses_price_choice_values|check|locked/i)
+    expect(asUser(bride, `
+      update public.survey_responses set price_choice = 'yes' where prompt = 'price';
+      select price_choice from public.survey_responses where prompt = 'price';
+    `)).toBe('yes')
+    expect(asUser(bride, `
+      update public.survey_responses set price_choice = 'no' where prompt = 'price';
+      select price_choice from public.survey_responses where prompt = 'price';
+    `)).toBe('yes')
+    expect(dbError(`update public.survey_responses set willingness = '1' where user_id = '${bride}' and prompt = 'price';`)).toMatch(/this survey answer is locked/i)
+    expect(errorOf(bride, `
+      insert into public.survey_responses (user_id, kind, prompt, nps_score)
+      values ('${bride}', 'nps', 'day_14', 8);
+      select 1;
+    `)).toMatch(/survey_responses_user_prompt|duplicate key|unique/i)
   })
 
   it('rejects a function name that matches after trimming and ignoring case', () => {
@@ -772,8 +829,11 @@ describe('leave wedding and remove member', () => {
         ('${solo}', '${soloBride}', 'bride', 'bride', 'Only');
       insert into public.tasks (wedding_id, title, category, priority, status, side, assigned_to) values
         ('${wedding}', 'Family helper', 'Other', 'Low', 'Pending', 'bride', '${leaveFamily}'),
-        ('${wedding}', 'Bride helper', 'Other', 'Low', 'Pending', 'bride', '${leaveBride}');
+        ('${wedding}', 'Bride helper', 'Other', 'Low', 'Pending', 'bride', '${leaveBride}'),
+        ('${wedding}', 'Friend errand', 'Other', 'Low', 'Pending', null, '${leaveFriend}');
     `)
+    expect(errorOf(leaveFriend, `update public.tasks set assigned_to = null where title = 'Friend errand';`)).toMatch(/complete tasks assigned|own side|row-level security/i)
+    expect(errorOf(leaveFriend, `select public.release_member_tasks('${wedding}', '${leaveFriend}', 'groom');`)).toMatch(/permission denied/i)
     expect(errorOf(soloBride, `select public.leave_wedding('${solo}');`)).toMatch(/last bride or groom/)
     expect(psql(`select count(*) from public.wedding_members where wedding_id = '${solo}';`).trim()).toBe('1')
     expect(psql(`select count(*) from public.weddings where id = '${solo}';`).trim()).toBe('1')
@@ -784,6 +844,7 @@ describe('leave wedding and remove member', () => {
     expect(asUser(leaveBride, `select public.remove_wedding_member((select id from public.wedding_members where user_id = '${leaveFamily}' and wedding_id = '${wedding}')); select 'removed';`)).toBe('removed')
     expect(psql(`select count(*) from public.wedding_members where user_id = '${leaveFamily}';`).trim()).toBe('0')
     expect(psql(`select assigned_to is null from public.tasks where title = 'Family helper';`).trim()).toBe('t')
+    expect(psql(`select side from public.tasks where title = 'Family helper';`).trim()).toBe('bride')
 
     expect(asUser(leaveBride, `select public.leave_wedding('${wedding}'); select 'left';`)).toBe('left')
     expect(psql(`select count(*) from public.wedding_members where user_id = '${leaveBride}' and wedding_id = '${wedding}';`).trim()).toBe('0')
@@ -793,6 +854,8 @@ describe('leave wedding and remove member', () => {
 
     expect(asUser(leaveFriend, `select public.leave_wedding('${wedding}'); select 'left';`)).toBe('left')
     expect(psql(`select count(*) from public.wedding_members where user_id = '${leaveFriend}';`).trim()).toBe('0')
+    expect(psql(`select (assigned_to is null)::text || '|' || coalesce(side, 'none') from public.tasks where title = 'Friend errand';`).trim()).toBe('true|groom')
+    expect(asUser(leaveGroom, `select side from public.tasks where title = 'Friend errand';`)).toBe('groom')
   })
 })
 

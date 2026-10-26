@@ -8,6 +8,7 @@ import {
   PRICE_CLOSED_QUESTION,
   PRICE_OPEN_QUESTION,
   npsAnswerError,
+  priceChoiceError,
   priceOpenError,
   type PriceChoice,
   type SurveyAnswer,
@@ -27,17 +28,23 @@ const choiceButton = (selected: boolean) => ({
 
 export function SurveySheet({
   prompt,
+  initialStep = 'open',
   onSave,
+  onSaveChoice,
   onDismiss,
+  onClose,
 }: {
   prompt: SurveyPrompt
+  initialStep?: 'open' | 'choice'
   onSave: (answer: SurveyAnswer) => Promise<void>
+  onSaveChoice: (choice: PriceChoice) => Promise<void>
   onDismiss: () => Promise<void>
+  onClose: () => void
 }) {
   const [score, setScore] = useState<number | null>(null)
   const [comment, setComment] = useState('')
   const [willingness, setWillingness] = useState('')
-  const [step, setStep] = useState<'open' | 'choice'>('open')
+  const [step, setStep] = useState<'open' | 'choice'>(initialStep)
   const [choice, setChoice] = useState<PriceChoice | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -49,6 +56,7 @@ export function SurveySheet({
       await action()
     } catch (caught) {
       setError(toErrorMessage(caught))
+    } finally {
       setBusy(false)
     }
   }
@@ -68,16 +76,27 @@ export function SurveySheet({
       setError(problem)
       return
     }
-    setError(null)
-    setStep('choice')
+    void run(async () => {
+      await onSave({ kind: 'price-open', willingness })
+      setStep('choice')
+    })
   }
 
   const submitPrice = () => {
-    if (!choice) {
-      setError('Choose Yes, Maybe, or No.')
+    const problem = priceChoiceError(choice)
+    if (problem || !choice) {
+      setError(problem ?? 'Choose Yes or No.')
       return
     }
-    void run(() => onSave({ kind: 'price', prompt: 'price', willingness, choice }))
+    void run(() => onSaveChoice(choice))
+  }
+
+  const close = () => {
+    if (prompt === 'price' && step === 'choice') {
+      onClose()
+      return
+    }
+    void run(onDismiss)
   }
 
   return (
@@ -87,7 +106,7 @@ export function SurveySheet({
           <div id="survey-title" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: COLORS.crimson, fontWeight: 700 }}>
             {prompt === 'price' ? 'A question about price' : 'A quick question'}
           </div>
-          <button type="button" onClick={() => void run(onDismiss)} disabled={busy} style={{ background: 'transparent', border: 'none', color: '#8B5050', fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>
+          <button type="button" onClick={close} disabled={busy} style={{ background: 'transparent', border: 'none', color: '#8B5050', fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>
             Not now
           </button>
         </div>
@@ -95,23 +114,34 @@ export function SurveySheet({
           step === 'open' ? (
             <>
               <p style={{ color: '#3C1515', fontSize: 15, lineHeight: 1.45 }}>{PRICE_OPEN_QUESTION}</p>
-              <textarea style={{ ...inputStyle, minHeight: 96, resize: 'vertical' }} value={willingness} maxLength={500} onChange={(event) => setWillingness(event.target.value)} placeholder="An amount in rupees, or a few words" aria-label={PRICE_OPEN_QUESTION} />
+              <input
+                style={inputStyle}
+                inputMode="numeric"
+                autoComplete="off"
+                value={willingness}
+                maxLength={7}
+                onChange={(event) => {
+                  setWillingness(event.target.value.replace(/\D/g, '').slice(0, 7))
+                  setError(null)
+                }}
+                placeholder="Amount in rupees"
+                aria-label={PRICE_OPEN_QUESTION}
+              />
               <FormError message={error} />
-              <button type="button" disabled={busy} onClick={continuePrice} style={{ ...primaryButton(COLORS.crimson), marginTop: 8 }}>Next</button>
+              <button type="button" disabled={busy} onClick={continuePrice} style={{ ...primaryButton(COLORS.crimson), marginTop: 8 }}>{busy ? 'Saving…' : 'Next'}</button>
             </>
           ) : (
             <>
               <p style={{ color: '#3C1515', fontSize: 15, lineHeight: 1.45 }}>{PRICE_CLOSED_QUESTION}</p>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['yes', 'maybe', 'no'] as const).map((value) => (
+              <div style={{ display: 'flex', gap: 8 }} role="group" aria-label={PRICE_CLOSED_QUESTION}>
+                {(['yes', 'no'] as const).map((value) => (
                   <button key={value} type="button" aria-pressed={choice === value} onClick={() => setChoice(value)} style={choiceButton(choice === value)}>
-                    {value === 'yes' ? 'Yes' : value === 'maybe' ? 'Maybe' : 'No'}
+                    {value === 'yes' ? 'Yes' : 'No'}
                   </button>
                 ))}
               </div>
               <FormError message={error} />
-              <button type="button" disabled={busy} onClick={() => { setStep('open'); setError(null) }} style={{ ...primaryButton('#8B5050'), marginTop: 12 }}>Back</button>
-              <button type="button" disabled={busy} onClick={submitPrice} style={{ ...primaryButton(COLORS.crimson), marginTop: 8 }}>{busy ? 'Saving…' : 'Save answer'}</button>
+              <button type="button" disabled={busy} onClick={submitPrice} style={{ ...primaryButton(COLORS.crimson), marginTop: 12 }}>{busy ? 'Saving…' : 'Save answer'}</button>
             </>
           )
         ) : (

@@ -61,6 +61,28 @@ export function inviteRoleLabel(role: InviteRole, side?: Side | null): string {
   return roleLabel(role, side)
 }
 
+const UNASSIGNED_SIDE_LABEL = {
+  bride: "Unassigned · Bride's side",
+  groom: "Unassigned · Groom's side",
+} as const
+
+/** Unassigned tasks tagged with a side, for the parent on that side and for the couple or planner. */
+export function unassignedSideGroups<T extends { assignedTo: string | null; side: Side | null }>(
+  tasks: readonly T[],
+  role: MemberRole | null | undefined,
+  viewerSide: Side | null,
+): { side: 'bride' | 'groom'; label: string; tasks: T[] }[] {
+  if (role == null || role === 'friend') return []
+  const sides: Array<'bride' | 'groom'> = role === 'family'
+    ? viewerSide === 'bride' || viewerSide === 'groom' ? [viewerSide] : []
+    : ['bride', 'groom']
+  return sides.flatMap((side) => {
+    const grouped = tasks.filter((task) => task.assignedTo == null && task.side === side)
+    if (grouped.length === 0) return []
+    return [{ side, label: UNASSIGNED_SIDE_LABEL[side], tasks: grouped }]
+  })
+}
+
 /** A parent can assign only people who share their side. Couple and planner can assign anyone. */
 export function assignableMembers<T extends { side: Side | null }>(
   members: readonly T[],

@@ -158,7 +158,7 @@ export function ProfileScreen() {
       <Modal open={pendingRemove !== null} onClose={() => setPendingRemove(null)} title="Remove member">
         <FormError message={error} />
         <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
-          Remove {pendingRemove?.displayName}? Their assigned tasks will be unassigned.
+          Remove {pendingRemove?.displayName}? Their assigned tasks become unassigned and stay on their side.
         </p>
         <button type="button" disabled={busy} onClick={() => void remove()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
           {busy ? 'Removing…' : 'Remove member'}

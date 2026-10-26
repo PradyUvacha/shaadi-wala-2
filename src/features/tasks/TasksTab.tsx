@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
-import { assignableMembers, canEditChecklist, canManageTasks } from '../../lib/access.ts'
+import { assignableMembers, canEditChecklist, canManageTasks, unassignedSideGroups } from '../../lib/access.ts'
 import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
@@ -51,15 +51,17 @@ export function TasksTab() {
   const completedCount = tasks.filter((task) => task.status === 'Completed').length
   const pct = percent(completedCount, tasks.length)
   const community = communityLabel(bundle?.wedding.community)
+  const sideGroups = unassignedSideGroups(filtered, role, ownSide)
+  const heldAside = new Set(sideGroups.flatMap((group) => group.tasks.map((task) => task.id)))
 
   const groups = functions.map((fn) => ({
     fn,
     rituals: filtered
-      .filter((task) => task.functionId === fn.id || (task.functionId == null && task.ceremony === fn.name))
+      .filter((task) => !heldAside.has(task.id) && (task.functionId === fn.id || (task.functionId == null && task.ceremony === fn.name)))
       .sort((a, b) => a.position - b.position || a.sortOrder - b.sortOrder),
   }))
   const placed = new Set(groups.flatMap((group) => group.rituals.map((task) => task.id)))
-  const loose = filtered.filter((task) => !placed.has(task.id)).sort((a, b) => a.position - b.position || a.sortOrder - b.sortOrder)
+  const loose = filtered.filter((task) => !placed.has(task.id) && !heldAside.has(task.id)).sort((a, b) => a.position - b.position || a.sortOrder - b.sortOrder)
   const visibleGroups = groups.filter((group) => group.rituals.length > 0 || (filter === 'All' && canStructure))
   const ritualsFor = (fn: WeddingFunction) => tasks.filter((task) => task.functionId === fn.id || (task.functionId == null && task.ceremony === fn.name))
   const deleteCopy = pendingDelete
@@ -249,7 +251,7 @@ export function TasksTab() {
       {error && !modalOpen && !functionEditor && !pendingDelete && !pendingRitual && <div style={{ padding: '0 16px' }}><FormError message={error} /></div>}
 
       <div style={{ padding: '0 16px' }}>
-        {visibleGroups.length === 0 && loose.length === 0 ? (
+        {sideGroups.length === 0 && visibleGroups.length === 0 && loose.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>
             <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}>✓</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>No tasks yet</div>
@@ -257,6 +259,12 @@ export function TasksTab() {
           </div>
         ) : (
           <>
+            {sideGroups.map((group) => (
+              <section key={group.label}>
+                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, color: COLORS.crimson, margin: '14px 0 8px' }}>{group.label}</h2>
+                {group.tasks.map((task) => ritualCard(task, group.tasks.length))}
+              </section>
+            ))}
             {visibleGroups.map(({ fn, rituals }) => (
               <section key={fn.id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px' }}>

@@ -5,14 +5,23 @@ export const PRICE_CLOSED_QUESTION = 'Would you pay ₹4,999 per wedding?'
 export const SURVEY_PROMPTS = ['day_14', 'day_30', 'price'] as const
 export type SurveyPrompt = (typeof SURVEY_PROMPTS)[number]
 export type SurveyKind = 'nps' | 'price'
-export type PriceChoice = 'yes' | 'maybe' | 'no'
+export type PriceChoice = 'yes' | 'no'
+export type SurveyStep = 'nps' | 'open' | 'choice'
 
 /** The price survey waits until day 21, and an NPS prompt that is still due goes first. */
 export const PRICE_SURVEY_DAY = 21
+/** Digits only, from ₹0 through ₹10,00,000. */
+export const MAX_PRICE_RUPEES = 1_000_000
 
 export type SurveyAnswer =
   | { kind: 'nps'; prompt: 'day_14' | 'day_30'; score: number; comment: string }
-  | { kind: 'price'; prompt: 'price'; willingness: string; choice: PriceChoice }
+  | { kind: 'price-open'; willingness: string }
+
+export type DueSurvey = {
+  kind: SurveyKind
+  prompt: SurveyPrompt
+  step: SurveyStep
+}
 
 export type SurveyRow = {
   user_id: string
@@ -31,6 +40,11 @@ export function daysSinceSignup(createdAt: string, now = new Date()): number {
   const startDay = Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate())
   const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
   return Math.floor((today - startDay) / 86400000)
+}
+
+/** Dev server, or a preview build that sets VITE_SURVEY_DEBUG. Production and release APKs leave it unset. */
+export function surveyDebugEnabled(): boolean {
+  return import.meta.env.DEV === true || import.meta.env.VITE_SURVEY_DEBUG === 'true'
 }
 
 export function surveyOverride(search: string): SurveyKind | null {
@@ -54,19 +68,24 @@ export function dueSurvey(input: {
   recorded: readonly SurveyPrompt[]
   now?: Date
   override?: SurveyKind | null
-}): { kind: SurveyKind; prompt: SurveyPrompt } | null {
+  debug?: boolean
+  pendingPriceChoice?: boolean
+}): DueSurvey | null {
+  if (input.pendingPriceChoice) return { kind: 'price', prompt: 'price', step: 'choice' }
   const has = (prompt: SurveyPrompt) => input.recorded.includes(prompt)
-  if (input.override === 'nps') {
-    if (!has('day_14')) return { kind: 'nps', prompt: 'day_14' }
-    if (!has('day_30')) return { kind: 'nps', prompt: 'day_30' }
-    return { kind: 'nps', prompt: 'day_14' }
+  if (input.debug && input.override === 'nps') {
+    const days = input.signedUpAt ? daysSinceSignup(input.signedUpAt, input.now) : 0
+    if (days >= 30) return has('day_30') ? null : { kind: 'nps', prompt: 'day_30', step: 'nps' }
+    return has('day_14') ? null : { kind: 'nps', prompt: 'day_14', step: 'nps' }
   }
-  if (input.override === 'price') return { kind: 'price', prompt: 'price' }
+  if (input.debug && input.override === 'price') {
+    return has('price') ? null : { kind: 'price', prompt: 'price', step: 'open' }
+  }
   if (!input.signedUpAt) return null
   const days = daysSinceSignup(input.signedUpAt, input.now)
-  if (days >= 14 && days < 30 && !has('day_14')) return { kind: 'nps', prompt: 'day_14' }
-  if (days >= 30 && !has('day_30')) return { kind: 'nps', prompt: 'day_30' }
-  if (days >= PRICE_SURVEY_DAY && !has('price')) return { kind: 'price', prompt: 'price' }
+  if (days >= 14 && days < 30 && !has('day_14')) return { kind: 'nps', prompt: 'day_14', step: 'nps' }
+  if (days >= 30 && !has('day_30')) return { kind: 'nps', prompt: 'day_30', step: 'nps' }
+  if (days >= PRICE_SURVEY_DAY && !has('price')) return { kind: 'price', prompt: 'price', step: 'open' }
   return null
 }
 
@@ -76,8 +95,16 @@ export function npsAnswerError(score: number | null): string | null {
 }
 
 export function priceOpenError(value: string): string | null {
-  if (!value.trim()) return 'Tell us what you would pay.'
-  if (value.trim().length > 500) return 'Keep that answer under 500 characters.'
+  if (!/^[0-9]+$/.test(value)) return 'Enter a whole amount in rupees, digits only.'
+  const amount = Number(value)
+  if (!Number.isSafeInteger(amount) || amount < 0 || amount > MAX_PRICE_RUPEES) {
+    return 'Enter an amount from ₹0 to ₹10,00,000.'
+  }
+  return null
+}
+
+export function priceChoiceError(choice: string | null): string | null {
+  if (choice !== 'yes' && choice !== 'no') return 'Choose Yes or No.'
   return null
 }
 
@@ -106,8 +133,8 @@ export function surveyAnswerRow(userId: string, answer: SurveyAnswer): SurveyRow
     prompt: 'price',
     nps_score: null,
     comment: null,
-    willingness: answer.willingness.trim(),
-    price_choice: answer.choice,
+    willingness: String(Number(answer.willingness)),
+    price_choice: null,
     dismissed: false,
   }
 }

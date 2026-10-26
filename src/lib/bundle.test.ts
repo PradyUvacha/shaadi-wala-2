@@ -133,5 +133,6 @@ describe('wedding bundle', () => {
     const removed = removeMemberFromBundle(assigned, meera.id)
     expect(removed.members.some((member) => member.id === meera.id)).toBe(false)
     expect(removed.tasks.some((task) => task.assignedTo === meera.userId)).toBe(false)
+    expect(removed.tasks.find((task) => task.functionId === mehendi.id)?.side).toBe('bride')
   })
 })
