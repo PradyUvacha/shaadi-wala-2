@@ -317,15 +317,15 @@ export function TasksTab() {
 
       {canStructure && (
         <div style={{ margin: '12px 16px 0' }}>
-          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.gold}`, background: 'transparent', color: COLORS.crimson, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.gold}`, background: 'transparent', color: COLORS.crimson, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
             Add function
           </button>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8, padding: '12px 16px', overflowX: 'auto' }}>
+      <div className="chip-row" aria-label="Task status">
         {(['All', ...TASK_STATUSES] as const).map((item) => (
-          <button key={item} type="button" onClick={() => setFilter(item)} style={{ padding: '7px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 12, fontWeight: 600, background: filter === item ? COLORS.crimson : '#F0E0CC', color: filter === item ? '#fff' : COLORS.crimson }}>
+          <button key={item} type="button" onClick={() => setFilter(item)} style={{ padding: '7px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 16, fontWeight: 600, background: filter === item ? COLORS.crimson : '#F0E0CC', color: filter === item ? '#fff' : COLORS.crimson }}>
             {item}
           </button>
         ))}
@@ -527,8 +527,8 @@ const iconButton = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
-  fontSize: 14,
+  fontSize: 16,
   color: COLORS.crimson,
-  minHeight: 32,
-  minWidth: 32,
+  minHeight: 44,
+  minWidth: 44,
 } as const

@@ -127,7 +127,7 @@ The package id is `in.shaadiwala.app`. It is final. The web app, Capacitor, and 
 {
   "appId": "in.shaadiwala.app",
   "appName": "Shaadi Wala",
-  "versionCode": 6,
+  "versionCode": 7,
   "versionName": "SW_0.1_FoundationOAuthMixpanel_03Nov26"
 }
 ```

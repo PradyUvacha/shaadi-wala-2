@@ -101,7 +101,7 @@ export function SurveySheet({
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(26,5,5,0.55)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="survey-title" style={{ width: '100%', maxWidth: 480, background: COLORS.cardBg, borderRadius: '20px 20px 0 0', padding: '18px 18px calc(18px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', boxShadow: '0 -8px 30px rgba(0,0,0,0.18)' }}>
+      <div className="sheet-panel" role="dialog" aria-modal="true" aria-labelledby="survey-title" style={{ background: COLORS.cardBg, borderRadius: '20px 20px 0 0', padding: '18px 18px calc(18px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', boxShadow: '0 -8px 30px rgba(0,0,0,0.18)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div id="survey-title" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: COLORS.crimson, fontWeight: 700 }}>
             {prompt === 'price' ? 'A question about price' : 'A quick question'}

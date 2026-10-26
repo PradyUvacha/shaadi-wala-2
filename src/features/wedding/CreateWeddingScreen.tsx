@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { MehendiPattern } from '../../components/ui.tsx'
 import { demoWeddingDate } from '../../data/demoData.ts'
 import { displayNameFromUser } from '../../lib/auth.ts'
@@ -11,7 +10,6 @@ import { COLORS } from '../../styles/tokens.ts'
 import type { Side } from '../../types.ts'
 
 export function CreateWeddingScreen() {
-  const navigate = useNavigate()
   const { session } = useAuth()
   const { createWedding, notice, clearNotice } = useWedding()
   const [displayName, setDisplayName] = useState(displayNameFromUser(session?.user))
@@ -47,10 +45,9 @@ export function CreateWeddingScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 55%,${COLORS.saffron}44 100%)`, padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
+    <div className="page-fill" style={{ width: '100%', background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 55%,#C4481A 100%)`, padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(28px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
       <MehendiPattern />
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 440, margin: '0 auto' }}>
-        <button type="button" onClick={() => navigate('/profile/settings')} style={{ background: 'transparent', border: 'none', color: COLORS.lightGold, fontWeight: 700, cursor: 'pointer', padding: 0 }}>Settings</button>
+      <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
         {notice && (
           <p style={{ background: '#FFF3E0', color: '#5A3010', borderRadius: 12, padding: 12, fontSize: 14 }}>
             {notice}

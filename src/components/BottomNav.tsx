@@ -16,7 +16,7 @@ export function BottomNav() {
   const pending = bundle?.tasks.filter((task) => task.status === 'Pending').length ?? 0
   const visibleTabs = tabs.filter((tab) => tab.to !== '/budget' || mode === 'preview' || canSeeBudget(bundle?.membership.role))
   return (
-    <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTop: '1px solid #E8D4B0', display: 'flex', justifyContent: 'space-around', padding: '8px var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) var(--safe-area-inset-left, env(safe-area-inset-left, 0px))', zIndex: 200, boxShadow: '0 -4px 20px rgba(139,0,0,0.1)' }}>
+    <div className="bottom-nav" style={{ background: '#fff', borderTop: '1px solid #E8D4B0', display: 'flex', justifyContent: 'space-around', padding: '8px var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) var(--safe-area-inset-left, env(safe-area-inset-left, 0px))', boxShadow: '0 -4px 20px rgba(139,0,0,0.1)' }}>
       {visibleTabs.map((tab) => (
         <NavLink key={tab.to} to={tab.to} end={tab.end} style={{ textDecoration: 'none' }}>
           {({ isActive }) => (
@@ -27,7 +27,7 @@ export function BottomNav() {
               {tab.showCount && pending > 0 && (
                 <span style={{ position: 'absolute', top: 0, right: 4, background: COLORS.crimson, color: '#fff', fontSize: 9, fontWeight: 700, borderRadius: 99, padding: '0 4px', minWidth: 14, textAlign: 'center' }}>{pending}</span>
               )}
-              <span style={{ fontSize: 9, fontWeight: isActive ? 700 : 500, color: isActive ? COLORS.crimson : '#8B6060' }}>{tab.label}</span>
+              <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? COLORS.crimson : '#8B6060' }}>{tab.label}</span>
               {isActive && <span style={{ position: 'absolute', bottom: -8, width: 20, height: 2, borderRadius: 99, background: COLORS.crimson }} />}
             </span>
           )}

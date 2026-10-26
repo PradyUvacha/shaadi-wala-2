@@ -25,7 +25,7 @@ describe('app.config.json', () => {
 
   it('follows SW_<version>_<key features>_<date> and keeps versionCode an integer', () => {
     expect(appConfig.versionName).toBe('SW_0.1_FoundationOAuthMixpanel_03Nov26')
-    expect(appConfig.versionCode).toBe(6)
+    expect(appConfig.versionCode).toBe(7)
     expect(isValidVersionName(appConfig.versionName)).toBe(true)
     expect(isValidVersionName('SW_1.0_Checklist-Budget-Guests_2026-11-17')).toBe(true)
     const appSource = readFileSync(new URL('../src/config/app.ts', import.meta.url), 'utf8')

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { MehendiPattern } from '../../components/ui.tsx'
 import { demoWeddingDate } from '../../data/demoData.ts'
 import { HINDU_CHECKLIST } from '../../data/hinduChecklist.ts'
@@ -18,7 +17,6 @@ import { ONBOARDING_STEPS } from '../onboarding/steps.ts'
 
 /** Parked first-run wizard. Loaded only when legacyOnboardingEnabled is true. */
 export function LegacySetupScreen() {
-  const navigate = useNavigate()
   const { session } = useAuth()
   const { createWedding } = useWedding()
   const [step, setStep] = useState(0)
@@ -77,11 +75,10 @@ export function LegacySetupScreen() {
   const chosenCount = HINDU_CHECKLIST.filter((item) => chosen.has(item.ceremony)).length
 
   return (
-    <div style={{ minHeight: '100dvh', background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 55%,${COLORS.saffron}44 100%)`, padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
+    <div className="page-fill" style={{ background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 55%,#C4481A 100%)`, padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
       <MehendiPattern />
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 440, margin: '0 auto' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <button type="button" onClick={() => navigate('/profile/settings')} style={{ background: 'transparent', border: 'none', color: COLORS.lightGold, fontWeight: 700, cursor: 'pointer', padding: 0 }}>Settings</button>
+      <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 18 }}>
           <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>{step + 1} / {ONBOARDING_STEPS.length}</div>
         </div>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: '#fff', fontSize: 32, margin: '0 0 8px' }}>Shaadi Wala</h1>
