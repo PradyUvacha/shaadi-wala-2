@@ -45,8 +45,9 @@ Schema, RLS, the `create_wedding` function, and the `hindu-starter` ritual templ
 3. `supabase/migrations/20261026150000_roles.sql`
 4. `supabase/migrations/20261026180000_permissions.sql`
 5. `supabase/migrations/20261026190000_feedback_screenshot.sql`
+6. `supabase/migrations/20261026200000_checklist_templates.sql`
 
-`init.sql`, `v1.sql`, `roles.sql`, and `feedback_screenshot.sql` can be run again. Run `permissions.sql` after `roles.sql`, and run it again if you apply `roles.sql` or `v1.sql` after it. Then run `feedback_screenshot.sql` last. `permissions.sql` is the permissions table: change `role_permissions` to change who can do what. The seeded rows are the matrix approved on 26 Oct. `roles.sql` is the bride, groom, family, friend, and planner shape. A partial unique index keeps one bride and one groom, including when two people join at the same time. `feedback_screenshot.sql` adds an optional private screenshot bucket.
+`init.sql`, `v1.sql`, `roles.sql`, `feedback_screenshot.sql`, and `checklist_templates.sql` can be run again. Run `permissions.sql` after `roles.sql`, and run it again if you apply `roles.sql` or `v1.sql` after it. Then run `feedback_screenshot.sql`, then `checklist_templates.sql`. If you apply `permissions.sql` after the checklist file, run `checklist_templates.sql` again so a friend still cannot change a ritual's position or function. `permissions.sql` is the permissions table: change `role_permissions` to change who can do what. The seeded rows are the matrix approved on 26 Oct. `roles.sql` is the bride, groom, family, friend, and planner shape. A partial unique index keeps one bride and one groom, including when two people join at the same time. `feedback_screenshot.sql` adds an optional private screenshot bucket. `checklist_templates.sql` stores the Hindu checklist as community `hindu` version 1 and copies it onto each new wedding.
 
 Apply them on the hosted project in either of these ways:
 
@@ -155,7 +156,7 @@ That produces `android/app/build/outputs/bundle/release/app-release.aab` when th
 
 ## Product notes
 
-The first-run wizard asks for your name, the couple, the wedding date, the city, your side, and which ceremonies to seed. The Hindu checklist has 53 rituals across Roka, Sagai, Haldi, Mehendi, Sangeet, Wedding, Vidaai, and Reception. The Tasks tab groups them by ceremony and can load any that are still missing. Renaming a ritual does not cause a duplicate.
+Creating a wedding copies the Hindu checklist onto that wedding. The template is stored as community `hindu`, version 1, so another community can be added later. v1 has no religion or caste ceremony picker. The Tasks screen shows the community as text. The couple and the planner can add, rename, reorder, and remove functions and rituals on their own wedding. Family can still edit rituals on their own side. Friends can complete rituals assigned to them and cannot change position or function. The Hindu list has 53 rituals across Roka, Sagai, Haldi, Mehendi, Sangeet, Wedding, Vidaai, and Reception.
 
 Home and the Budget “All” filter total Indian rupees only, in lakh and crore on Home. A dollar amount stays in dollars and is not added into the rupee total. A line item cannot be negative or more than ₹10 crore. Budget shows each family's share, what each family has paid, and who should settle with whom. Guests show total, confirmed, pending, and declined counts. Headcount split by side is parked with the rest of RSVP-by-side.
 
@@ -193,7 +194,7 @@ Events are not autocaptured. The analytics host is a third-party processor and s
 
 Do these on project `ujglzkfxgewqupkeqyek` before the new app build is useful:
 
-1. SQL Editor, in this order: `supabase/migrations/20261024180000_init.sql`, then `supabase/migrations/20261026120000_v1.sql`, then `supabase/migrations/20261026150000_roles.sql`, then `supabase/migrations/20261026180000_permissions.sql`, then `supabase/migrations/20261026190000_feedback_screenshot.sql`. Run `permissions.sql` again whenever an earlier file is applied after it, then run the screenshot file again. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`. These files have not been applied to the hosted project from this repo.
+1. SQL Editor, in this order: `supabase/migrations/20261024180000_init.sql`, then `supabase/migrations/20261026120000_v1.sql`, then `supabase/migrations/20261026150000_roles.sql`, then `supabase/migrations/20261026180000_permissions.sql`, then `supabase/migrations/20261026190000_feedback_screenshot.sql`, then `supabase/migrations/20261026200000_checklist_templates.sql`. Run `permissions.sql` again whenever an earlier file is applied after it, then run the screenshot file, then run the checklist file again. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`. These files have not been applied to the hosted project from this repo.
 2. Edge Functions: redeploy `delete-account` with `supabase functions deploy delete-account --project-ref ujglzkfxgewqupkeqyek`. The function reads the publishable key and the secret key (`SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS`, or the legacy anon and service-role names). Leave `verify_jwt` off in `supabase/config.toml`; the function checks the user JWT itself, because new `sb_` keys are not JWTs. Do not put the secret key in the app.
 3. Auth → URL configuration: Site URL `https://shaadi-wala-2.vercel.app`. Add `https://shaadi-wala-2.vercel.app/auth`, `http://127.0.0.1:5173/auth`, `http://localhost:5173/auth`, and `in.shaadiwala.app://auth/callback`.
 4. Auth → Google: enable the provider, paste the web client id and secret, and add `https://ujglzkfxgewqupkeqyek.supabase.co/auth/v1/callback` on the Google client.

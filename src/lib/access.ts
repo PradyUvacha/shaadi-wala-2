@@ -33,6 +33,11 @@ export function canManageTasks(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner' || role === 'family'
 }
 
+/** Add, rename, reorder, and remove functions. Couple and planner only. */
+export function canEditChecklist(role: MemberRole | null | undefined): boolean {
+  return isCouple(role) || role === 'planner'
+}
+
 export function canInvite(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'family'
 }

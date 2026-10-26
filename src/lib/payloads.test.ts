@@ -24,6 +24,8 @@ describe('database payloads', () => {
       due_date: null,
       template_title: 'Saat Phere Setup',
       sort_order: 4,
+      function_id: null,
+      position: 4,
     })
   })
 

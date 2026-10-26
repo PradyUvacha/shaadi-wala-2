@@ -193,6 +193,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026180000_permissions.sql`)
   file(`${root}supabase/migrations/20261026190000_feedback_screenshot.sql`)
   file(`${root}supabase/migrations/20261026190000_feedback_screenshot.sql`)
+  file(`${root}supabase/migrations/20261026200000_checklist_templates.sql`)
+  file(`${root}supabase/migrations/20261026200000_checklist_templates.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -435,6 +437,76 @@ describe('approved role permissions', () => {
       psql(`update public.role_permissions set scope = 'none' where role = 'friend' and action = 'budget.view';`)
     }
     expect(asUser(friend, `select count(*) from public.budget_items where notes = 'hall';`)).toBe('0')
+  })
+
+  it('copies the hindu checklist and lets only the couple or planner edit that wedding', () => {
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    expect(psql(`select count(*) from public.checklist_templates where community = 'hindu' and version = 1;`).trim()).toBe('1')
+    expect(psql(`select count(*) from public.checklist_template_functions f join public.checklist_templates t on t.id = f.template_id where t.community = 'hindu' and t.version = 1;`).trim()).toBe('8')
+    expect(psql(`select count(*) from public.checklist_template_rituals r join public.checklist_template_functions f on f.id = r.function_id join public.checklist_templates t on t.id = f.template_id where t.community = 'hindu' and t.version = 1;`).trim()).toBe('53')
+    expect(psql(`select community from public.weddings where couple_names = 'Role Fixture';`).trim()).toBe('hindu')
+    expect(psql(`select string_agg(name, ',' order by position) from public.wedding_functions where wedding_id = ${wedding};`).trim()).toBe('Roka,Sagai,Haldi,Mehendi,Sangeet,Wedding,Vidaai,Reception')
+    expect(psql(`select count(*) from public.tasks where wedding_id = ${wedding} and template_title is not null;`).trim()).toBe('53')
+    expect(psql(`select conname from pg_constraint where conname = 'tasks_ceremony_check';`).trim()).toBe('')
+
+    expect(asUser(bride, `
+      insert into public.tasks (wedding_id, title, category, priority, status, ceremony)
+      select id, 'Custom rite', 'Other', 'Low', 'Pending', 'Mehendi night' from public.weddings where couple_names = 'Role Fixture';
+      select ceremony from public.tasks where title = 'Custom rite';
+    `)).toBe('Mehendi night')
+    expect(asUser(planner, `update public.wedding_functions set name = 'Roka evening' where name = 'Roka' and wedding_id = ${wedding}; select ceremony from public.tasks where template_title = 'Roka Ceremony';`)).toBe('Roka evening')
+    expect(asUser(planner, `update public.tasks set title = 'Our roka' where template_title = 'Roka Ceremony'; select title from public.tasks where template_title = 'Roka Ceremony';`)).toBe('Our roka')
+    expect(asUser(planner, `
+      update public.wedding_functions set position = 1
+      where wedding_id = ${wedding} and name in ('Sagai', 'Haldi');
+      select count(*) from public.wedding_functions where wedding_id = ${wedding} and position = 1;
+    `)).toBe('3')
+
+    expect(asUser(family, `update public.wedding_functions set name = 'Family function' where name = 'Haldi' and wedding_id = ${wedding}; select count(*) from public.wedding_functions where name = 'Family function';`)).toBe('0')
+    expect(errorOf(family, `insert into public.wedding_functions (wedding_id, name, position) select id, 'Family function', 40 from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/row-level security/i)
+    expect(asUser(family, `delete from public.wedding_functions where name = 'Haldi' and wedding_id = ${wedding}; select count(*) from public.wedding_functions where name = 'Haldi' and wedding_id = ${wedding};`)).toBe('1')
+
+    psql(`insert into auth.users (id, email) values ('cccccccc-cccc-cccc-cccc-ccccccccccc1', 'outsider@example.com') on conflict (id) do nothing;`)
+    expect(asUser('cccccccc-cccc-cccc-cccc-ccccccccccc1', `select public.create_wedding('Outsider Wedding', '2027-07-01', 'groom', 'Outsider', 'Jaipur');`)).toMatch(/[0-9a-f-]{36}/)
+    expect(asUser('cccccccc-cccc-cccc-cccc-ccccccccccc1', `update public.wedding_functions set name = 'Stolen' where wedding_id = ${wedding}; select count(*) from public.wedding_functions where name = 'Stolen';`)).toBe('0')
+
+    expect(errorOf(friend, `update public.tasks set position = 99 where title = 'Friend task';`)).toMatch(/complete tasks assigned/i)
+    expect(errorOf(friend, `update public.tasks set function_id = (select id from public.wedding_functions where wedding_id = ${wedding} limit 1) where title = 'Friend task';`)).toMatch(/complete tasks assigned/i)
+
+    expect(errorOf(bride, `insert into public.checklist_templates (community, version) values ('sikh', 1);`)).toMatch(/permission denied|row-level security/i)
+    expect(errorOf(bride, `insert into public.checklist_template_functions (template_id, name, position) select id, 'Extra', 9 from public.checklist_templates where community = 'hindu';`)).toMatch(/permission denied|row-level security/i)
+    expect(psql(`select count(*) from public.checklist_templates where community = 'sikh';`).trim()).toBe('0')
+
+    expect(asUser(planner, `
+      with fn as (
+        insert into public.wedding_functions (wedding_id, name, position)
+        select id, 'Tilak', 20 from public.weddings where couple_names = 'Role Fixture'
+        returning id
+      )
+      insert into public.tasks (wedding_id, function_id, title, category, priority, status, ceremony)
+      select w.id, fn.id, 'Tilak rite', 'Other', 'Low', 'Pending', 'Tilak'
+      from fn, public.weddings w
+      where w.couple_names = 'Role Fixture';
+      delete from public.wedding_functions where name = 'Tilak' and wedding_id = ${wedding};
+      select count(*) from public.tasks where title = 'Tilak rite';
+    `)).toBe('0')
+
+    psql(`
+      insert into public.weddings (couple_names, wedding_date, city) values ('Legacy Tasks', '2027-08-01', 'Pune');
+      insert into public.tasks (wedding_id, title, category, priority, status, ceremony, sort_order)
+      select id, 'Old party', 'Other', 'Low', 'Pending', 'Party', 1 from public.weddings where couple_names = 'Legacy Tasks';
+      insert into public.tasks (wedding_id, title, category, priority, status, ceremony, sort_order)
+      select id, 'Old haldi', 'Other', 'Low', 'Pending', 'Haldi', 2 from public.weddings where couple_names = 'Legacy Tasks';
+      insert into public.weddings (couple_names, wedding_date, city) values ('Legacy Empty', '2027-09-01', 'Delhi');
+    `)
+    psql(`select public.backfill_checklists();`)
+    expect(psql(`select string_agg(name, ',' order by position) from public.wedding_functions where wedding_id = (select id from public.weddings where couple_names = 'Legacy Tasks');`).trim()).toBe('Party,Haldi')
+    expect(psql(`select count(*) from public.tasks where wedding_id = (select id from public.weddings where couple_names = 'Legacy Tasks') and function_id is not null;`).trim()).toBe('2')
+    expect(psql(`select count(*) from public.tasks where wedding_id = (select id from public.weddings where couple_names = 'Legacy Empty');`).trim()).toBe('53')
+    psql(`select public.backfill_checklists();`)
+    expect(psql(`select count(*) from public.tasks where wedding_id = (select id from public.weddings where couple_names = 'Legacy Tasks');`).trim()).toBe('2')
+    expect(psql(`select count(*) from public.tasks where wedding_id = (select id from public.weddings where couple_names = 'Legacy Empty');`).trim()).toBe('53')
+    expect(psql(`select count(*) from public.wedding_functions where wedding_id = (select id from public.weddings where couple_names = 'Legacy Empty');`).trim()).toBe('8')
   })
 
   it('lets the person joining pick a role and a side', () => {

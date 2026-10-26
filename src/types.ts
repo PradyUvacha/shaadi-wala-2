@@ -39,10 +39,12 @@ export type TaskDraft = {
   description: string
   category: Category
   priority: Priority
-  ceremony: Ceremony
+  ceremony: string
   status: TaskStatus
   dueDate: string
   templateTitle?: string | null
+  functionId?: string | null
+  position?: number
 }
 
 export type Task = {
@@ -51,11 +53,19 @@ export type Task = {
   description: string
   category: Category
   priority: Priority
-  ceremony: Ceremony
+  ceremony: string
   status: TaskStatus
   dueDate: string
   templateTitle: string | null
   sortOrder: number
+  functionId: string | null
+  position: number
+}
+
+export type WeddingFunction = {
+  id: string
+  name: string
+  position: number
 }
 
 export type SplitDraft = {
@@ -136,6 +146,7 @@ export type WeddingBundle = {
     coupleNames: string
     weddingDate: string
     city: string
+    community: string
   }
   membership: {
     id: string
@@ -144,6 +155,7 @@ export type WeddingBundle = {
     displayName: string
   }
   displayName: string
+  functions: WeddingFunction[]
   tasks: Task[]
   budget: BudgetItem[]
   guests: Guest[]
@@ -152,7 +164,7 @@ export type WeddingBundle = {
 
 export type CreateWeddingInput = WeddingSettings & {
   seed: 'template' | 'demo' | 'empty'
-  ceremonies: Ceremony[]
+  ceremonies?: Ceremony[]
 }
 
 export type WeddingInvite = {

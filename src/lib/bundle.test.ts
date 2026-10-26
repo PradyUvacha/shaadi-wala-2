@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/demoData.ts'
 import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
-import { addPayment, createDemoBundle, createWeddingBundle, removeTask, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
+import { addPayment, createDemoBundle, createWeddingBundle, moveFunctionDraft, removeFunction, removeTask, renameFunction, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
 import { missingTemplateTasks, templateToDrafts } from './planning.ts'
 
 describe('wedding bundle', () => {
@@ -12,6 +12,9 @@ describe('wedding bundle', () => {
     expect(restored.membership.side).toBe('groom')
     expect(restored.wedding.coupleNames).toBe('Priya & Rahul')
     expect(restored.tasks).toHaveLength(DEMO_TASKS.length)
+    expect(restored.wedding.community).toBe('hindu')
+    expect([...restored.functions].sort((a, b) => a.position - b.position).map((fn) => fn.name)).toEqual(['Wedding', 'Mehendi', 'Sangeet'])
+    expect(restored.tasks.every((task) => task.functionId)).toBe(true)
     expect(restored.budget).toHaveLength(DEMO_BUDGET.length)
     expect(restored.guests).toHaveLength(DEMO_GUESTS.length)
     expect(restored.milestones).toHaveLength(DEMO_MILESTONES.length)
@@ -56,6 +59,15 @@ describe('wedding bundle', () => {
     expect(created.wedding.weddingDate).toBe('2027-04-24')
     expect(created.milestones.find((milestone) => milestone.name === 'Wedding Day')?.date).toBe('2027-04-24')
     expect(created.tasks.find((task) => task.title === 'Baraat Vehicle')?.dueDate).toBe('2027-04-24')
+    const mehendi = created.functions.find((fn) => fn.name === 'Mehendi')
+    expect(mehendi).toBeTruthy()
+    let renamed = renameFunction(created, mehendi!.id, 'Mehendi night')
+    expect(renamed.tasks.find((task) => task.title === 'Mehendi Ceremony Setup')?.ceremony).toBe('Mehendi night')
+    renamed = moveFunctionDraft(renamed, mehendi!.id, -1)
+    expect([...renamed.functions].sort((a, b) => a.position - b.position)[0]?.name).toBe('Mehendi night')
+    const removed = removeFunction(renamed, mehendi!.id)
+    expect(removed.functions.some((fn) => fn.id === mehendi!.id)).toBe(false)
+    expect(removed.tasks.some((task) => task.title === 'Mehendi Ceremony Setup')).toBe(false)
     expect(() => saveBudgetDraft(created, {
       category: 'Attire',
       currency: 'INR',

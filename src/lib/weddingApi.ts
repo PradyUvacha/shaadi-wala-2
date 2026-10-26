@@ -1,5 +1,4 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
 import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/demoData.ts'
 import type {
   BudgetDraft,
@@ -12,15 +11,14 @@ import type {
   Side,
   Task,
   TaskDraft,
-  TemplateTask,
   WeddingBundle,
+  WeddingFunction,
   WeddingInvite,
   WeddingSettings,
 } from '../types.ts'
-import { TEMPLATE_SLUG } from '../types.ts'
+import { moveByPosition } from './checklist.ts'
 import { assertNoError } from './errors.ts'
-import { asRecord, mapBudgetItem, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
-import { ritualsForCeremonies, templateToDrafts } from './planning.ts'
+import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
 import {
   budgetInsert,
   guestInsert,
@@ -45,6 +43,13 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     saveTask,
     deleteTask,
     addTasks,
+    listFunctions,
+    listTasks,
+    addFunction,
+    renameFunction,
+    deleteFunction,
+    moveFunction,
+    moveTask,
     saveBudgetItem,
     deleteBudgetItem,
     addPayment,
@@ -52,7 +57,6 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     deleteGuest,
     saveMilestone,
     deleteMilestone,
-    loadTemplate,
     createInvite,
     listInvites,
     acceptInvite,
@@ -61,7 +65,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function getMine(): Promise<WeddingBundle | null> {
     const { data, error } = await client
       .from('wedding_members')
-      .select('id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, city, created_at)')
+      .select('id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, city, community, created_at)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -72,8 +76,9 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const wedding = one(member.weddings as Record<string, unknown> | Record<string, unknown>[] | null)
     if (!wedding) return null
     const weddingId = String(wedding.id)
-    const [tasks, budget, guests, milestones, profile] = await Promise.all([
+    const [tasks, functions, budget, guests, milestones, profile] = await Promise.all([
       loadTasks(weddingId),
+      loadFunctions(weddingId),
       loadBudget(weddingId),
       loadGuests(weddingId),
       loadMilestones(weddingId),
@@ -90,6 +95,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         coupleNames: String(wedding.couple_names ?? ''),
         weddingDate: String(wedding.wedding_date ?? ''),
         city: String(wedding.city ?? ''),
+        community: String(wedding.community ?? 'hindu'),
       },
       membership: {
         id: String(member.id),
@@ -98,6 +104,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         displayName: membershipName || displayName,
       },
       displayName,
+      functions,
       tasks,
       budget,
       guests,
@@ -117,15 +124,12 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const weddingId = String(data)
     let notice: string | null = null
     try {
-      if (input.seed === 'template') {
-        await addTasks(weddingId, templateToDrafts(ritualsForCeremonies(HINDU_CHECKLIST, input.ceremonies)))
-      }
       if (input.seed === 'demo') await seedDemo(weddingId)
     } catch (seedError) {
       notice =
         seedError instanceof Error
-          ? `Your wedding was created, but the starter list did not save (${seedError.message}). Open Tasks and load the Hindu checklist.`
-          : 'Your wedding was created, but the starter list did not save. Open Tasks and load the Hindu checklist.'
+          ? `Your wedding was created, but the sample list did not save (${seedError.message}).`
+          : 'Your wedding was created, but the sample list did not save.'
     }
     const bundle = await getMine()
     if (!bundle) throw new Error('The wedding was created, but it could not be loaded. Refresh and try again.')
@@ -156,13 +160,14 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   }
 
   async function saveTask(weddingId: string, draft: TaskDraft, id?: string): Promise<Task> {
+    const placed = await placeTask(weddingId, draft, id)
     if (id) {
-      const { data, error } = await client.from('tasks').update(taskUpdate(draft)).eq('id', id).select('*').single()
+      const { data, error } = await client.from('tasks').update(taskUpdate(placed)).eq('id', id).select('*').single()
       assertNoError(error)
       return mapTask(asRecord(data))
     }
     const sortOrder = (await maxSort(weddingId)) + 1
-    const { data, error } = await client.from('tasks').insert(taskInsert(weddingId, draft, sortOrder)).select('*').single()
+    const { data, error } = await client.from('tasks').insert(taskInsert(weddingId, placed, sortOrder)).select('*').single()
     assertNoError(error)
     return mapTask(asRecord(data))
   }
@@ -249,35 +254,53 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(error)
   }
 
-  async function loadTemplate(): Promise<TemplateTask[]> {
-    const { data, error } = await client
-      .from('ritual_template_items')
-      .select('title, description, category, priority, ceremony, sort_order')
-      .eq('template_slug', TEMPLATE_SLUG)
-      .order('sort_order')
-    if (error || !data || data.length === 0) return HINDU_CHECKLIST
-    return data.map((row) => {
-      const task = mapTask({
-        id: 'template',
-        title: row.title,
-        description: row.description,
-        category: row.category,
-        priority: row.priority,
-        ceremony: row.ceremony,
-        status: 'Pending',
-        due_date: null,
-        template_title: row.title,
-        sort_order: row.sort_order,
-      })
-      return {
-        title: task.title,
-        description: task.description,
-        category: task.category,
-        priority: task.priority,
-        ceremony: task.ceremony,
-        sortOrder: task.sortOrder,
-      }
-    })
+  async function listFunctions(weddingId: string): Promise<WeddingFunction[]> {
+    return loadFunctions(weddingId)
+  }
+
+  async function listTasks(weddingId: string): Promise<Task[]> {
+    return loadTasks(weddingId)
+  }
+
+  async function addFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+    return ensureFunction(weddingId, name)
+  }
+
+  async function renameFunction(id: string, name: string): Promise<void> {
+    const { error } = await client.from('wedding_functions').update({ name: name.trim() }).eq('id', id)
+    assertNoError(error)
+  }
+
+  async function deleteFunction(id: string): Promise<void> {
+    const { error } = await client.from('wedding_functions').delete().eq('id', id)
+    assertNoError(error)
+  }
+
+  async function moveFunction(weddingId: string, id: string, direction: -1 | 1): Promise<void> {
+    const functions = await loadFunctions(weddingId)
+    const moved = moveByPosition(functions, id, direction)
+    if (moved === functions) return
+    for (const fn of moved) {
+      const previous = functions.find((item) => item.id === fn.id)
+      if (!previous || previous.position === fn.position) continue
+      const { error } = await client.from('wedding_functions').update({ position: fn.position }).eq('id', fn.id)
+      assertNoError(error)
+    }
+  }
+
+  async function moveTask(weddingId: string, id: string, direction: -1 | 1): Promise<void> {
+    const tasks = await loadTasks(weddingId)
+    const task = tasks.find((item) => item.id === id)
+    if (!task) return
+    const siblings = tasks.filter((item) => item.functionId === task.functionId)
+    const moved = moveByPosition(siblings, id, direction)
+    if (moved === siblings) return
+    for (const item of moved) {
+      const previous = siblings.find((sibling) => sibling.id === item.id)
+      if (!previous || previous.position === item.position) continue
+      const { error } = await client.from('tasks').update({ position: item.position }).eq('id', item.id)
+      assertNoError(error)
+    }
   }
 
   async function createInvite(weddingId: string, role: InviteRole, side: Side | null): Promise<WeddingInvite> {
@@ -331,7 +354,14 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   }
 
   async function seedDemo(weddingId: string): Promise<void> {
-    await addTasks(weddingId, DEMO_TASKS)
+    const removed = await client.from('tasks').delete().eq('wedding_id', weddingId)
+    assertNoError(removed.error)
+    const functions = await loadFunctions(weddingId)
+    const byName = new Map(functions.map((fn) => [fn.name, fn.id]))
+    await addTasks(
+      weddingId,
+      DEMO_TASKS.map((task) => ({ ...task, functionId: byName.get(task.ceremony) ?? null })),
+    )
     for (const item of DEMO_BUDGET) await saveBudgetItem(weddingId, item)
     if (DEMO_GUESTS.length > 0) {
       const guests = await client.from('guests').insert(DEMO_GUESTS.map((guest) => guestInsert(weddingId, guest)))
@@ -343,6 +373,82 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         .insert(DEMO_MILESTONES.map((milestone) => milestoneInsert(weddingId, milestone)))
       assertNoError(events.error)
     }
+  }
+
+  async function loadFunctions(weddingId: string): Promise<WeddingFunction[]> {
+    const { data, error } = await client
+      .from('wedding_functions')
+      .select('id, name, position')
+      .eq('wedding_id', weddingId)
+      .order('position')
+    assertNoError(error)
+    return (data ?? []).map((row) => mapFunction(asRecord(row)))
+  }
+
+  async function ensureFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+    const trimmed = name.trim() || 'Wedding'
+    const existing = await client
+      .from('wedding_functions')
+      .select('id, name, position')
+      .eq('wedding_id', weddingId)
+      .eq('name', trimmed)
+      .maybeSingle()
+    assertNoError(existing.error)
+    if (existing.data) return mapFunction(asRecord(existing.data))
+    const top = await client
+      .from('wedding_functions')
+      .select('position')
+      .eq('wedding_id', weddingId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    assertNoError(top.error)
+    const inserted = await client
+      .from('wedding_functions')
+      .insert({ wedding_id: weddingId, name: trimmed, position: Number(top.data?.position ?? 0) + 1 })
+      .select('id, name, position')
+      .single()
+    assertNoError(inserted.error)
+    return mapFunction(asRecord(inserted.data))
+  }
+
+  async function placeTask(weddingId: string, draft: TaskDraft, id?: string): Promise<TaskDraft> {
+    let functionId = draft.functionId ?? null
+    let ceremony = draft.ceremony.trim() || 'Wedding'
+    if (functionId) {
+      const fn = await client.from('wedding_functions').select('name').eq('id', functionId).maybeSingle()
+      assertNoError(fn.error)
+      if (fn.data?.name) ceremony = String(fn.data.name)
+      else functionId = null
+    }
+    if (!functionId) {
+      const fn = await ensureFunction(weddingId, ceremony)
+      functionId = fn.id
+      ceremony = fn.name
+    }
+    let position = draft.position
+    if (id) {
+      const current = await client.from('tasks').select('function_id, position').eq('id', id).maybeSingle()
+      assertNoError(current.error)
+      const sameFunction = current.data?.function_id === functionId
+      position = sameFunction ? Number(current.data?.position ?? position ?? 0) : (await maxTaskPosition(weddingId, functionId)) + 1
+    } else {
+      position = (await maxTaskPosition(weddingId, functionId)) + 1
+    }
+    return { ...draft, ceremony, functionId, position }
+  }
+
+  async function maxTaskPosition(weddingId: string, functionId: string): Promise<number> {
+    const { data, error } = await client
+      .from('tasks')
+      .select('position')
+      .eq('wedding_id', weddingId)
+      .eq('function_id', functionId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    assertNoError(error)
+    return Number(data?.position ?? 0)
   }
 
   async function loadTasks(weddingId: string): Promise<Task[]> {

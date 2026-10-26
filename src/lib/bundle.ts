@@ -14,8 +14,10 @@ import type {
   Task,
   TaskDraft,
   WeddingBundle,
+  WeddingFunction,
   WeddingSettings,
 } from '../types.ts'
+import { moveByPosition } from './checklist.ts'
 import { moneyAmountError, validateBudgetAmounts } from './planning.ts'
 
 export function uid(): string {
@@ -37,6 +39,7 @@ function blankBundle(input: {
       coupleNames: input.coupleNames.trim(),
       weddingDate: input.weddingDate,
       city: input.city?.trim() ?? '',
+      community: 'hindu',
     },
     membership: {
       id: uid(),
@@ -45,6 +48,7 @@ function blankBundle(input: {
       displayName,
     },
     displayName,
+    functions: [],
     tasks: [],
     budget: [],
     guests: [],
@@ -86,36 +90,106 @@ export function createDemoBundle(input: { side: Side; displayName: string }, tod
   })
 }
 
+function ensureFunction(bundle: WeddingBundle, name: string): { bundle: WeddingBundle; fn: WeddingFunction } {
+  const trimmed = name.trim() || 'Wedding'
+  const existing = bundle.functions.find((fn) => fn.name === trimmed)
+  if (existing) return { bundle, fn: existing }
+  const position = bundle.functions.reduce((max, fn) => Math.max(max, fn.position), 0) + 1
+  const fn: WeddingFunction = { id: uid(), name: trimmed, position }
+  return { bundle: { ...bundle, functions: [...bundle.functions, fn] }, fn }
+}
+
+function nextTaskPosition(bundle: WeddingBundle, functionId: string): number {
+  return bundle.tasks
+    .filter((task) => task.functionId === functionId)
+    .reduce((max, task) => Math.max(max, task.position), 0) + 1
+}
+
+export function addFunction(bundle: WeddingBundle, name: string): WeddingBundle {
+  return ensureFunction(bundle, name).bundle
+}
+
+export function renameFunction(bundle: WeddingBundle, id: string, name: string): WeddingBundle {
+  const trimmed = name.trim()
+  const current = bundle.functions.find((fn) => fn.id === id)
+  if (!trimmed || !current || current.name === trimmed) return bundle
+  if (bundle.functions.some((fn) => fn.id !== id && fn.name === trimmed)) return bundle
+  return {
+    ...bundle,
+    functions: bundle.functions.map((fn) => (fn.id === id ? { ...fn, name: trimmed } : fn)),
+    tasks: bundle.tasks.map((task) =>
+      task.functionId === id || (task.functionId == null && task.ceremony === current.name)
+        ? { ...task, ceremony: trimmed, functionId: task.functionId ?? id }
+        : task,
+    ),
+  }
+}
+
+export function removeFunction(bundle: WeddingBundle, id: string): WeddingBundle {
+  const current = bundle.functions.find((fn) => fn.id === id)
+  if (!current) return bundle
+  return {
+    ...bundle,
+    functions: bundle.functions.filter((fn) => fn.id !== id),
+    tasks: bundle.tasks.filter((task) => task.functionId !== id && !(task.functionId == null && task.ceremony === current.name)),
+  }
+}
+
+export function moveFunctionDraft(bundle: WeddingBundle, id: string, direction: -1 | 1): WeddingBundle {
+  const functions = moveByPosition(bundle.functions, id, direction)
+  if (functions === bundle.functions) return bundle
+  return { ...bundle, functions }
+}
+
+export function moveTaskDraft(bundle: WeddingBundle, id: string, direction: -1 | 1): WeddingBundle {
+  const task = bundle.tasks.find((item) => item.id === id)
+  if (!task) return bundle
+  const siblings = bundle.tasks.filter((item) => item.functionId === task.functionId)
+  const moved = moveByPosition(siblings, id, direction)
+  if (moved === siblings) return bundle
+  const byId = new Map(moved.map((item) => [item.id, item]))
+  return { ...bundle, tasks: bundle.tasks.map((item) => byId.get(item.id) ?? item) }
+}
+
 export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: string): WeddingBundle {
+  const named = draft.functionId ? bundle.functions.find((fn) => fn.id === draft.functionId) : undefined
+  const ensured = named ? { bundle, fn: named } : ensureFunction(bundle, draft.ceremony)
+  const fn = ensured.fn
+  const base = ensured.bundle
   if (id) {
-    const current = bundle.tasks.find((task) => task.id === id)
-    if (!current) return bundle
+    const current = base.tasks.find((task) => task.id === id)
+    if (!current) return base
+    const moved = current.functionId !== fn.id
     const next: Task = {
       ...current,
       title: draft.title.trim(),
       description: draft.description.trim(),
       category: draft.category,
       priority: draft.priority,
-      ceremony: draft.ceremony,
+      ceremony: fn.name,
       status: draft.status,
       dueDate: draft.dueDate,
+      functionId: fn.id,
+      position: moved ? nextTaskPosition(base, fn.id) : (draft.position ?? current.position),
     }
-    return { ...bundle, tasks: bundle.tasks.map((task) => (task.id === id ? next : task)) }
+    return { ...base, tasks: base.tasks.map((task) => (task.id === id ? next : task)) }
   }
-  const sortOrder = bundle.tasks.reduce((max, task) => Math.max(max, task.sortOrder), 0) + 1
+  const sortOrder = base.tasks.reduce((max, task) => Math.max(max, task.sortOrder), 0) + 1
   const task: Task = {
     id: uid(),
     title: draft.title.trim(),
     description: draft.description.trim(),
     category: draft.category,
     priority: draft.priority,
-    ceremony: draft.ceremony,
+    ceremony: fn.name,
     status: draft.status,
     dueDate: draft.dueDate,
     templateTitle: draft.templateTitle ?? null,
     sortOrder,
+    functionId: fn.id,
+    position: draft.position ?? nextTaskPosition(base, fn.id),
   }
-  return { ...bundle, tasks: [...bundle.tasks, task] }
+  return { ...base, tasks: [...base.tasks, task] }
 }
 
 export function replaceTasks(bundle: WeddingBundle, tasks: Task[]): WeddingBundle {
@@ -240,6 +314,29 @@ export function saveMilestoneDraft(bundle: WeddingBundle, draft: MilestoneDraft,
 
 export function removeMilestone(bundle: WeddingBundle, id: string): WeddingBundle {
   return { ...bundle, milestones: bundle.milestones.filter((milestone) => milestone.id !== id) }
+}
+
+export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
+  const community = bundle.wedding.community?.trim() || 'hindu'
+  const tasks = (bundle.tasks ?? []).map((task) => ({
+    ...task,
+    ceremony: task.ceremony || 'Wedding',
+    functionId: task.functionId ?? null,
+    position: Number.isFinite(task.position) ? task.position : task.sortOrder,
+  }))
+  let functions = Array.isArray(bundle.functions) ? bundle.functions.map((fn) => ({ ...fn })) : []
+  if (functions.length === 0 && tasks.length > 0) {
+    const names: string[] = []
+    for (const task of [...tasks].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))) {
+      if (!names.includes(task.ceremony)) names.push(task.ceremony)
+    }
+    functions = names.map((name, index) => ({ id: `function-${index + 1}`, name, position: index + 1 }))
+  }
+  const byName = new Map(functions.map((fn) => [fn.name, fn.id]))
+  for (const task of tasks) {
+    if (!task.functionId) task.functionId = byName.get(task.ceremony) ?? null
+  }
+  return { ...bundle, wedding: { ...bundle.wedding, community }, functions, tasks }
 }
 
 export function updateBundleSettings(bundle: WeddingBundle, settings: WeddingSettings): WeddingBundle {

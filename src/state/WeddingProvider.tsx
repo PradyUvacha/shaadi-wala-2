@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
 import { track } from '../lib/analytics.ts'
-import { canEditWedding, canInvite } from '../lib/access.ts'
+import { canEditChecklist, canEditWedding, canInvite, canManageTasks } from '../lib/access.ts'
 import {
+  addFunction,
   addPayment,
   createDemoBundle,
+  moveFunctionDraft,
+  moveTaskDraft,
   removeBudgetItem,
+  removeFunction,
   removeGuest,
   removeMilestone,
   removeTask,
+  renameFunction,
   replaceBudgetItem,
   saveBudgetDraft,
   saveGuestDraft,
@@ -20,7 +24,6 @@ import {
   withTask,
 } from '../lib/bundle.ts'
 import { toErrorMessage } from '../lib/errors.ts'
-import { missingTemplateTasks, templateToDrafts } from '../lib/planning.ts'
 import { readPreview, writePreview } from '../lib/preview.ts'
 import { supabase } from '../lib/supabase.ts'
 import { createWeddingApi } from '../lib/weddingApi.ts'
@@ -108,6 +111,32 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     return current
   }, [requireBundle])
 
+  const requireTaskWriter = useCallback(() => {
+    const current = requireBundle()
+    if (modeRef.current === 'remote' && !canManageTasks(current.membership.role)) {
+      throw new Error('You cannot edit rituals on this wedding.')
+    }
+    return current
+  }, [requireBundle])
+
+  const requireChecklist = useCallback(() => {
+    const current = requireBundle()
+    if (modeRef.current === 'remote' && !canEditChecklist(current.membership.role)) {
+      throw new Error('Only the couple or the planner can change functions.')
+    }
+    return current
+  }, [requireBundle])
+
+  const pullChecklist = useCallback(async (current: WeddingBundle) => {
+    const api = apiRef.current
+    if (!api || modeRef.current !== 'remote') return current
+    const [tasks, functions] = await Promise.all([
+      api.listTasks(current.wedding.id),
+      api.listFunctions(current.wedding.id),
+    ])
+    return { ...current, tasks, functions }
+  }, [])
+
   const value = useMemo(() => ({
     ready,
     mode,
@@ -152,7 +181,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       commit(updateBundleSettings(requireBundle(), settings))
     },
     saveTask: async (draft: TaskDraft, id?: string) => {
-      const current = requireEditor()
+      const current = requireTaskWriter()
       const first = !id && current.tasks.length === 0
       if (modeRef.current === 'preview' || !apiRef.current) {
         commit(saveTaskDraft(current, draft, id))
@@ -160,17 +189,25 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
         return
       }
       const saved = await apiRef.current.saveTask(current.wedding.id, draft, id)
-      commit(withTask(requireBundle(), saved))
+      const next = await pullChecklist(withTask(requireBundle(), saved))
+      commit(next)
       if (first) track('first_task_added')
     },
     deleteTask: async (id: string) => {
-      const current = requireEditor()
+      const current = requireTaskWriter()
       if (modeRef.current === 'remote') await apiRef.current?.deleteTask(id)
       commit(removeTask(current, id))
     },
     toggleTask: async (task: Task) => {
       const status = task.status === 'Completed' ? 'Pending' : 'Completed'
-      const current = requireEditor()
+      const current = requireBundle()
+      if (
+        modeRef.current === 'remote' &&
+        !canManageTasks(current.membership.role) &&
+        current.membership.role !== 'friend'
+      ) {
+        throw new Error('You cannot update rituals on this wedding.')
+      }
       const draft: TaskDraft = { ...task, status }
       if (modeRef.current === 'preview' || !apiRef.current) {
         commit(saveTaskDraft(current, draft, task.id))
@@ -179,25 +216,38 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
         commit(withTask(requireBundle(), saved))
       }
     },
-    loadHinduChecklist: async () => {
-      const current = requireEditor()
-      const first = current.tasks.length === 0
-      const template = modeRef.current === 'remote' && apiRef.current ? await apiRef.current.loadTemplate() : HINDU_CHECKLIST
-      const missing = missingTemplateTasks(current.tasks, template)
-      if (missing.length === 0) return 0
-      const drafts = templateToDrafts(missing)
+    saveFunction: async (name: string, id?: string) => {
+      const current = requireChecklist()
       if (modeRef.current === 'preview' || !apiRef.current) {
-        let next = requireBundle()
-        for (const draft of drafts) next = saveTaskDraft(next, draft)
-        commit(next)
-      } else {
-        const saved = await apiRef.current.addTasks(current.wedding.id, drafts)
-        let next = requireBundle()
-        for (const task of saved) next = withTask(next, task)
-        commit(next)
+        commit(id ? renameFunction(current, id, name) : addFunction(current, name))
+        return
       }
-      if (first && missing.length > 0) track('first_task_added')
-      return missing.length
+      if (id) await apiRef.current.renameFunction(id, name)
+      else await apiRef.current.addFunction(current.wedding.id, name)
+      commit(await pullChecklist(requireBundle()))
+    },
+    deleteFunction: async (id: string) => {
+      const current = requireChecklist()
+      if (modeRef.current === 'remote') await apiRef.current?.deleteFunction(id)
+      commit(removeFunction(current, id))
+    },
+    moveFunction: async (id: string, direction: -1 | 1) => {
+      const current = requireChecklist()
+      if (modeRef.current === 'preview' || !apiRef.current) {
+        commit(moveFunctionDraft(current, id, direction))
+        return
+      }
+      await apiRef.current.moveFunction(current.wedding.id, id, direction)
+      commit(await pullChecklist(requireBundle()))
+    },
+    moveTask: async (id: string, direction: -1 | 1) => {
+      const current = requireChecklist()
+      if (modeRef.current === 'preview' || !apiRef.current) {
+        commit(moveTaskDraft(current, id, direction))
+        return
+      }
+      await apiRef.current.moveTask(current.wedding.id, id, direction)
+      commit(await pullChecklist(requireBundle()))
     },
     saveBudgetItem: async (draft: BudgetDraft, id?: string) => {
       const current = requireEditor()
@@ -292,7 +342,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       track('invite_accepted')
       setReloadKey((current) => current + 1)
     },
-  }), [bundle, commit, error, mode, notice, ready, requireBundle, requireEditor, userId])
+  }), [bundle, commit, error, mode, notice, pullChecklist, ready, requireBundle, requireChecklist, requireEditor, requireTaskWriter, userId])
 
   return <WeddingContext.Provider value={value}>{children}</WeddingContext.Provider>
 }

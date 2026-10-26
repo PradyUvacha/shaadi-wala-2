@@ -8,7 +8,7 @@ import { validateWeddingSetup } from '../../lib/planning.ts'
 import { useAuth } from '../../state/auth-context.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
-import { CEREMONIES, type Side } from '../../types.ts'
+import type { Side } from '../../types.ts'
 
 export function CreateWeddingScreen() {
   const navigate = useNavigate()
@@ -38,7 +38,7 @@ export function CreateWeddingScreen() {
     setBusy(true)
     setError(null)
     try {
-      await createWedding({ ...input, seed, ceremonies: seed === 'template' ? [...CEREMONIES] : [] })
+      await createWedding({ ...input, seed })
     } catch (caught) {
       setError(toErrorMessage(caught))
     } finally {

@@ -13,6 +13,8 @@ export function taskInsert(weddingId: string, draft: TaskDraft, sortOrder: numbe
     due_date: draft.dueDate || null,
     template_title: draft.templateTitle ?? null,
     sort_order: sortOrder,
+    function_id: draft.functionId ?? null,
+    position: draft.position ?? sortOrder,
   }
 }
 
@@ -25,6 +27,8 @@ export function taskUpdate(draft: TaskDraft) {
     ceremony: draft.ceremony,
     status: draft.status,
     due_date: draft.dueDate || null,
+    function_id: draft.functionId ?? null,
+    position: draft.position ?? 0,
   }
 }
 

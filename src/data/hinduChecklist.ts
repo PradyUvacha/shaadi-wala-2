@@ -63,7 +63,7 @@ const RITUALS: Ritual[] = [
   ['Reception', 'Thank You Cards', 'Notes to send after the wedding.', 'Invitations', 'Low'],
 ]
 
-/** Hindu wedding rituals grouped by ceremony. Couples copy the ones they choose and edit them. */
+/** Hindu wedding rituals. The database copies the whole list onto a new wedding. */
 export const HINDU_CHECKLIST: TemplateTask[] = RITUALS.map(([ceremony, title, description, category, priority], index) => ({
   ceremony,
   title,
