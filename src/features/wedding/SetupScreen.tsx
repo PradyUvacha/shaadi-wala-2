@@ -10,9 +10,16 @@ import { useAuth } from '../../state/auth-context.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { CEREMONIES, type Ceremony, type Side } from '../../types.ts'
+import { legacyOnboardingEnabled } from '../onboarding/flag.ts'
+import { CreateWeddingScreen } from './CreateWeddingScreen.tsx'
 import { ONBOARDING_STEPS } from '../onboarding/steps.ts'
 
 export function SetupScreen() {
+  if (legacyOnboardingEnabled) return <LegacySetupScreen />
+  return <CreateWeddingScreen />
+}
+
+function LegacySetupScreen() {
   const navigate = useNavigate()
   const { session } = useAuth()
   const { createWedding } = useWedding()

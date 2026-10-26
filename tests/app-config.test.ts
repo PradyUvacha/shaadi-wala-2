@@ -103,6 +103,8 @@ describe('v1 product paths', () => {
       expect(source).toContain(`'${event}'`)
     }
     expect(source).toContain('analyticsEnabled')
+    expect(source).toContain('noopAnalytics')
+    expect(source).not.toContain('posthog-js')
   })
 
   it('uses a 6-digit invite code and rejects a short mixed token', () => {

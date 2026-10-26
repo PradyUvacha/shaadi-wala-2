@@ -45,7 +45,7 @@ export type WeddingContextValue = {
   toggleMilestone: (milestone: Milestone) => Promise<void>
   createInvite: (role: InviteRole, side: Side | null) => Promise<WeddingInvite>
   listInvites: () => Promise<WeddingInvite[]>
-  acceptInvite: (code: string) => Promise<void>
+  acceptInvite: (code: string, role: InviteRole, side: Side | null) => Promise<void>
 }
 
 export const WeddingContext = createContext<WeddingContextValue | null>(null)

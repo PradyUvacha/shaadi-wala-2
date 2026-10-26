@@ -43,8 +43,9 @@ Schema, RLS, the `create_wedding` function, and the `hindu-starter` ritual templ
 1. `supabase/migrations/20261024180000_init.sql`
 2. `supabase/migrations/20261026120000_v1.sql`
 3. `supabase/migrations/20261026150000_roles.sql`
+4. `supabase/migrations/20261026180000_permissions.sql`
 
-`init.sql` and `v1.sql` can be run again. Run `roles.sql` last, and run it again if you apply `v1.sql` a second time. `roles.sql` is the permissions matrix: bride, groom, family, friend, and planner. `v1.sql` also adds ceremonies, invite codes, and the budget check that amounts are from zero through ₹10 crore.
+`init.sql`, `v1.sql`, and `roles.sql` can be run again. Run `permissions.sql` last, and run it again if you apply `roles.sql` or `v1.sql` after it. `permissions.sql` is the permissions table: change `role_permissions` to change who can do what. The seeded rows are the matrix approved on 26 Oct. `roles.sql` is the bride, groom, family, friend, and planner shape, including one bride and one groom.
 
 Apply them on the hosted project in either of these ways:
 
@@ -157,7 +158,9 @@ The first-run wizard asks for your name, the couple, the wedding date, the city,
 
 Home and the Budget “All” filter total Indian rupees only, in lakh and crore on Home. A dollar amount stays in dollars and is not added into the rupee total. A line item cannot be negative or more than ₹10 crore. Budget shows each family's share, what each family has paid, and who should settle with whom. Guests show RSVP counts and a headcount for the bride's side, the groom's side, both, and Unassigned, including plus-ones.
 
-The bride or groom can invite any role, to either side, with a 6-digit code or a link to `/invite/:code`. A parent can invite family and friends to their own side. Friends and planners cannot invite. A link that is not six digits shows an invalid-code state. Postgres row-level security enforces the approved matrix: the planner has no side, friends have no budget access, and only the bride or groom can change a member's side. The sample wedding date is 180 days after the day the demo is opened. A date that has already passed says the wedding day has passed.
+The couple creates the wedding as the bride or the groom. They invite other people with a 6-digit code or a link to `/invite/:code`. The person joining picks a role and, for a parent or friend, a side. A parent can invite family and friends to their own side. Friends and planners cannot invite. A link that is not six digits shows an invalid-code state. Postgres row-level security reads `role_permissions` through `has_permission`. The planner has no side, friends have no budget access, and only the bride or groom can change a member's side. The sample wedding date is 180 days after the day the demo is opened. A date that has already passed says the wedding day has passed.
+
+The old first-run wizard is still in the app. Set `VITE_LEGACY_ONBOARDING=true` to use it. The default screen is the bride-or-groom create flow.
 
 Profile leads to Settings, and Settings leads to Delete account. Deletion asks you to type the exact word DELETE, then calls the `delete-account` edge function. The secret key stays on Supabase. The same request can be made at https://shaadi-wala.in/delete-account/.
 
@@ -169,7 +172,7 @@ Android targets SDK 36. The window is edge-to-edge: headers and the bottom navig
 
 ## Analytics
 
-PostHog is optional. Set `VITE_POSTHOG_KEY` and, if you are not using the US cloud, `VITE_POSTHOG_HOST`. When the key is empty the app does not load PostHog and does not send events. This is the list to keep in the privacy policy:
+The app calls a small analytics interface. The installed provider is a no-op, so nothing is sent. PostHog code is parked in `src/lib/analytics/posthog.ts` and is not imported. Mixpanel can implement the same interface when that account is approved. These are the event names to keep for that provider:
 
 | Event | When |
 | --- | --- |
@@ -189,7 +192,7 @@ Events are not autocaptured. The analytics host is a third-party processor and s
 
 Do these on project `ujglzkfxgewqupkeqyek` before the new app build is useful:
 
-1. SQL Editor, in this order: `supabase/migrations/20261024180000_init.sql`, then `supabase/migrations/20261026120000_v1.sql`, then `supabase/migrations/20261026150000_roles.sql`. Run `roles.sql` again whenever `v1.sql` is applied after it. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`.
+1. SQL Editor, in this order: `supabase/migrations/20261024180000_init.sql`, then `supabase/migrations/20261026120000_v1.sql`, then `supabase/migrations/20261026150000_roles.sql`, then `supabase/migrations/20261026180000_permissions.sql`. Run `permissions.sql` again whenever an earlier file is applied after it. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`.
 2. Edge Functions: redeploy `delete-account` with `supabase functions deploy delete-account --project-ref ujglzkfxgewqupkeqyek`. The function reads the publishable key and the secret key (`SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS`, or the legacy anon and service-role names). Leave `verify_jwt` off in `supabase/config.toml`; the function checks the user JWT itself, because new `sb_` keys are not JWTs. Do not put the secret key in the app.
 3. Auth → URL configuration: Site URL `https://shaadi-wala-2.vercel.app`. Add `https://shaadi-wala-2.vercel.app/auth`, `http://127.0.0.1:5173/auth`, `http://localhost:5173/auth`, and `in.shaadiwala.app://auth/callback`.
 4. Auth → Google: enable the provider, paste the web client id and secret, and add `https://ujglzkfxgewqupkeqyek.supabase.co/auth/v1/callback` on the Google client.

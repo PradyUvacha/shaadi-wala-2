@@ -65,6 +65,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026120000_v1.sql`)
   file(`${root}supabase/migrations/20261026150000_roles.sql`)
   file(`${root}supabase/migrations/20261026150000_roles.sql`)
+  file(`${root}supabase/migrations/20261026180000_permissions.sql`)
+  file(`${root}supabase/migrations/20261026180000_permissions.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -264,5 +266,57 @@ describe('approved role permissions', () => {
     expect(psql(`select assigned_to is null from public.tasks where title = 'Helper task';`).trim()).toBe('t')
     expect(psql(`select count(*) from public.wedding_members where user_id = 'dddddddd-dddd-dddd-dddd-ddddddddddd1';`).trim()).toBe('0')
     expect(psql(`select count(*) from public.weddings where couple_names = 'Role Fixture';`).trim()).toBe('1')
+  })
+
+  it('keeps one bride and one groom with a unique constraint', () => {
+    const indexes = psql(`select indexname from pg_indexes where indexname in ('wedding_one_bride', 'wedding_one_groom') order by 1;`)
+    expect(indexes).toContain('wedding_one_bride')
+    expect(indexes).toContain('wedding_one_groom')
+    expect(() => psql(`
+      insert into auth.users (id, email) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee9', 'second-bride@example.com');
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee9', 'bride', 'bride', 'Second'
+      from public.weddings where couple_names = 'Role Fixture';
+    `)).toThrow(/duplicate key|wedding_one_bride/i)
+  })
+
+  it('reads permissions from role_permissions through has_permission', () => {
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    expect(asUser(friend, `select public.has_permission(${wedding}, 'budget.view')::text;`)).toBe('false')
+    expect(asUser(planner, `select public.has_permission(${wedding}, 'budget.view')::text;`)).toBe('true')
+    expect(asUser(planner, `select public.has_permission(${wedding}, 'budget.edit')::text;`)).toBe('false')
+    expect(asUser(family, `select public.permission_scope(${wedding}, 'budget.pay');`)).toBe('own_side')
+    expect(asUser(family, `select public.permission_scope(${wedding}, 'tasks.edit');`)).toBe('own_side')
+    expect(asUser(friend, `select public.permission_scope(${wedding}, 'tasks.edit');`)).toBe('assigned')
+    expect(asUser(planner, `select public.permission_scope(${wedding}, 'members.change_side');`)).toBe('none')
+    expect(asUser(bride, `select count(*) from public.budget_items where notes = 'hall';`)).toBe('1')
+    psql(`update public.role_permissions set scope = 'all' where role = 'friend' and action = 'budget.view';`)
+    try {
+      expect(asUser(friend, `select public.has_permission(${wedding}, 'budget.view')::text;`)).toBe('true')
+      expect(asUser(friend, `select count(*) from public.budget_items where notes = 'hall';`)).toBe('1')
+    } finally {
+      psql(`update public.role_permissions set scope = 'none' where role = 'friend' and action = 'budget.view';`)
+    }
+    expect(asUser(friend, `select count(*) from public.budget_items where notes = 'hall';`)).toBe('0')
+  })
+
+  it('lets the person joining pick a role and a side', () => {
+    const code = asUser(bride, `select public.create_invite((select id from public.weddings where couple_names = 'Role Fixture'), 'open', '');`)
+    expect(code).toMatch(/^\d{6}$/)
+    psql(`insert into auth.users (id, email) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1', 'joiner@example.com') on conflict (id) do nothing;`)
+    expect(errorOf('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1', `select public.accept_invite('${code}', 'friend', '');`)).toMatch(/pick a side/)
+    expect(asUser('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1', `select public.accept_invite('${code}', 'friend', 'groom');`)).toMatch(/[0-9a-f-]{36}/)
+    expect(psql(`select role || ' ' || side from public.wedding_members where user_id = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee1';`).trim()).toBe('friend groom')
+
+    const familyCode = asUser(family, `select public.create_invite((select id from public.weddings where couple_names = 'Role Fixture'), 'open', 'bride');`)
+    expect(familyCode).toMatch(/^\d{6}$/)
+    psql(`insert into auth.users (id, email) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2', 'joiner2@example.com') on conflict (id) do nothing;`)
+    expect(errorOf('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2', `select public.accept_invite('${familyCode}', 'planner', '');`)).toMatch(/family and friends only/)
+    expect(errorOf('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2', `select public.accept_invite('${familyCode}', 'family', 'groom');`)).toMatch(/own side/)
+    expect(asUser('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee2', `select public.accept_invite('${familyCode}', 'family', 'bride');`)).toMatch(/[0-9a-f-]{36}/)
+
+    const brideCode = asUser(groom, `select public.create_invite((select id from public.weddings where couple_names = 'Role Fixture'), 'open', '');`)
+    psql(`insert into auth.users (id, email) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee3', 'joiner3@example.com') on conflict (id) do nothing;`)
+    expect(errorOf('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee3', `select public.accept_invite('${brideCode}', 'bride', 'bride');`)).toMatch(/already has a bride/)
   })
 })

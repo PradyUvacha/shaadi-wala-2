@@ -307,7 +307,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(error)
     return (data ?? []).map((row) => {
       const record = asRecord(row)
-      const role = mapMemberRole(record.role)
+      const role = record.role === 'open' ? 'open' : mapMemberRole(record.role)
       const inviteSide = record.side === 'bride' || record.side === 'groom' ? record.side : null
       return {
         id: String(record.id),
@@ -320,8 +320,12 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     })
   }
 
-  async function acceptInvite(code: string): Promise<string> {
-    const { data, error } = await client.rpc('accept_invite', { p_token: code.trim() })
+  async function acceptInvite(code: string, role: InviteRole, side: Side | null): Promise<string> {
+    const { data, error } = await client.rpc('accept_invite', {
+      p_token: code.trim(),
+      p_role: role === 'open' ? '' : role,
+      p_side: side ?? '',
+    })
     assertNoError(error)
     return String(data)
   }

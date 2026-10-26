@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
 import { track } from '../lib/analytics.ts'
-import { canEditWedding } from '../lib/access.ts'
+import { canEditWedding, canInvite } from '../lib/access.ts'
 import {
   addPayment,
   createDemoBundle,
@@ -269,8 +269,11 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       commit(withMilestone(requireBundle(), saved))
     },
     createInvite: async (role: InviteRole, side: Side | null) => {
-      const current = requireEditor()
+      const current = requireBundle()
       const api = apiRef.current
+      if (modeRef.current === 'remote' && !canInvite(current.membership.role)) {
+        throw new Error('You cannot invite anyone to this wedding.')
+      }
       if (!api || modeRef.current !== 'remote') throw new Error('Sign in to invite your partner or family.')
       const invite = await api.createInvite(current.wedding.id, role, side)
       track('invite_sent', { role })
@@ -282,10 +285,10 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       if (!api || modeRef.current !== 'remote') return []
       return api.listInvites(current.wedding.id)
     },
-    acceptInvite: async (code: string) => {
+    acceptInvite: async (code: string, role: InviteRole, side: Side | null) => {
       const api = apiRef.current
       if (!api) throw new Error('Sign in before accepting an invite.')
-      await api.acceptInvite(code)
+      await api.acceptInvite(code, role, side)
       track('invite_accepted')
       setReloadKey((current) => current + 1)
     },

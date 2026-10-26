@@ -13,7 +13,6 @@ export const TEMPLATE_SLUG = 'hindu-starter'
 
 export type Category = (typeof CATEGORIES)[number]
 export type Ceremony = (typeof CEREMONIES)[number]
-export type InviteRole = (typeof INVITE_ROLES)[number]
 export type Priority = (typeof PRIORITIES)[number]
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 export type RsvpStatus = (typeof RSVP_STATUSES)[number]
@@ -24,6 +23,7 @@ export type Side = 'bride' | 'groom'
 export type GuestSide = '' | Side | 'both'
 export type PaymentSide = '' | 'bride' | 'groom' | 'other'
 export type MemberRole = (typeof MEMBER_ROLES)[number]
+export type InviteRole = MemberRole | 'open'
 
 export type TemplateTask = {
   title: string

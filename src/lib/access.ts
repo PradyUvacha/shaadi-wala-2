@@ -1,4 +1,4 @@
-import type { MemberRole, Side } from '../types.ts'
+import type { InviteRole, MemberRole, Side } from '../types.ts'
 
 export function isCouple(role: MemberRole | null | undefined): boolean {
   return role === 'bride' || role === 'groom'
@@ -45,6 +45,15 @@ export function inviteRolesFor(role: MemberRole | null | undefined): MemberRole[
   if (isCouple(role)) return ['bride', 'groom', 'family', 'friend', 'planner']
   if (role === 'family') return ['family', 'friend']
   return []
+}
+
+export function inviteRoleLabel(role: InviteRole, side?: Side | null): string {
+  if (role === 'open') {
+    if (side === 'bride') return "They choose · Bride's side"
+    if (side === 'groom') return "They choose · Groom's side"
+    return 'They choose their role'
+  }
+  return roleLabel(role, side)
 }
 
 export function roleLabel(role: MemberRole, side?: Side | null): string {
