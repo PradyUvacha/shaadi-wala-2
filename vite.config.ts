@@ -1,7 +1,50 @@
-import { defineConfig } from 'vite'
+import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import type { Plugin } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
-// https://vite.dev/config/
+function commitSha(): string {
+  const fromEnv = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || ''
+  if (fromEnv.trim()) return fromEnv.trim()
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+}
+
+/**
+ * A false flag still leaves a dynamic import() in the module graph, so Rollup
+ * emits the parked screen. Replace that import before Rollup sees it.
+ * Flip the constant in src/features/onboarding/flag.ts to compile the slice again.
+ */
+function parkDisabledSlices(): Plugin {
+  const flags = () => readFileSync(new URL('./src/features/onboarding/flag.ts', import.meta.url), 'utf8')
+  return {
+    name: 'park-disabled-slices',
+    enforce: 'pre',
+    transform(code, id) {
+      let next = code
+      const source = flags()
+      if (id.endsWith('/SetupScreen.tsx') && /export const legacyOnboardingEnabled = false/.test(source)) {
+        next = next.replaceAll("import('./LegacySetupScreen.tsx')", 'Promise.resolve({ LegacySetupScreen: () => null })')
+      }
+      if (id.endsWith('/GuestsTab.tsx') && /export const rsvpBySideEnabled = false/.test(source)) {
+        next = next.replaceAll("void import('./RsvpBySide.tsx')", 'void Promise.resolve(null)')
+      }
+      return next === code ? null : { code: next, map: null }
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), parkDisabledSlices()],
+  define: {
+    __SHAADI_COMMIT_SHA__: JSON.stringify(commitSha()),
+  },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'tests/**/*.test.ts'],
+  },
 })

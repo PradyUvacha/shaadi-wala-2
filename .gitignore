@@ -11,6 +11,16 @@ node_modules
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+android/keystore.properties
+*.apk
+*.aab
+supabase/.temp
+supabase/.branches
 
 # Editor directories and files
 .vscode/*
