@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it, beforeAll } from 'vitest'
 
@@ -53,12 +53,136 @@ function errorOf(userId: string, sql: string): string {
   }
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function waitUntil(sql: string, ready: (value: string) => boolean, timeoutMs = 8000): Promise<string> {
+  const started = Date.now()
+  let last = ''
+  while (Date.now() - started < timeoutMs) {
+    last = psql(sql).trim()
+    if (ready(last)) return last
+    await sleep(40)
+  }
+  throw new Error(`timed out waiting for ${sql}; last=${last}`)
+}
+
+class PsqlSession {
+  private child: ChildProcessWithoutNullStreams
+  private out = ''
+  private err = ''
+  private closed: number | null = null
+  private waiters: Array<() => void> = []
+
+  constructor() {
+    const env = { ...process.env, PGPASSWORD: process.env.PGPASSWORD ?? 'postgres' }
+    this.child = process.env.PGHOST
+      ? spawn('psql', ['-h', process.env.PGHOST, '-U', process.env.PGUSER ?? 'postgres', '-d', db, '-v', 'ON_ERROR_STOP=1', '--no-psqlrc', '-A', '-t', '-q'], { env })
+      : spawn('sudo', ['-u', 'postgres', 'psql', '-d', db, '-v', 'ON_ERROR_STOP=1', '--no-psqlrc', '-A', '-t', '-q'], { env })
+    this.child.stdout.on('data', (chunk: Buffer) => {
+      this.out += chunk.toString()
+      this.wake()
+    })
+    this.child.stderr.on('data', (chunk: Buffer) => {
+      this.err += chunk.toString()
+      this.wake()
+    })
+    this.child.on('close', (code) => {
+      this.closed = code ?? 1
+      this.wake()
+    })
+    this.child.stdin.write('\\set VERBOSITY verbose\n')
+  }
+
+  private wake() {
+    for (const waiter of [...this.waiters]) waiter()
+  }
+
+  private waitFor(ready: () => boolean, timeoutMs: number): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup()
+        reject(new Error(`psql timed out\nstdout:\n${this.out}\nstderr:\n${this.err}`))
+      }, timeoutMs)
+      const onWake = () => {
+        if (!ready()) return
+        cleanup()
+        resolve()
+      }
+      const cleanup = () => {
+        clearTimeout(timer)
+        this.waiters = this.waiters.filter((item) => item !== onWake)
+      }
+      this.waiters.push(onWake)
+      onWake()
+    })
+  }
+
+  query(sql: string, timeoutMs = 15000): Promise<string> {
+    const marker = `MARK_${Math.random().toString(16).slice(2)}`
+    const start = this.out.length
+    const errStart = this.err.length
+    this.child.stdin.write(`${sql}\n\\echo ${marker}\n`)
+    return this.waitFor(() => this.out.slice(start).includes(marker) || this.closed !== null, timeoutMs).then(() => {
+      if (!this.out.slice(start).includes(marker)) {
+        throw new Error(`psql exited ${this.closed}\n${this.err.slice(errStart)}\n${this.out.slice(start)}`)
+      }
+      return this.out.slice(start).replace(marker, '').trim()
+    })
+  }
+
+  async close() {
+    if (this.closed !== null) return
+    this.child.stdin.end()
+    const killer = setTimeout(() => this.child.kill('SIGKILL'), 1000)
+    await this.waitFor(() => this.closed !== null, 3000).catch(() => this.child.kill('SIGKILL'))
+    clearTimeout(killer)
+  }
+}
+
+async function holdSecondWriter(options: { signalKey: number; gateKey: number; winnerSql: string; loserSql: string }): Promise<string> {
+  const gate = new PsqlSession()
+  const winner = new PsqlSession()
+  const loser = new PsqlSession()
+  try {
+    await gate.query(`select pg_advisory_lock(42002, ${options.gateKey});`)
+    const winnerDone = winner.query(`
+      begin;
+      ${options.winnerSql}
+      select pg_advisory_lock(42002, ${options.signalKey});
+      select pg_advisory_lock(42002, ${options.gateKey});
+      commit;
+      select pg_advisory_unlock(42002, ${options.signalKey});
+    `, 20000)
+    await waitUntil(
+      `select count(*) from pg_locks where locktype = 'advisory' and classid = 42002 and objid = ${options.signalKey} and granted;`,
+      (value) => value === '1',
+    )
+    const loserDone = loser.query(options.loserSql, 20000).then(
+      (stdout) => ({ failed: false, detail: stdout }),
+      (error: Error) => ({ failed: true, detail: error.message }),
+    )
+    await waitUntil(
+      `select count(*) from pg_locks where locktype = 'transactionid' and not granted;`,
+      (value) => value !== '0' && value !== '',
+    )
+    await gate.query(`select pg_advisory_unlock(42002, ${options.gateKey});`)
+    await winnerDone
+    const lost = await loserDone
+    if (!lost.failed) throw new Error(`second writer succeeded: ${lost.detail}`)
+    return lost.detail
+  } finally {
+    await Promise.all([gate.close(), winner.close(), loser.close()])
+  }
+}
+
 beforeAll(() => {
   if (!process.env.PGHOST) {
     run('postgres', ['-v', 'ON_ERROR_STOP=1', '-c', 'drop database if exists shaadi_roles'])
     run('postgres', ['-v', 'ON_ERROR_STOP=1', '-c', 'create database shaadi_roles'])
   } else {
-    psql('drop schema if exists public cascade; drop schema if exists auth cascade; create schema public;')
+    psql('drop schema if exists storage cascade; drop schema if exists public cascade; drop schema if exists auth cascade; create schema public;')
   }
   file(`${root}supabase/tests/auth-stub.sql`)
   file(`${root}supabase/migrations/20261024180000_init.sql`)
@@ -67,6 +191,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026150000_roles.sql`)
   file(`${root}supabase/migrations/20261026180000_permissions.sql`)
   file(`${root}supabase/migrations/20261026180000_permissions.sql`)
+  file(`${root}supabase/migrations/20261026190000_feedback_screenshot.sql`)
+  file(`${root}supabase/migrations/20261026190000_feedback_screenshot.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -268,16 +394,27 @@ describe('approved role permissions', () => {
     expect(psql(`select count(*) from public.weddings where couple_names = 'Role Fixture';`).trim()).toBe('1')
   })
 
-  it('keeps one bride and one groom with a unique constraint', () => {
-    const indexes = psql(`select indexname from pg_indexes where indexname in ('wedding_one_bride', 'wedding_one_groom') order by 1;`)
-    expect(indexes).toContain('wedding_one_bride')
-    expect(indexes).toContain('wedding_one_groom')
+  it('keeps one bride and one groom with a partial unique index', () => {
+    const brideIndex = psql(`select indexdef from pg_indexes where indexname = 'wedding_one_bride';`)
+    const groomIndex = psql(`select indexdef from pg_indexes where indexname = 'wedding_one_groom';`)
+    expect(brideIndex).toMatch(/UNIQUE/i)
+    expect(brideIndex).toMatch(/where \(+\(?role = 'bride'/i)
+    expect(groomIndex).toMatch(/UNIQUE/i)
+    expect(groomIndex).toMatch(/where \(+\(?role = 'groom'/i)
     expect(() => psql(`
       insert into auth.users (id, email) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee9', 'second-bride@example.com');
       insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
       select id, 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee9', 'bride', 'bride', 'Second'
       from public.weddings where couple_names = 'Role Fixture';
     `)).toThrow(/duplicate key|wedding_one_bride/i)
+    expect(() => psql(`
+      insert into auth.users (id, email) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea1', 'second-groom@example.com');
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeea1', 'groom', 'groom', 'Second Groom'
+      from public.weddings where couple_names = 'Role Fixture';
+    `)).toThrow(/duplicate key|wedding_one_groom/i)
+    expect(psql(`select count(*) from public.wedding_members where wedding_id = (select id from public.weddings where couple_names = 'Role Fixture') and role = 'bride';`).trim()).toBe('1')
+    expect(psql(`select count(*) from public.wedding_members where wedding_id = (select id from public.weddings where couple_names = 'Role Fixture') and role = 'groom';`).trim()).toBe('1')
   })
 
   it('reads permissions from role_permissions through has_permission', () => {
@@ -319,4 +456,145 @@ describe('approved role permissions', () => {
     psql(`insert into auth.users (id, email) values ('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee3', 'joiner3@example.com') on conflict (id) do nothing;`)
     expect(errorOf('eeeeeeee-eeee-eeee-eeee-eeeeeeeeeee3', `select public.accept_invite('${brideCode}', 'bride', 'bride');`)).toMatch(/already has a bride/)
   })
+
+  it('rejects a second bride when two people join at the same time', async () => {
+    await expectOneSlotUnderRace({
+      couple: 'Race Join Bride',
+      creator: 'b1111111-1111-1111-1111-111111111111',
+      creatorRole: 'groom',
+      takenRole: 'bride',
+      joinerA: 'b2222222-2222-2222-2222-222222222222',
+      joinerB: 'b3333333-3333-3333-3333-333333333333',
+      signalKey: 11,
+      gateKey: 19,
+      mode: 'join',
+    })
+  }, 20000)
+
+  it('rejects a second groom when two people join at the same time', async () => {
+    await expectOneSlotUnderRace({
+      couple: 'Race Join Groom',
+      creator: 'b4444444-4444-4444-4444-444444444444',
+      creatorRole: 'bride',
+      takenRole: 'groom',
+      joinerA: 'b5555555-5555-5555-5555-555555555555',
+      joinerB: 'b6666666-6666-6666-6666-666666666666',
+      signalKey: 12,
+      gateKey: 29,
+      mode: 'join',
+    })
+  }, 20000)
+
+  it('rejects a second bride when two direct inserts run together', async () => {
+    await expectOneSlotUnderRace({
+      couple: 'Race Direct Bride',
+      creator: 'b7777777-7777-7777-7777-777777777777',
+      creatorRole: 'groom',
+      takenRole: 'bride',
+      joinerA: 'b8888888-8888-8888-8888-888888888888',
+      joinerB: 'b9999999-9999-9999-9999-999999999999',
+      signalKey: 13,
+      gateKey: 39,
+      mode: 'insert',
+    })
+  }, 20000)
+
+  it('rejects a second groom when two direct inserts run together', async () => {
+    await expectOneSlotUnderRace({
+      couple: 'Race Direct Groom',
+      creator: 'baaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1',
+      creatorRole: 'bride',
+      takenRole: 'groom',
+      joinerA: 'baaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2',
+      joinerB: 'baaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3',
+      signalKey: 14,
+      gateKey: 49,
+      mode: 'insert',
+    })
+  }, 20000)
+
+  it('lets only the sender read their feedback screenshot', () => {
+    const path = `${bride}/note.png`
+    expect(psql(`select (storage.foldername('${path}'))[1];`).trim()).toBe(bride)
+    expect(asUser(bride, `
+      insert into storage.objects (bucket_id, name) values ('feedback-screenshots', '${path}');
+      select count(*) from storage.objects where bucket_id = 'feedback-screenshots' and name = '${path}';
+    `)).toBe('1')
+    expect(asUser(groom, `select count(*) from storage.objects where bucket_id = 'feedback-screenshots';`)).toBe('0')
+    expect(errorOf(groom, `insert into storage.objects (bucket_id, name) values ('feedback-screenshots', '${bride}/other.png'); select 1;`)).toMatch(/row-level security|policy/i)
+    expect(asUser(groom, `
+      insert into storage.objects (bucket_id, name) values ('feedback-screenshots', '${groom}/own.png');
+      select count(*) from storage.objects where name = '${groom}/own.png';
+    `)).toBe('1')
+    expect(asUser(bride, `
+      insert into public.feedback (user_id, message, screenshot_path) values ('${bride}', 'A note', '${path}');
+      select screenshot_path from public.feedback;
+    `)).toBe(path)
+    expect(asUser(groom, `select count(*) from public.feedback;`)).toBe('0')
+    asUser(groom, `delete from storage.objects where name = '${path}'; select 1;`)
+    expect(psql(`select count(*) from storage.objects where name = '${path}';`).trim()).toBe('1')
+    expect(asUser(bride, `
+      delete from storage.objects where name = '${path}';
+      select count(*) from storage.objects where name = '${path}';
+    `)).toBe('0')
+  })
 })
+
+async function expectOneSlotUnderRace(input: {
+  couple: string
+  creator: string
+  creatorRole: 'bride' | 'groom'
+  takenRole: 'bride' | 'groom'
+  joinerA: string
+  joinerB: string
+  signalKey: number
+  gateKey: number
+  mode: 'join' | 'insert'
+}) {
+  psql(`
+    insert into auth.users (id, email) values
+      ('${input.creator}', '${input.signalKey}-creator@example.com'),
+      ('${input.joinerA}', '${input.signalKey}-a@example.com'),
+      ('${input.joinerB}', '${input.signalKey}-b@example.com');
+  `)
+  asUser(input.creator, `select public.create_wedding('${input.couple}', '2027-04-24', '${input.creatorRole}', 'Creator', 'Mumbai');`)
+  const claim = (userId: string) => `
+    select set_config('request.jwt.claim.sub', '${userId}', false);
+    select set_config('request.jwt.claim.email', '${userId.slice(0, 8)}@example.com', false);
+    select set_config('request.jwt.claim.display_name', 'Joiner', false);
+    set role authenticated;
+  `
+  let winnerSql: string
+  let loserSql: string
+  if (input.mode === 'join') {
+    const codeA = asUser(input.creator, `select public.create_invite((select id from public.weddings where couple_names = '${input.couple}'), 'open', '');`)
+    const codeB = asUser(input.creator, `select public.create_invite((select id from public.weddings where couple_names = '${input.couple}'), 'open', '');`)
+    expect(codeA).toMatch(/^\d{6}$/)
+    expect(codeB).toMatch(/^\d{6}$/)
+    expect(codeA).not.toBe(codeB)
+    winnerSql = `${claim(input.joinerA)} select public.accept_invite('${codeA}', '${input.takenRole}', '${input.takenRole}');`
+    loserSql = `${claim(input.joinerB)} select public.accept_invite('${codeB}', '${input.takenRole}', '${input.takenRole}');`
+  } else {
+    const insert = (userId: string) => `
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, '${userId}', '${input.takenRole}', '${input.takenRole}', 'Direct'
+      from public.weddings where couple_names = '${input.couple}';
+    `
+    winnerSql = insert(input.joinerA)
+    loserSql = insert(input.joinerB)
+  }
+  const detail = await holdSecondWriter({
+    signalKey: input.signalKey,
+    gateKey: input.gateKey,
+    winnerSql,
+    loserSql,
+  })
+  expect(detail).toMatch(/23505/)
+  if (input.mode === 'join') {
+    expect(detail).toMatch(input.takenRole === 'bride' ? /already has a bride/ : /already has a groom/)
+  } else {
+    expect(detail).toMatch(input.takenRole === 'bride' ? /wedding_one_bride/ : /wedding_one_groom/)
+  }
+  const count = psql(`select count(*) from public.wedding_members where wedding_id = (select id from public.weddings where couple_names = '${input.couple}') and role = '${input.takenRole}';`).trim()
+  expect(count).toBe('1')
+}

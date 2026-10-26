@@ -544,6 +544,17 @@ begin
     set role = excluded.role, side = excluded.side;
   update public.wedding_invites set accepted_by = auth.uid(), accepted_at = now() where id = invite.id;
   return invite.wedding_id;
+exception
+  when unique_violation then
+    if chosen_role = 'bride' then
+      raise exception 'This wedding already has a bride. Ask them for a family or friend invite.'
+        using errcode = 'unique_violation';
+    elsif chosen_role = 'groom' then
+      raise exception 'This wedding already has a groom. Ask them for a family or friend invite.'
+        using errcode = 'unique_violation';
+    else
+      raise;
+    end if;
 end;
 $$;
 

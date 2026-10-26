@@ -38,18 +38,19 @@ Vite inlines `VITE_*` values at build time. An Android build made without the an
 
 ## Database
 
-Schema, RLS, the `create_wedding` function, and the `hindu-starter` ritual template are in three files. Run them in this order, in the SQL editor:
+Schema, RLS, the `create_wedding` function, and the `hindu-starter` ritual template are in these files. Run them in this order, in the SQL editor:
 
 1. `supabase/migrations/20261024180000_init.sql`
 2. `supabase/migrations/20261026120000_v1.sql`
 3. `supabase/migrations/20261026150000_roles.sql`
 4. `supabase/migrations/20261026180000_permissions.sql`
+5. `supabase/migrations/20261026190000_feedback_screenshot.sql`
 
-`init.sql`, `v1.sql`, and `roles.sql` can be run again. Run `permissions.sql` last, and run it again if you apply `roles.sql` or `v1.sql` after it. `permissions.sql` is the permissions table: change `role_permissions` to change who can do what. The seeded rows are the matrix approved on 26 Oct. `roles.sql` is the bride, groom, family, friend, and planner shape, including one bride and one groom.
+`init.sql`, `v1.sql`, `roles.sql`, and `feedback_screenshot.sql` can be run again. Run `permissions.sql` after `roles.sql`, and run it again if you apply `roles.sql` or `v1.sql` after it. Then run `feedback_screenshot.sql` last. `permissions.sql` is the permissions table: change `role_permissions` to change who can do what. The seeded rows are the matrix approved on 26 Oct. `roles.sql` is the bride, groom, family, friend, and planner shape. A partial unique index keeps one bride and one groom, including when two people join at the same time. `feedback_screenshot.sql` adds an optional private screenshot bucket.
 
 Apply them on the hosted project in either of these ways:
 
-1. Open the SQL editor in the [project dashboard](https://supabase.com/dashboard/project/ujglzkfxgewqupkeqyek) and run those three files, in that order.
+1. Open the SQL editor in the [project dashboard](https://supabase.com/dashboard/project/ujglzkfxgewqupkeqyek) and run those files, in that order.
 2. From this repo, with the Supabase CLI logged in:
 
 ```bash
@@ -118,12 +119,12 @@ The package id is `in.shaadiwala.app`. It is final. The web app, Capacitor, and 
 {
   "appId": "in.shaadiwala.app",
   "appName": "Shaadi Wala",
-  "versionCode": 1,
-  "versionName": "SW_1.0_Checklist-Budget-Guests-Timeline_2026-10-24"
+  "versionCode": 3,
+  "versionName": "SW_0.1_FoundationOAuthMixpanel_03Nov26"
 }
 ```
 
-`versionName` must match `SW_<version>_<Key-Features>_<YYYY-MM-DD>`. Features are hyphenated words with no spaces, for example `SW_1.0_Checklist-Budget-Guests_2026-11-17`. `versionCode` stays a positive integer. Raise it by 1 for every Play upload. Change both values only in `app.config.json`. The native package declaration in `MainActivity.java` matches the final id; changing the id later means regenerating `android/`.
+`versionName` must match `SW_<version>_<Key-Features>_<YYYY-MM-DD>` or `SW_<version>_<Key-Features>_<DDMonYY>`. Features are hyphenated words with no spaces. This slice ships as `SW_0.1_FoundationOAuthMixpanel_03Nov26`. `versionCode` stays a positive integer. Raise it by 1 for every Play upload. Change both values only in `app.config.json`. The native package declaration in `MainActivity.java` matches the final id; changing the id later means regenerating `android/`.
 
 After this project exists, sync with `npx cap sync android`. Do not run `npx cap add android` again. That command rewrites the manifest and string resources.
 
@@ -156,17 +157,17 @@ That produces `android/app/build/outputs/bundle/release/app-release.aab` when th
 
 The first-run wizard asks for your name, the couple, the wedding date, the city, your side, and which ceremonies to seed. The Hindu checklist has 53 rituals across Roka, Sagai, Haldi, Mehendi, Sangeet, Wedding, Vidaai, and Reception. The Tasks tab groups them by ceremony and can load any that are still missing. Renaming a ritual does not cause a duplicate.
 
-Home and the Budget “All” filter total Indian rupees only, in lakh and crore on Home. A dollar amount stays in dollars and is not added into the rupee total. A line item cannot be negative or more than ₹10 crore. Budget shows each family's share, what each family has paid, and who should settle with whom. Guests show RSVP counts and a headcount for the bride's side, the groom's side, both, and Unassigned, including plus-ones.
+Home and the Budget “All” filter total Indian rupees only, in lakh and crore on Home. A dollar amount stays in dollars and is not added into the rupee total. A line item cannot be negative or more than ₹10 crore. Budget shows each family's share, what each family has paid, and who should settle with whom. Guests show total, confirmed, pending, and declined counts. Headcount split by side is parked with the rest of RSVP-by-side.
 
 The couple creates the wedding as the bride or the groom. They invite other people with a 6-digit code or a link to `/invite/:code`. The person joining picks a role and, for a parent or friend, a side. A parent can invite family and friends to their own side. Friends and planners cannot invite. A link that is not six digits shows an invalid-code state. Postgres row-level security reads `role_permissions` through `has_permission`. The planner has no side, friends have no budget access, and only the bride or groom can change a member's side. The sample wedding date is 180 days after the day the demo is opened. A date that has already passed says the wedding day has passed.
 
-The old first-run wizard is still in the app. Set `VITE_LEGACY_ONBOARDING=true` to use it. The default screen is the bride-or-groom create flow.
+The old first-run wizard and the RSVP-by-side guest panel stay in the repo, behind `legacyOnboardingEnabled` and `rsvpBySideEnabled` in `src/features/onboarding/flag.ts`. Both are `false`, so neither is in the production bundle. Flip a constant to compile that slice back in. The default screen is the bride-or-groom create flow.
 
 Profile leads to Settings, and Settings leads to Delete account. Deletion asks you to type the exact word DELETE, then calls the `delete-account` edge function. The secret key stays on Supabase. The same request can be made at https://shaadi-wala.in/delete-account/.
 
 Sign-up and Settings link to the [Privacy Policy](https://shaadi-wala.in/privacy-policy/) and the [Terms of Service](https://shaadi-wala.in/terms-of-service/).
 
-Feedback is text plus an optional 1–5 rating, stored in `feedback`. There is no screenshot upload.
+Feedback is text plus an optional 1–5 rating, stored in `feedback`. A screenshot is optional. It is stored in the private `feedback-screenshots` bucket, and storage policies allow only the person who uploaded it to read or delete it.
 
 Android targets SDK 36. The window is edge-to-edge: headers and the bottom navigation use `--safe-area-inset-top` and `--safe-area-inset-bottom`, which Capacitor fills on Android 15+ and which `env(safe-area-inset-*)` fills in the browser.
 
@@ -192,7 +193,7 @@ Events are not autocaptured. The analytics host is a third-party processor and s
 
 Do these on project `ujglzkfxgewqupkeqyek` before the new app build is useful:
 
-1. SQL Editor, in this order: `supabase/migrations/20261024180000_init.sql`, then `supabase/migrations/20261026120000_v1.sql`, then `supabase/migrations/20261026150000_roles.sql`, then `supabase/migrations/20261026180000_permissions.sql`. Run `permissions.sql` again whenever an earlier file is applied after it. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`.
+1. SQL Editor, in this order: `supabase/migrations/20261024180000_init.sql`, then `supabase/migrations/20261026120000_v1.sql`, then `supabase/migrations/20261026150000_roles.sql`, then `supabase/migrations/20261026180000_permissions.sql`, then `supabase/migrations/20261026190000_feedback_screenshot.sql`. Run `permissions.sql` again whenever an earlier file is applied after it, then run the screenshot file again. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`. These files have not been applied to the hosted project from this repo.
 2. Edge Functions: redeploy `delete-account` with `supabase functions deploy delete-account --project-ref ujglzkfxgewqupkeqyek`. The function reads the publishable key and the secret key (`SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS`, or the legacy anon and service-role names). Leave `verify_jwt` off in `supabase/config.toml`; the function checks the user JWT itself, because new `sb_` keys are not JWTs. Do not put the secret key in the app.
 3. Auth → URL configuration: Site URL `https://shaadi-wala-2.vercel.app`. Add `https://shaadi-wala-2.vercel.app/auth`, `http://127.0.0.1:5173/auth`, `http://localhost:5173/auth`, and `in.shaadiwala.app://auth/callback`.
 4. Auth → Google: enable the provider, paste the web client id and secret, and add `https://ujglzkfxgewqupkeqyek.supabase.co/auth/v1/callback` on the Google client.

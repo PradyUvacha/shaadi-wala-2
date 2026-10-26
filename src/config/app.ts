@@ -10,7 +10,7 @@ const config = raw as {
 
 if (!isValidVersionName(config.versionName) || !isValidVersionCode(config.versionCode)) {
   throw new Error(
-    'Invalid app.config.json. versionName must look like SW_1.0_Checklist-Budget-Guests_2026-11-17 and versionCode must be a positive integer.',
+    'Invalid app.config.json. versionName must look like SW_0.1_FoundationOAuthMixpanel_03Nov26 and versionCode must be a positive integer.',
   )
 }
 

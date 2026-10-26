@@ -1,14 +1,14 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { canEditGuests } from '../../lib/access.ts'
-import { guestHeadcount } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
 import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
-import type { Guest, GuestDraft, GuestSide, RsvpStatus } from '../../types.ts'
+import type { Guest, GuestDraft, RsvpStatus } from '../../types.ts'
 import { MEALS, RSVP_STATUSES } from '../../types.ts'
+import { rsvpBySideEnabled } from '../onboarding/flag.ts'
 
 const emptyForm = (): GuestDraft => ({
   name: '',
@@ -22,6 +22,8 @@ const emptyForm = (): GuestDraft => ({
 
 const statusColors: Record<string, string> = { Confirmed: COLORS.green, Pending: COLORS.saffron, Declined: '#CC4444' }
 
+type RsvpModule = typeof import('./RsvpBySide.tsx')
+
 export function GuestsTab() {
   const { bundle, mode, saveGuest, deleteGuest } = useWedding()
   const canEdit = mode === 'preview' || canEditGuests(bundle?.membership.role)
@@ -31,6 +33,18 @@ export function GuestsTab() {
   const [form, setForm] = useState<GuestDraft>(emptyForm)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [rsvp, setRsvp] = useState<RsvpModule | null>(null)
+
+  useEffect(() => {
+    if (!rsvpBySideEnabled) return
+    let active = true
+    void import('./RsvpBySide.tsx').then((module) => {
+      if (active) setRsvp(module)
+    })
+    return () => {
+      active = false
+    }
+  }, [])
 
   const openAdd = () => {
     setEditGuest(null)
@@ -61,6 +75,10 @@ export function GuestsTab() {
     }
   }
 
+  const Headcount = rsvp?.RsvpHeadcount
+  const SideBadge = rsvp?.RsvpSideBadge
+  const SideField = rsvp?.RsvpSideField
+
   return (
     <div style={{ paddingBottom: screenBottom }}>
       <div style={{ background: `linear-gradient(135deg,#4A1060,${COLORS.crimson})`, padding: headerPadding }}>
@@ -79,7 +97,7 @@ export function GuestsTab() {
           ))}
         </div>
       </div>
-      <Headcount guests={guests} />
+      {Headcount ? <Headcount guests={guests} /> : null}
       <div style={{ padding: '14px 16px' }}>
         {guests.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>
@@ -100,7 +118,7 @@ export function GuestsTab() {
                   <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
                     {guest.meal && <Badge color={COLORS.saffron} small>🍽 {guest.meal}</Badge>}
                     {guest.plusOnes > 0 && <Badge color={COLORS.gold} small>+{guest.plusOnes} guests</Badge>}
-                    {guest.side && <Badge color={COLORS.crimson} small>{guest.side === 'both' ? 'Both sides' : guest.side === 'bride' ? "Bride's side" : "Groom's side"}</Badge>}
+                    {SideBadge ? <SideBadge guest={guest} /> : null}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
@@ -139,40 +157,11 @@ export function GuestsTab() {
             <input style={inputStyle} type="number" min="0" value={form.plusOnes} onChange={(event) => setForm((current) => ({ ...current, plusOnes: Number(event.target.value) }))} />
           </Field>
         </div>
-        <Field label="Side">
-          <select style={selectStyle} value={form.side} onChange={(event) => setForm((current) => ({ ...current, side: event.target.value as GuestSide }))}>
-            <option value="">Not specified</option>
-            <option value="bride">Bride's side</option>
-            <option value="groom">Groom's side</option>
-            <option value="both">Both</option>
-          </select>
-        </Field>
+        {SideField ? <SideField side={form.side} onChange={(side) => setForm((current) => ({ ...current, side }))} /> : null}
         <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
           {busy ? 'Saving…' : editGuest ? 'Save Changes' : 'Add Guest'}
         </button>
       </Modal>
-    </div>
-  )
-}
-
-function Headcount({ guests }: { guests: Guest[] }) {
-  const counts = guestHeadcount(guests)
-  const rows = [
-    ['Bride\'s side', counts.bride],
-    ['Groom\'s side', counts.groom],
-    ['Both', counts.both],
-    ['Unassigned', counts.unassigned],
-  ] as const
-  return (
-    <div style={{ margin: '14px 16px 0', background: '#fff', border: '1px solid #E8D4B0', borderRadius: 16, padding: 14 }}>
-      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.crimson }}>Headcount by side</div>
-      <p style={{ margin: '4px 0 10px', fontSize: 13, color: '#5A2020' }}>{counts.confirmedPeople} people confirmed, including plus-ones.</p>
-      {rows.map(([label, side]) => (
-        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderTop: '1px solid #F0E0CC' }}>
-          <span>{label}</span>
-          <span>{side.confirmed} confirmed · {side.pending} pending · {side.declined} declined</span>
-        </div>
-      ))}
     </div>
   )
 }
