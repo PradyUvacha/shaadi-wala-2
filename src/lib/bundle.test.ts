@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/demoData.ts'
 import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
+import { shiftDemoDate } from '../data/demoData.ts'
+import { formatInrCompact } from './format.ts'
 import { addPayment, createDemoBundle, createWeddingBundle, moveFunctionDraft, removeFunction, removeTask, renameFunction, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
-import { missingTemplateTasks, templateToDrafts } from './planning.ts'
+import { budgetHeadline, inrBudgetTotals, missingTemplateTasks, templateToDrafts } from './planning.ts'
 
 describe('wedding bundle', () => {
   it('keeps a sample wedding after a reload of the saved snapshot', () => {
@@ -58,7 +60,16 @@ describe('wedding bundle', () => {
     const created = createDemoBundle({ side: 'bride', displayName: 'Asha' }, today)
     expect(created.wedding.weddingDate).toBe('2027-04-24')
     expect(created.milestones.find((milestone) => milestone.name === 'Wedding Day')?.date).toBe('2027-04-24')
+    expect(created.milestones.find((milestone) => milestone.name === 'Sangeet Night')?.date).toBe('2027-04-22')
+    expect(shiftDemoDate('2026-06-18', '2027-04-24')).toBe('2027-04-22')
     expect(created.tasks.find((task) => task.title === 'Baraat Vehicle')?.dueDate).toBe('2027-04-24')
+    expect(created.tasks.find((task) => task.title === 'Sangeet Arrangements')?.dueDate).not.toBe('2026-06-08')
+    const totals = inrBudgetTotals(created.budget)
+    expect(budgetHeadline(created.budget, 'All')).toEqual({ currency: 'INR', estimated: totals.estimated, actual: totals.actual })
+    expect(created.budget.some((item) => item.currency === 'USD')).toBe(true)
+    expect(totals).toEqual({ estimated: 1155000, actual: 1102000 })
+    expect(formatInrCompact(totals.actual)).toBe('₹11.02 lakh')
+    expect(formatInrCompact(totals.estimated)).toBe('₹11.55 lakh')
     const mehendi = created.functions.find((fn) => fn.name === 'Mehendi')
     expect(mehendi).toBeTruthy()
     let renamed = renameFunction(created, mehendi!.id, 'Mehendi night')

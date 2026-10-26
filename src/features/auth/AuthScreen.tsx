@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { MehendiPattern } from '../../components/ui.tsx'
 import { isSupabaseConfigured } from '../../lib/supabase.ts'
 import { signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../lib/auth.ts'
@@ -7,11 +7,13 @@ import { track } from '../../lib/analytics.ts'
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../lib/legal.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { validateAuth } from '../../lib/planning.ts'
+import { pathWithSurvey } from '../surveys/surveys.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 
 export function AuthScreen() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { startPreview } = useWedding()
   const [mode, setMode] = useState<'sign-in' | 'sign-up'>('sign-up')
   const [displayName, setDisplayName] = useState('')
@@ -61,7 +63,7 @@ export function AuthScreen() {
 
   const preview = () => {
     startPreview()
-    navigate('/')
+    navigate(pathWithSurvey('/', location.search))
   }
 
   return (

@@ -1,5 +1,5 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/demoData.ts'
+import { DEMO_GUESTS, placeDemoContent } from '../data/demoData.ts'
 import type {
   BudgetDraft,
   BudgetItem,
@@ -124,7 +124,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const weddingId = String(data)
     let notice: string | null = null
     try {
-      if (input.seed === 'demo') await seedDemo(weddingId)
+      if (input.seed === 'demo') await seedDemo(weddingId, input.weddingDate)
     } catch (seedError) {
       notice =
         seedError instanceof Error
@@ -361,24 +361,25 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return String(data)
   }
 
-  async function seedDemo(weddingId: string): Promise<void> {
+  async function seedDemo(weddingId: string, weddingDate: string): Promise<void> {
+    const demo = placeDemoContent(weddingDate)
     const removed = await client.from('tasks').delete().eq('wedding_id', weddingId)
     assertNoError(removed.error)
     const functions = await loadFunctions(weddingId)
     const byName = new Map(functions.map((fn) => [fn.name, fn.id]))
     await addTasks(
       weddingId,
-      DEMO_TASKS.map((task) => ({ ...task, functionId: byName.get(task.ceremony) ?? null })),
+      demo.tasks.map((task) => ({ ...task, functionId: byName.get(task.ceremony) ?? null })),
     )
-    for (const item of DEMO_BUDGET) await saveBudgetItem(weddingId, item)
+    for (const item of demo.budget) await saveBudgetItem(weddingId, item)
     if (DEMO_GUESTS.length > 0) {
       const guests = await client.from('guests').insert(DEMO_GUESTS.map((guest) => guestInsert(weddingId, guest)))
       assertNoError(guests.error)
     }
-    if (DEMO_MILESTONES.length > 0) {
+    if (demo.milestones.length > 0) {
       const events = await client
         .from('timeline_events')
-        .insert(DEMO_MILESTONES.map((milestone) => milestoneInsert(weddingId, milestone)))
+        .insert(demo.milestones.map((milestone) => milestoneInsert(weddingId, milestone)))
       assertNoError(events.error)
     }
   }

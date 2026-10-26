@@ -1,4 +1,4 @@
-import { DEMO_BUDGET, DEMO_CITY, DEMO_COUPLE_NAMES, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS, demoWeddingDate } from '../data/demoData.ts'
+import { DEMO_CITY, DEMO_COUPLE_NAMES, DEMO_GUESTS, demoWeddingDate, placeDemoContent } from '../data/demoData.ts'
 import type {
   BudgetDraft,
   BudgetItem,
@@ -77,16 +77,17 @@ export function createWeddingBundle(input: {
 
 export function createDemoBundle(input: { side: Side; displayName: string }, today = new Date()): WeddingBundle {
   const weddingDate = demoWeddingDate(today)
+  const demo = placeDemoContent(weddingDate)
   return createWeddingBundle({
     coupleNames: DEMO_COUPLE_NAMES,
     weddingDate,
     city: DEMO_CITY,
     side: input.side,
     displayName: input.displayName,
-    tasks: DEMO_TASKS.map((task) => (task.dueDate === '2026-06-20' ? { ...task, dueDate: weddingDate } : task)),
-    budget: DEMO_BUDGET,
+    tasks: demo.tasks,
+    budget: demo.budget,
     guests: DEMO_GUESTS,
-    milestones: DEMO_MILESTONES.map((milestone) => (milestone.date === '2026-06-20' ? { ...milestone, date: weddingDate } : milestone)),
+    milestones: demo.milestones,
   })
 }
 

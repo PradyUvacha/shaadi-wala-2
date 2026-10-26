@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { BottomNav } from '../components/BottomNav.tsx'
+import { SurveyGate } from '../features/surveys/SurveyGate.tsx'
 import { COLORS } from '../styles/tokens.ts'
 import { useWedding } from '../state/wedding-context.ts'
 
@@ -24,6 +25,7 @@ export function AppShell() {
         )}
         <Outlet />
       </div>
+      <SurveyGate />
       <BottomNav />
     </div>
   )

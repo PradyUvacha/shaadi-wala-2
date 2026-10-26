@@ -201,6 +201,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026220000_ritual_names.sql`)
   file(`${root}supabase/migrations/20261026230000_budget_payment_actual.sql`)
   file(`${root}supabase/migrations/20261026230000_budget_payment_actual.sql`)
+  file(`${root}supabase/migrations/20261026240000_survey_responses.sql`)
+  file(`${root}supabase/migrations/20261026240000_survey_responses.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -650,6 +652,50 @@ describe('approved role permissions', () => {
       delete from storage.objects where name = '${path}';
       select count(*) from storage.objects where name = '${path}';
     `)).toBe('0')
+  })
+
+  it('lets a person insert and read only their own survey answers', () => {
+    expect(asUser(bride, `
+      insert into public.survey_responses (user_id, kind, prompt, nps_score, comment)
+      values ('${bride}', 'nps', 'day_14', 9, 'Clear so far');
+      select nps_score from public.survey_responses where prompt = 'day_14';
+    `)).toBe('9')
+    expect(asUser(bride, `
+      insert into public.survey_responses (user_id, kind, prompt, dismissed)
+      values ('${bride}', 'nps', 'day_30', true);
+      select dismissed from public.survey_responses where prompt = 'day_30';
+    `)).toBe('t')
+    expect(asUser(bride, `
+      insert into public.survey_responses (user_id, kind, prompt, willingness, price_choice)
+      values ('${bride}', 'price', 'price', 'about 2000', 'maybe');
+      select price_choice from public.survey_responses where prompt = 'price';
+    `)).toBe('maybe')
+    expect(asUser(groom, `select count(*) from public.survey_responses;`)).toBe('0')
+    expect(errorOf(groom, `
+      insert into public.survey_responses (user_id, kind, prompt, nps_score)
+      values ('${bride}', 'nps', 'day_14', 1);
+      select 1;
+    `)).toMatch(/row-level security|policy/i)
+    expect(errorOf(bride, `
+      update public.survey_responses set nps_score = 1 where prompt = 'day_14';
+      select 1;
+    `)).toMatch(/permission denied/i)
+    expect(errorOf(bride, `
+      delete from public.survey_responses where prompt = 'price';
+      select 1;
+    `)).toMatch(/permission denied/i)
+    expect(asUser(bride, `select nps_score from public.survey_responses where prompt = 'day_14';`)).toBe('9')
+    expect(asUser(bride, `select count(*) from public.survey_responses where prompt = 'price';`)).toBe('1')
+    expect(errorOf(bride, `
+      insert into public.survey_responses (user_id, kind, prompt, nps_score)
+      values ('${bride}', 'nps', 'day_14', 11);
+      select 1;
+    `)).toMatch(/survey_responses_nps_score_range|check/i)
+    expect(errorOf(family, `
+      insert into public.survey_responses (user_id, kind, prompt, willingness)
+      values ('${family}', 'price', 'price', '2000');
+      select 1;
+    `)).toMatch(/survey_responses_payload|check/i)
   })
 })
 

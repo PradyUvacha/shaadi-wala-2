@@ -7,6 +7,54 @@ export const DEMO_CITY = 'Mumbai'
 export function demoWeddingDate(today = new Date()): string {
   const date = new Date(today.getFullYear(), today.getMonth(), today.getDate())
   date.setDate(date.getDate() + 180)
+  return formatIsoDate(date)
+}
+
+/** Sample rows were written around this wedding day. Shift them onto the live demo date. */
+export const DEMO_DATE_ANCHOR = '2026-06-20'
+
+export function shiftDemoDate(date: string, weddingDate: string): string {
+  const anchor = parseIsoDate(DEMO_DATE_ANCHOR)
+  const source = parseIsoDate(date)
+  const target = parseIsoDate(weddingDate)
+  if (!anchor || !source || !target) return date
+  const shifted = new Date(target.getFullYear(), target.getMonth(), target.getDate())
+  shifted.setDate(shifted.getDate() + Math.round((source.getTime() - anchor.getTime()) / 86400000))
+  return formatIsoDate(shifted)
+}
+
+export function placeDemoContent(weddingDate: string): {
+  tasks: TaskDraft[]
+  budget: BudgetDraft[]
+  milestones: MilestoneDraft[]
+} {
+  return {
+    tasks: DEMO_TASKS.map((task) => ({
+      ...task,
+      dueDate: task.dueDate ? shiftDemoDate(task.dueDate, weddingDate) : task.dueDate,
+    })),
+    budget: DEMO_BUDGET.map((item) => ({
+      ...item,
+      partPayments: item.partPayments?.map((payment) => ({
+        ...payment,
+        date: payment.date ? shiftDemoDate(payment.date, weddingDate) : payment.date,
+      })),
+    })),
+    milestones: DEMO_MILESTONES.map((milestone) => ({
+      ...milestone,
+      date: shiftDemoDate(milestone.date, weddingDate),
+    })),
+  }
+}
+
+function parseIsoDate(value: string): Date | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) return null
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+function formatIsoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${date.getFullYear()}-${month}-${day}`
