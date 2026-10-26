@@ -21,7 +21,8 @@ cp .env.example .env
 | Variable | Purpose |
 | --- | --- |
 | `VITE_SUPABASE_URL` | Supabase project URL |
-| `VITE_SUPABASE_ANON_KEY` | Public anon key. Safe in the client because RLS restricts every wedding to its members. |
+| `VITE_SUPABASE_ANON_KEY` | Public anon key, or the new publishable key. Safe in the client because RLS restricts every wedding to its members. |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | Optional. Used when the anon key is blank. `.env.example` includes the public publishable key. |
 | `VITE_AUTH_REDIRECT_URL` | Optional. Web builds use the current origin plus `/auth`. Android builds use `in.shaadiwala.app://auth/callback`. |
 
 The production project is already created:
@@ -31,17 +32,23 @@ The production project is already created:
 - Region: ap-south-1 (Mumbai)
 - Plan: Free
 
-`.env.example` already uses that URL. Leave the anon key blank in git. Add the real key only as an environment variable (local `.env`, Vercel, or the shell that builds the Android app). Never put the service-role key in the client, in Vercel, or in this repo.
+`.env.example` already uses that URL and the public publishable key. Set `VITE_SUPABASE_ANON_KEY` to the same publishable key, or leave it blank and set `VITE_SUPABASE_PUBLISHABLE_KEY`. Never put a secret or service-role key in the client, in Vercel, or in this repo.
 
 Vite inlines `VITE_*` values at build time. An Android build made without the anon key opens the “not configured” screen and can still preview the demo on the device.
 
 ## Database
 
-Schema, RLS, the `create_wedding` function, and the `hindu-starter` ritual template are in `supabase/migrations/20261024180000_init.sql`.
+Schema, RLS, the `create_wedding` function, and the `hindu-starter` ritual template are in three files. Run them in this order, in the SQL editor:
 
-Apply it to the hosted project in either of these ways:
+1. `supabase/migrations/20261024180000_init.sql`
+2. `supabase/migrations/20261026120000_v1.sql`
+3. `supabase/migrations/20261026150000_roles.sql`
 
-1. Open the SQL editor in the [project dashboard](https://supabase.com/dashboard/project/ujglzkfxgewqupkeqyek) and run the migration file.
+`init.sql` and `v1.sql` can be run again. Run `roles.sql` last, and run it again if you apply `v1.sql` a second time. `roles.sql` is the permissions matrix: bride, groom, family, friend, and planner. `v1.sql` also adds ceremonies, invite codes, and the budget check that amounts are from zero through ₹10 crore.
+
+Apply them on the hosted project in either of these ways:
+
+1. Open the SQL editor in the [project dashboard](https://supabase.com/dashboard/project/ujglzkfxgewqupkeqyek) and run those three files, in that order.
 2. From this repo, with the Supabase CLI logged in:
 
 ```bash
@@ -148,11 +155,11 @@ That produces `android/app/build/outputs/bundle/release/app-release.aab` when th
 
 The first-run wizard asks for your name, the couple, the wedding date, the city, your side, and which ceremonies to seed. The Hindu checklist has 53 rituals across Roka, Sagai, Haldi, Mehendi, Sangeet, Wedding, Vidaai, and Reception. The Tasks tab groups them by ceremony and can load any that are still missing. Renaming a ritual does not cause a duplicate.
 
-Home totals count Indian rupees. Budget shows each family's share, what each family has paid, and who should settle with whom. Guests show RSVP counts and a headcount for the bride's side, the groom's side, and both, including plus-ones.
+Home and the Budget “All” filter total Indian rupees only, in lakh and crore on Home. A dollar amount stays in dollars and is not added into the rupee total. A line item cannot be negative or more than ₹10 crore. Budget shows each family's share, what each family has paid, and who should settle with whom. Guests show RSVP counts and a headcount for the bride's side, the groom's side, both, and Unassigned, including plus-ones.
 
-An owner or editor can invite a partner or family member with a 6-digit code or a link to `/invite/:code`. The role is editor or viewer. Viewers can read the wedding and cannot change it. Postgres row-level security enforces that.
+The bride or groom can invite any role, to either side, with a 6-digit code or a link to `/invite/:code`. A parent can invite family and friends to their own side. Friends and planners cannot invite. A link that is not six digits shows an invalid-code state. Postgres row-level security enforces the approved matrix: the planner has no side, friends have no budget access, and only the bride or groom can change a member's side. The sample wedding date is 180 days after the day the demo is opened. A date that has already passed says the wedding day has passed.
 
-Profile leads to Settings, and Settings leads to Delete account. Deletion asks you to type DELETE, then calls the `delete-account` edge function. The service-role key stays on Supabase. The same request can be made at https://shaadi-wala.in/delete-account/.
+Profile leads to Settings, and Settings leads to Delete account. Deletion asks you to type the exact word DELETE, then calls the `delete-account` edge function. The secret key stays on Supabase. The same request can be made at https://shaadi-wala.in/delete-account/.
 
 Sign-up and Settings link to the [Privacy Policy](https://shaadi-wala.in/privacy-policy/) and the [Terms of Service](https://shaadi-wala.in/terms-of-service/).
 
@@ -169,7 +176,7 @@ PostHog is optional. Set `VITE_POSTHOG_KEY` and, if you are not using the US clo
 | `sign_up` | An email account is created |
 | `wedding_created` | Onboarding creates a wedding |
 | `onboarding_completed` | That same create finishes |
-| `invite_sent` | An owner or editor creates an invite code |
+| `invite_sent` | The bride, groom, or a parent creates an invite code |
 | `invite_accepted` | Someone accepts a code |
 | `first_task_added` | The first task lands on a wedding |
 | `first_guest_added` | The first guest is saved |
@@ -182,11 +189,11 @@ Events are not autocaptured. The analytics host is a third-party processor and s
 
 Do these on project `ujglzkfxgewqupkeqyek` before the new app build is useful:
 
-1. SQL Editor: run `supabase/migrations/20261024180000_init.sql` if it is not applied, then run `supabase/migrations/20261026120000_v1.sql`. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`.
-2. Edge Functions: deploy `delete-account` with `supabase functions deploy delete-account --project-ref ujglzkfxgewqupkeqyek`. Do not set a custom `SUPABASE_SERVICE_ROLE_KEY`; the platform injects it. Confirm the function has verify JWT on.
+1. SQL Editor, in this order: `supabase/migrations/20261024180000_init.sql`, then `supabase/migrations/20261026120000_v1.sql`, then `supabase/migrations/20261026150000_roles.sql`. Run `roles.sql` again whenever `v1.sql` is applied after it. Or `supabase link --project-ref ujglzkfxgewqupkeqyek` and `supabase db push`.
+2. Edge Functions: redeploy `delete-account` with `supabase functions deploy delete-account --project-ref ujglzkfxgewqupkeqyek`. The function reads the publishable key and the secret key (`SUPABASE_PUBLISHABLE_KEYS` / `SUPABASE_SECRET_KEYS`, or the legacy anon and service-role names). Leave `verify_jwt` off in `supabase/config.toml`; the function checks the user JWT itself, because new `sb_` keys are not JWTs. Do not put the secret key in the app.
 3. Auth → URL configuration: Site URL `https://shaadi-wala-2.vercel.app`. Add `https://shaadi-wala-2.vercel.app/auth`, `http://127.0.0.1:5173/auth`, `http://localhost:5173/auth`, and `in.shaadiwala.app://auth/callback`.
 4. Auth → Google: enable the provider, paste the web client id and secret, and add `https://ujglzkfxgewqupkeqyek.supabase.co/auth/v1/callback` on the Google client.
 5. Auth → SMTP, or leave email confirmations off, before the first real sign-up.
-6. Local `.env`, Vercel, and the Android build shell: `VITE_SUPABASE_URL=https://ujglzkfxgewqupkeqyek.supabase.co` and `VITE_SUPABASE_ANON_KEY` from Project Settings → API keys. Never put the service role key in those places.
+6. Local `.env`, Vercel, and the Android build shell: `VITE_SUPABASE_URL=https://ujglzkfxgewqupkeqyek.supabase.co` and either `VITE_SUPABASE_ANON_KEY` or `VITE_SUPABASE_PUBLISHABLE_KEY` set to the public publishable key. Never put the secret key in those places.
 7. Optional: `VITE_POSTHOG_KEY` and `VITE_POSTHOG_HOST` in the same three places. Leave them blank to send nothing.
 8. Play upload key: `npm run keystore:upload`, then `npm run android:release`. Back up the keystore outside the repo.

@@ -1,4 +1,5 @@
 import type { BudgetDraft, GuestDraft, MilestoneDraft, PartPaymentDraft, SplitDraft, TaskDraft } from '../types.ts'
+import { moneyAmountError, validateBudgetAmounts } from './planning.ts'
 
 export function taskInsert(weddingId: string, draft: TaskDraft, sortOrder: number) {
   return {
@@ -28,6 +29,8 @@ export function taskUpdate(draft: TaskDraft) {
 }
 
 export function budgetInsert(weddingId: string, draft: BudgetDraft) {
+  const invalid = validateBudgetAmounts(draft.estimated, draft.actual)
+  if (invalid) throw new Error(invalid)
   return {
     wedding_id: weddingId,
     category: draft.category,
@@ -50,6 +53,8 @@ export function splitInsert(budgetItemId: string, draft: SplitDraft) {
 }
 
 export function paymentInsert(budgetItemId: string, draft: PartPaymentDraft) {
+  const invalid = moneyAmountError(Number(draft.amount), 'Payment', false)
+  if (invalid) throw new Error(invalid)
   return {
     budget_item_id: budgetItemId,
     amount: Number(draft.amount || 0),

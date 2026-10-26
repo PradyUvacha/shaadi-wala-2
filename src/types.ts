@@ -7,8 +7,8 @@ export const MEALS = ['', 'Vegetarian', 'Non-Vegetarian', 'Jain', 'Vegan'] as co
 export const CURRENCY_CODES = ['INR', 'USD', 'EUR', 'GBP'] as const
 export const PAYERS = ['bride', 'groom', 'both', 'custom'] as const
 export const CEREMONIES = ['Roka', 'Sagai', 'Haldi', 'Mehendi', 'Sangeet', 'Wedding', 'Vidaai', 'Reception'] as const
-export const MEMBER_ROLES = ['owner', 'editor', 'viewer'] as const
-export const INVITE_ROLES = ['editor', 'viewer'] as const
+export const MEMBER_ROLES = ['bride', 'groom', 'family', 'friend', 'planner'] as const
+export const INVITE_ROLES = MEMBER_ROLES
 export const TEMPLATE_SLUG = 'hindu-starter'
 
 export type Category = (typeof CATEGORIES)[number]
@@ -140,7 +140,7 @@ export type WeddingBundle = {
   membership: {
     id: string
     role: MemberRole
-    side: Side
+    side: Side | null
     displayName: string
   }
   displayName: string
@@ -159,7 +159,7 @@ export type WeddingInvite = {
   id: string
   code: string
   role: InviteRole
-  side: Side
+  side: Side | null
   expiresAt: string | null
   acceptedAt: string | null
 }

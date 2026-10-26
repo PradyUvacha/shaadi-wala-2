@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { toErrorMessage } from '../../lib/errors.ts'
+import { canEditGuests } from '../../lib/access.ts'
 import { guestHeadcount } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
@@ -22,7 +23,8 @@ const emptyForm = (): GuestDraft => ({
 const statusColors: Record<string, string> = { Confirmed: COLORS.green, Pending: COLORS.saffron, Declined: '#CC4444' }
 
 export function GuestsTab() {
-  const { bundle, canEdit, saveGuest, deleteGuest } = useWedding()
+  const { bundle, mode, saveGuest, deleteGuest } = useWedding()
+  const canEdit = mode === 'preview' || canEditGuests(bundle?.membership.role)
   const guests = bundle?.guests ?? []
   const [modalOpen, setModalOpen] = useState(false)
   const [editGuest, setEditGuest] = useState<Guest | null>(null)
@@ -159,6 +161,7 @@ function Headcount({ guests }: { guests: Guest[] }) {
     ['Bride\'s side', counts.bride],
     ['Groom\'s side', counts.groom],
     ['Both', counts.both],
+    ['Unassigned', counts.unassigned],
   ] as const
   return (
     <div style={{ margin: '14px 16px 0', background: '#fff', border: '1px solid #E8D4B0', borderRadius: 16, padding: 14 }}>

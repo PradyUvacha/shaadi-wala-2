@@ -82,7 +82,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const membershipName = member.display_name ? String(member.display_name) : ''
     const profileName = profile ? String(profile) : ''
     const displayName = profileName || membershipName || user.email?.split('@')[0] || 'there'
-    const side = member.side === 'groom' ? 'groom' : 'bride'
+    const side = member.side === 'bride' || member.side === 'groom' ? member.side : null
     const role = mapMemberRole(member.role)
     return {
       wedding: {
@@ -144,7 +144,11 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(weddingUpdate.error)
     const memberUpdate = await client
       .from('wedding_members')
-      .update({ side: settings.side, display_name: settings.displayName.trim() })
+      .update(
+        current.membership.role === 'family' || current.membership.role === 'friend'
+          ? { side: settings.side, display_name: settings.displayName.trim() }
+          : { display_name: settings.displayName.trim() },
+      )
       .eq('id', current.membership.id)
     assertNoError(memberUpdate.error)
     const profileUpdate = await client.from('profiles').upsert({ id: user.id, display_name: settings.displayName.trim() })
@@ -276,11 +280,11 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     })
   }
 
-  async function createInvite(weddingId: string, role: InviteRole, side: Side): Promise<WeddingInvite> {
+  async function createInvite(weddingId: string, role: InviteRole, side: Side | null): Promise<WeddingInvite> {
     const { data, error } = await client.rpc('create_invite', {
       p_wedding_id: weddingId,
       p_role: role,
-      p_side: side,
+      p_side: side ?? '',
     })
     assertNoError(error)
     const code = String(data ?? '')
@@ -303,12 +307,13 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(error)
     return (data ?? []).map((row) => {
       const record = asRecord(row)
-      const role = record.role === 'viewer' ? 'viewer' : 'editor'
+      const role = mapMemberRole(record.role)
+      const inviteSide = record.side === 'bride' || record.side === 'groom' ? record.side : null
       return {
         id: String(record.id),
         code: String(record.token ?? ''),
         role,
-        side: record.side === 'groom' ? 'groom' : 'bride',
+        side: inviteSide,
         expiresAt: record.expires_at ? String(record.expires_at) : null,
         acceptedAt: record.accepted_at ? String(record.accepted_at) : null,
       }

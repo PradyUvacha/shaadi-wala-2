@@ -92,9 +92,10 @@ export function asRecord(value: unknown): Record<string, unknown> {
 }
 
 export function mapMemberRole(value: unknown): MemberRole {
-  if (value === 'editor' || value === 'partner') return 'editor'
-  if (value === 'viewer' || value === 'family') return 'viewer'
-  return asOneOf(value, MEMBER_ROLES, 'owner')
+  if (value === 'owner') return 'bride'
+  if (value === 'partner' || value === 'editor') return 'planner'
+  if (value === 'viewer') return 'friend'
+  return asOneOf(value, MEMBER_ROLES, 'family')
 }
 
 function asOneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {

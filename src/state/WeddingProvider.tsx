@@ -268,7 +268,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       const saved = await apiRef.current.saveMilestone(current.wedding.id, draft, milestone.id)
       commit(withMilestone(requireBundle(), saved))
     },
-    createInvite: async (role: InviteRole, side: Side) => {
+    createInvite: async (role: InviteRole, side: Side | null) => {
       const current = requireEditor()
       const api = apiRef.current
       if (!api || modeRef.current !== 'remote') throw new Error('Sign in to invite your partner or family.')

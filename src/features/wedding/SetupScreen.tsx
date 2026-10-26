@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MehendiPattern } from '../../components/ui.tsx'
+import { demoWeddingDate } from '../../data/demoData.ts'
 import { HINDU_CHECKLIST } from '../../data/hinduChecklist.ts'
 import { displayNameFromUser } from '../../lib/auth.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
@@ -43,7 +44,7 @@ export function SetupScreen() {
     const input = {
       displayName,
       coupleNames: seed === 'demo' ? 'Priya & Rahul' : coupleNames,
-      weddingDate: seed === 'demo' ? '2026-06-20' : weddingDate,
+      weddingDate: seed === 'demo' ? demoWeddingDate() : weddingDate,
       city: seed === 'demo' ? 'Mumbai' : city,
       side,
     }

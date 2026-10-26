@@ -26,6 +26,47 @@ export function inrBudgetTotals(items: { currency: string; estimated: number; ac
     )
 }
 
+/** One line item cannot exceed ₹10 crore. */
+export const MAX_BUDGET_AMOUNT = 100_000_000
+
+export function moneyAmountError(value: number, label: string, allowZero = true): string | null {
+  if (!Number.isFinite(value)) return `Enter a ${label.toLowerCase()} amount.`
+  if (value < 0) return `${label} cannot be negative.`
+  if (!allowZero && value <= 0) return `${label} must be greater than zero.`
+  if (value > MAX_BUDGET_AMOUNT) return `${label} cannot be more than ₹10 crore.`
+  return null
+}
+
+export function validateBudgetAmounts(estimated: number, actual: number): string | null {
+  return moneyAmountError(Number(estimated), 'Estimated') ?? moneyAmountError(Number(actual), 'Actual')
+}
+
+export type BudgetHeadline = {
+  currency: string
+  estimated: number
+  actual: number
+}
+
+/**
+ * The All view and Home both use Indian rupees only.
+ * A foreign-currency filter sums that currency alone and never folds it into rupees.
+ */
+export function budgetHeadline(
+  items: { currency: string; estimated: number; actual: number }[],
+  filter: string,
+): BudgetHeadline {
+  if (filter === 'All' || filter === 'INR') return { currency: 'INR', ...inrBudgetTotals(items) }
+  return { currency: filter, ...sumAmounts(items.filter((item) => item.currency === filter)) }
+}
+
+/** Currencies other than INR, each summed on its own. Never folded into rupees. */
+export function otherCurrencyTotals(
+  items: { currency: string; estimated: number; actual: number }[],
+): BudgetHeadline[] {
+  const codes = [...new Set(items.map((item) => item.currency).filter((currency) => currency !== 'INR'))]
+  return codes.map((currency) => ({ currency, ...sumAmounts(items.filter((item) => item.currency === currency)) }))
+}
+
 export function sumAmounts(items: { estimated: number; actual: number }[]): { estimated: number; actual: number } {
   return items.reduce(
     (totals, item) => ({
@@ -108,6 +149,7 @@ export type GuestHeadcount = {
   bride: SideHeadcount
   groom: SideHeadcount
   both: SideHeadcount
+  unassigned: SideHeadcount
   confirmedPeople: number
 }
 
@@ -126,11 +168,13 @@ export function guestHeadcount(guests: Pick<Guest, 'status' | 'plusOnes' | 'side
   const bride = count('bride')
   const groom = count('groom')
   const both = count('both')
+  const unassigned = count('')
   return {
     bride,
     groom,
     both,
-    confirmedPeople: bride.confirmed + groom.confirmed + both.confirmed,
+    unassigned,
+    confirmedPeople: bride.confirmed + groom.confirmed + both.confirmed + unassigned.confirmed,
   }
 }
 

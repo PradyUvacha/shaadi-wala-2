@@ -7,7 +7,7 @@ import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton } from '../../styles/ui.ts'
 import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
-import { deleteAccount } from './deleteAccount.ts'
+import { deleteAccount, isExactDeleteConfirmation } from './deleteAccount.ts'
 
 export function DeleteAccountScreen() {
   const navigate = useNavigate()
@@ -15,7 +15,7 @@ export function DeleteAccountScreen() {
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const ready = confirm.trim().toUpperCase() === 'DELETE'
+  const ready = isExactDeleteConfirmation(confirm)
 
   const submit = async () => {
     if (!ready) {
@@ -45,7 +45,7 @@ export function DeleteAccountScreen() {
       </div>
       <div style={{ padding: 16, color: '#3C1515', fontSize: 14, lineHeight: 1.55 }}>
         <p>You can delete your account and data at any time.</p>
-        <p><strong>What gets deleted.</strong> Your profile, weddings you created, checklists, budgets, guest lists, and timelines. If you are the only owner, that wedding is deleted. If someone else is also an owner, the wedding stays and your membership is removed.</p>
+        <p><strong>What gets deleted.</strong> Your profile and membership. If the bride or groom deletes their account, that slot is freed and the wedding stays so the other can invite a replacement. If both the bride and the groom delete their accounts, the wedding and its data are deleted. If a parent, friend, or planner deletes their account, their membership is removed and tasks assigned to them become unassigned.</p>
         <p><strong>What we may keep.</strong> Payment records we are legally required to retain, for up to 8 years. Everything else is deleted within 30 days.</p>
         <p>
           You can also use the web page{' '}

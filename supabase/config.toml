@@ -46,5 +46,6 @@ enable_signup = true
 double_confirm_changes = true
 enable_confirmations = false
 
+# The function checks the user JWT itself. Gateway JWT verification rejects new sb_ keys.
 [functions.delete-account]
-verify_jwt = true
+verify_jwt = false

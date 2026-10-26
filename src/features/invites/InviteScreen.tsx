@@ -1,22 +1,25 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { MehendiPattern } from '../../components/ui.tsx'
-import { roleLabel } from '../../lib/access.ts'
+import { inviteRolesFor, roleLabel } from '../../lib/access.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { useAuth } from '../../state/auth-context.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import type { InviteRole, Side, WeddingInvite } from '../../types.ts'
-import { inviteLink, isInviteCode, normalizeInviteCode } from './code.ts'
+import { inviteCodeProblem, inviteLink, isInviteCode, normalizeInviteCode } from './code.ts'
 
 export function InviteScreen() {
   const { token } = useParams()
   const navigate = useNavigate()
   const { session } = useAuth()
-  const { bundle, canEdit, createInvite, listInvites, acceptInvite } = useWedding()
-  const [role, setRole] = useState<InviteRole>('editor')
+  const { bundle, mode, createInvite, listInvites, acceptInvite } = useWedding()
+  const inviting = mode === 'preview' || (bundle ? inviteRolesFor(bundle.membership.role).length > 0 : false)
+  const [role, setRole] = useState<InviteRole>('family')
   const [side, setSide] = useState<Side>(bundle?.membership.side ?? 'bride')
-  const [code, setCode] = useState(normalizeInviteCode(token ?? ''))
+  const rawToken = token ?? ''
+  const linkProblem = token === undefined ? null : inviteCodeProblem(rawToken)
+  const [code, setCode] = useState(linkProblem ? '' : rawToken)
   const [invites, setInvites] = useState<WeddingInvite[]>([])
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
@@ -24,15 +27,15 @@ export function InviteScreen() {
   const joining = Boolean(token)
 
   useEffect(() => {
-    if (!session || !bundle || !canEdit || joining) return
+    if (!session || !bundle || !inviting || joining) return
     void listInvites().then(setInvites).catch((caught: unknown) => setError(toErrorMessage(caught)))
-  }, [session, bundle, canEdit, joining, listInvites])
+  }, [session, bundle, inviting, joining, listInvites])
 
   const create = async () => {
     setBusy(true)
     setError(null)
     try {
-      const created = await createInvite(role, side)
+      const created = await createInvite(role, role === 'family' || role === 'friend' ? side : null)
       setInvites((current) => [created, ...current])
       setInfo(`Share code ${created.code}`)
     } catch (caught) {
@@ -43,12 +46,12 @@ export function InviteScreen() {
   }
 
   const accept = async () => {
-    if (!session) {
-      navigate(`/auth?next=${encodeURIComponent(`/invite/${normalizeInviteCode(code)}`)}`)
+    if (!isInviteCode(code)) {
+      setError(inviteCodeProblem(code) ?? 'Enter the 6-digit invite code.')
       return
     }
-    if (!isInviteCode(code)) {
-      setError('Enter the 6-digit invite code.')
+    if (!session) {
+      navigate(`/auth?next=${encodeURIComponent(`/invite/${code}`)}`)
       return
     }
     setBusy(true)
@@ -73,35 +76,42 @@ export function InviteScreen() {
         {joining || !bundle ? (
           <>
             <p>Enter the 6-digit code, or open the link your family shared.</p>
+            {linkProblem && (
+              <p role="alert" style={{ background: 'rgba(0,0,0,0.25)', borderRadius: 12, padding: 12 }}>
+                This invite link is not valid. {linkProblem}
+              </p>
+            )}
             <input value={code} onChange={(event) => setCode(normalizeInviteCode(event.target.value))} inputMode="numeric" aria-label="Invite code" placeholder="6-digit code" style={field} />
-            <button type="button" disabled={busy} onClick={() => void accept()} style={button}>{session ? 'Accept invite' : 'Sign in to accept'}</button>
+            <button type="button" disabled={busy || !isInviteCode(code)} onClick={() => void accept()} style={{ ...button, opacity: isInviteCode(code) ? 1 : 0.55 }}>{session ? 'Accept invite' : 'Sign in to accept'}</button>
           </>
-        ) : canEdit ? (
+        ) : inviting && bundle ? (
           <>
-            <p>Owners and editors can invite. An editor can change the plan. A viewer can look, and cannot change it.</p>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-              {(['editor', 'viewer'] as const).map((item) => (
-                <button key={item} type="button" onClick={() => setRole(item)} style={choice(role === item)}>{roleLabel(item)}</button>
+            <p>The bride or groom can invite any role. A parent can invite family and friends to their own side. Friends and planners cannot invite.</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              {inviteRolesFor(bundle.membership.role).map((item) => (
+                <button key={item} type="button" onClick={() => setRole(item)} style={choice(role === item)}>{roleLabel(item, item === 'family' || item === 'friend' ? side : item === 'bride' ? 'bride' : item === 'groom' ? 'groom' : null)}</button>
               ))}
             </div>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              {(['bride', 'groom'] as const).map((item) => (
-                <button key={item} type="button" onClick={() => setSide(item)} style={choice(side === item)}>{item === 'bride' ? "Bride's side" : "Groom's side"}</button>
-              ))}
-            </div>
+            {role === 'family' || role === 'friend' ? (
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {(bundle.membership.role === 'family' ? [bundle.membership.side ?? 'bride'] : (['bride', 'groom'] as const)).map((item) => (
+                  <button key={item} type="button" onClick={() => setSide(item)} style={choice(side === item)}>{item === 'bride' ? "Bride's side" : "Groom's side"}</button>
+                ))}
+              </div>
+            ) : null}
             <button type="button" disabled={busy} onClick={() => void create()} style={button}>{busy ? 'Creating…' : 'Create link and code'}</button>
             <ul style={{ listStyle: 'none', padding: 0 }}>
               {invites.map((invite) => (
                 <li key={`${invite.id}-${invite.code}`} style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginTop: 10 }}>
                   <div style={{ fontSize: 22, letterSpacing: 3, fontWeight: 800 }}>{invite.code}</div>
-                  <div style={{ fontSize: 13 }}>{roleLabel(invite.role)} · {invite.side === 'bride' ? "Bride's side" : "Groom's side"} · {invite.acceptedAt ? 'Accepted' : 'Waiting'}</div>
+                  <div style={{ fontSize: 13 }}>{roleLabel(invite.role, invite.side)} · {invite.acceptedAt ? 'Accepted' : 'Waiting'}</div>
                   {!invite.acceptedAt && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 6 }}>{inviteLink(origin, invite.code)}</div>}
                 </li>
               ))}
             </ul>
           </>
         ) : (
-          <p>You have view-only access, so you cannot send invites.</p>
+          <p>Friends and planners cannot send invites.</p>
         )}
         {info && <p style={{ color: COLORS.lightGold }}>{info}</p>}
         {error && <p style={{ color: '#FFE0E0' }}>{error}</p>}

@@ -43,7 +43,7 @@ export type WeddingContextValue = {
   saveMilestone: (draft: MilestoneDraft, id?: string) => Promise<void>
   deleteMilestone: (id: string) => Promise<void>
   toggleMilestone: (milestone: Milestone) => Promise<void>
-  createInvite: (role: InviteRole, side: Side) => Promise<WeddingInvite>
+  createInvite: (role: InviteRole, side: Side | null) => Promise<WeddingInvite>
   listInvites: () => Promise<WeddingInvite[]>
   acceptInvite: (code: string) => Promise<void>
 }

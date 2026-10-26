@@ -38,6 +38,23 @@ describe('database payloads', () => {
       paidBySide: 'groom',
       splits: [],
     }).paid_by_side).toBe('groom')
+    expect(() => budgetInsert('wedding-1', {
+      category: 'Venue',
+      currency: 'INR',
+      estimated: -1,
+      actual: 0,
+      paid: false,
+      notes: '',
+      paidBySide: 'bride',
+      splits: [],
+    })).toThrow(/negative/)
+    expect(() => paymentInsert('item-1', {
+      amount: 100000001,
+      paidBy: 'Rahul',
+      paidBySide: 'groom',
+      date: '2026-03-01',
+      notes: '',
+    })).toThrow(/10 crore/)
     expect(paymentInsert('item-1', {
       amount: 500,
       paidBy: 'Rahul',

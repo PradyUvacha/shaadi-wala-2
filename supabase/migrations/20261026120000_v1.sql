@@ -17,15 +17,32 @@ alter table public.ritual_template_items add constraint ritual_template_items_ce
 alter table public.feedback drop constraint if exists feedback_rating_check;
 alter table public.feedback add constraint feedback_rating_check check (rating is null or rating between 1 and 5);
 
+-- One line item cannot be negative or above ₹10 crore.
+alter table public.budget_items drop constraint if exists budget_items_estimated_check;
+alter table public.budget_items add constraint budget_items_estimated_check
+  check (estimated >= 0 and estimated <= 100000000);
+alter table public.budget_items drop constraint if exists budget_items_actual_check;
+alter table public.budget_items add constraint budget_items_actual_check
+  check (actual >= 0 and actual <= 100000000);
+alter table public.part_payments drop constraint if exists part_payments_amount_check;
+alter table public.part_payments add constraint part_payments_amount_check
+  check (amount > 0 and amount <= 100000000);
+
+-- Interim owner/editor/viewer roles. 20261026150000_roles.sql replaces them.
+-- Re-running this file after that migration must not turn family back into viewer.
 do $$
 declare constraint_name text;
 begin
+  if exists (select 1 from pg_constraint where conname = 'wedding_members_role_shape') then
+    return;
+  end if;
   for constraint_name in
     select con.conname from pg_constraint con
     join pg_class rel on rel.oid = con.conrelid
     join pg_namespace nsp on nsp.oid = rel.relnamespace
     where nsp.nspname = 'public' and rel.relname = 'wedding_members' and con.contype = 'c'
       and pg_get_constraintdef(con.oid) ilike '%role%'
+      and con.conname <> 'wedding_members_role_shape'
   loop
     execute format('alter table public.wedding_members drop constraint %I', constraint_name);
   end loop;
@@ -35,18 +52,19 @@ begin
     join pg_namespace nsp on nsp.oid = rel.relnamespace
     where nsp.nspname = 'public' and rel.relname = 'wedding_invites' and con.contype = 'c'
       and pg_get_constraintdef(con.oid) ilike '%role%'
+      and con.conname <> 'wedding_invites_role_shape'
   loop
     execute format('alter table public.wedding_invites drop constraint %I', constraint_name);
   end loop;
+  update public.wedding_members set role = 'editor' where role = 'partner';
+  update public.wedding_members set role = 'viewer' where role = 'family';
+  update public.wedding_invites set role = 'editor' where role = 'partner';
+  update public.wedding_invites set role = 'viewer' where role = 'family';
+  alter table public.wedding_members drop constraint if exists wedding_members_role_check;
+  alter table public.wedding_members add constraint wedding_members_role_check check (role in ('owner', 'editor', 'viewer'));
+  alter table public.wedding_invites drop constraint if exists wedding_invites_role_check;
+  alter table public.wedding_invites add constraint wedding_invites_role_check check (role in ('editor', 'viewer'));
 end $$;
-
-update public.wedding_members set role = 'editor' where role = 'partner';
-update public.wedding_members set role = 'viewer' where role = 'family';
-update public.wedding_invites set role = 'editor' where role = 'partner';
-update public.wedding_invites set role = 'viewer' where role = 'family';
-
-alter table public.wedding_members add constraint wedding_members_role_check check (role in ('owner', 'editor', 'viewer'));
-alter table public.wedding_invites add constraint wedding_invites_role_check check (role in ('editor', 'viewer'));
 
 create or replace function public.wedding_role(p_wedding_id uuid)
 returns text language sql stable security definer set search_path = public as $$
@@ -66,25 +84,36 @@ grant execute on function public.wedding_role(uuid) to authenticated;
 grant execute on function public.can_edit_wedding(uuid) to authenticated;
 
 drop policy if exists weddings_update on public.weddings;
+drop policy if exists weddings_update_editor on public.weddings;
 create policy weddings_update_editor on public.weddings for update to authenticated
   using (public.can_edit_wedding(id)) with check (public.can_edit_wedding(id));
 
 drop policy if exists tasks_member_all on public.tasks;
+drop policy if exists tasks_select on public.tasks;
 create policy tasks_select on public.tasks for select to authenticated using (public.is_wedding_member(wedding_id));
+drop policy if exists tasks_insert on public.tasks;
 create policy tasks_insert on public.tasks for insert to authenticated with check (public.can_edit_wedding(wedding_id));
+drop policy if exists tasks_update on public.tasks;
 create policy tasks_update on public.tasks for update to authenticated using (public.can_edit_wedding(wedding_id)) with check (public.can_edit_wedding(wedding_id));
+drop policy if exists tasks_delete on public.tasks;
 create policy tasks_delete on public.tasks for delete to authenticated using (public.can_edit_wedding(wedding_id));
 
 drop policy if exists budget_member_all on public.budget_items;
+drop policy if exists budget_select on public.budget_items;
 create policy budget_select on public.budget_items for select to authenticated using (public.is_wedding_member(wedding_id));
+drop policy if exists budget_insert on public.budget_items;
 create policy budget_insert on public.budget_items for insert to authenticated with check (public.can_edit_wedding(wedding_id));
+drop policy if exists budget_update on public.budget_items;
 create policy budget_update on public.budget_items for update to authenticated using (public.can_edit_wedding(wedding_id)) with check (public.can_edit_wedding(wedding_id));
+drop policy if exists budget_delete on public.budget_items;
 create policy budget_delete on public.budget_items for delete to authenticated using (public.can_edit_wedding(wedding_id));
 
 drop policy if exists splits_member_all on public.budget_splits;
+drop policy if exists splits_select on public.budget_splits;
 create policy splits_select on public.budget_splits for select to authenticated using (
   exists (select 1 from public.budget_items b where b.id = budget_item_id and public.is_wedding_member(b.wedding_id))
 );
+drop policy if exists splits_write on public.budget_splits;
 create policy splits_write on public.budget_splits for all to authenticated using (
   exists (select 1 from public.budget_items b where b.id = budget_item_id and public.can_edit_wedding(b.wedding_id))
 ) with check (
@@ -92,9 +121,11 @@ create policy splits_write on public.budget_splits for all to authenticated usin
 );
 
 drop policy if exists payments_member_all on public.part_payments;
+drop policy if exists payments_select on public.part_payments;
 create policy payments_select on public.part_payments for select to authenticated using (
   exists (select 1 from public.budget_items b where b.id = budget_item_id and public.is_wedding_member(b.wedding_id))
 );
+drop policy if exists payments_write on public.part_payments;
 create policy payments_write on public.part_payments for all to authenticated using (
   exists (select 1 from public.budget_items b where b.id = budget_item_id and public.can_edit_wedding(b.wedding_id))
 ) with check (
@@ -102,21 +133,33 @@ create policy payments_write on public.part_payments for all to authenticated us
 );
 
 drop policy if exists guests_member_all on public.guests;
+drop policy if exists guests_select on public.guests;
 create policy guests_select on public.guests for select to authenticated using (public.is_wedding_member(wedding_id));
+drop policy if exists guests_insert on public.guests;
 create policy guests_insert on public.guests for insert to authenticated with check (public.can_edit_wedding(wedding_id));
+drop policy if exists guests_update on public.guests;
 create policy guests_update on public.guests for update to authenticated using (public.can_edit_wedding(wedding_id)) with check (public.can_edit_wedding(wedding_id));
+drop policy if exists guests_delete on public.guests;
 create policy guests_delete on public.guests for delete to authenticated using (public.can_edit_wedding(wedding_id));
 
 drop policy if exists timeline_member_all on public.timeline_events;
+drop policy if exists timeline_select on public.timeline_events;
 create policy timeline_select on public.timeline_events for select to authenticated using (public.is_wedding_member(wedding_id));
+drop policy if exists timeline_insert on public.timeline_events;
 create policy timeline_insert on public.timeline_events for insert to authenticated with check (public.can_edit_wedding(wedding_id));
+drop policy if exists timeline_update on public.timeline_events;
 create policy timeline_update on public.timeline_events for update to authenticated using (public.can_edit_wedding(wedding_id)) with check (public.can_edit_wedding(wedding_id));
+drop policy if exists timeline_delete on public.timeline_events;
 create policy timeline_delete on public.timeline_events for delete to authenticated using (public.can_edit_wedding(wedding_id));
 
 drop policy if exists invites_member_all on public.wedding_invites;
+drop policy if exists invites_select on public.wedding_invites;
 create policy invites_select on public.wedding_invites for select to authenticated using (public.can_edit_wedding(wedding_id));
+drop policy if exists invites_insert on public.wedding_invites;
 create policy invites_insert on public.wedding_invites for insert to authenticated with check (public.can_edit_wedding(wedding_id));
+drop policy if exists invites_update on public.wedding_invites;
 create policy invites_update on public.wedding_invites for update to authenticated using (public.can_edit_wedding(wedding_id)) with check (public.can_edit_wedding(wedding_id));
+drop policy if exists invites_delete on public.wedding_invites;
 create policy invites_delete on public.wedding_invites for delete to authenticated using (public.can_edit_wedding(wedding_id));
 
 drop function if exists public.create_wedding(text, date, text, text);

@@ -3,8 +3,15 @@ export function normalizeInviteCode(value: string): string {
   return value.replace(/\D/g, '').slice(0, 6)
 }
 
+/** True only for exactly six digits. Letters in the link are not stripped away. */
 export function isInviteCode(value: string): boolean {
-  return /^\d{6}$/.test(normalizeInviteCode(value))
+  return /^\d{6}$/.test(value)
+}
+
+export function inviteCodeProblem(value: string): string | null {
+  if (isInviteCode(value)) return null
+  if (!value.trim()) return 'Enter the 6-digit invite code.'
+  return 'This invite code is not valid. Codes are exactly 6 digits.'
 }
 
 export function inviteLink(origin: string, code: string): string {

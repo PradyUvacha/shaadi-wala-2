@@ -1,8 +1,16 @@
 import type { BudgetDraft, GuestDraft, MilestoneDraft, TaskDraft } from '../types.ts'
 
 export const DEMO_COUPLE_NAMES = 'Priya & Rahul'
-export const DEMO_WEDDING_DATE = '2026-06-20'
 export const DEMO_CITY = 'Mumbai'
+
+/** The sample wedding stays about six months ahead of whenever the demo is opened. */
+export function demoWeddingDate(today = new Date()): string {
+  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  date.setDate(date.getDate() + 180)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
 
 export const DEMO_TASKS: TaskDraft[] = [
   { title: 'Book Wedding Venue', description: 'Grand Palace Hotel confirmed', category: 'Venue', priority: 'High', ceremony: 'Wedding', status: 'Completed', dueDate: '2026-06-01' },

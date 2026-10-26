@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Badge, FAB, Field, FormError, MehendiPattern, Modal } from '../../components/ui.tsx'
+import { canEditBudget, canLogPayment, canSeeBudget } from '../../lib/access.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
-import { canAddSplit, familySettlement, payerLabel, settlementSummary, splitsForPayer, sumAmounts } from '../../lib/planning.ts'
+import { budgetHeadline, canAddSplit, familySettlement, MAX_BUDGET_AMOUNT, moneyAmountError, otherCurrencyTotals, payerLabel, settlementSummary, splitsForPayer, validateBudgetAmounts } from '../../lib/planning.ts'
 import { money } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, CURRENCIES } from '../../styles/tokens.ts'
@@ -22,7 +23,11 @@ const emptyForm = (): BudgetDraft => ({
 })
 
 export function BudgetTab() {
-  const { bundle, canEdit, saveBudgetItem, deleteBudgetItem, addPayment } = useWedding()
+  const { bundle, mode, saveBudgetItem, deleteBudgetItem, addPayment } = useWedding()
+  const role = bundle?.membership.role
+  const seeBudget = mode === 'preview' || canSeeBudget(role)
+  const editBudget = mode === 'preview' || canEditBudget(role)
+  const logPayment = mode === 'preview' || canLogPayment(role)
   const budget = bundle?.budget ?? []
   const [currFilter, setCurrFilter] = useState('All')
   const [modalOpen, setModalOpen] = useState(false)
@@ -36,8 +41,9 @@ export function BudgetTab() {
   const [busy, setBusy] = useState(false)
 
   const filtered = currFilter === 'All' ? budget : budget.filter((item) => item.currency === currFilter)
-  const totals = sumAmounts(filtered)
-  const symbol = currFilter === 'All' ? '₹' : CURRENCIES[currFilter]?.symbol || '₹'
+  const totals = budgetHeadline(budget, currFilter)
+  const symbol = CURRENCIES[totals.currency]?.symbol || '₹'
+  const otherCurrencies = currFilter === 'All' ? otherCurrencyTotals(budget) : []
 
   const openAdd = () => {
     setEditItem(null)
@@ -61,6 +67,11 @@ export function BudgetTab() {
     setModalOpen(true)
   }
   const save = async () => {
+    const invalid = validateBudgetAmounts(form.estimated, form.actual)
+    if (invalid) {
+      setError(invalid)
+      return
+    }
     setBusy(true)
     setError(null)
     try {
@@ -84,8 +95,9 @@ export function BudgetTab() {
     setSplitPct('')
   }
   const recordPayment = async () => {
-    if (!payItemId || !(Number(payForm.amount) > 0)) {
-      setError('Enter a payment amount greater than zero.')
+    const invalid = moneyAmountError(Number(payForm.amount), 'Payment', false)
+    if (!payItemId || invalid) {
+      setError(invalid ?? 'Enter a payment amount greater than zero.')
       return
     }
     setBusy(true)
@@ -99,6 +111,15 @@ export function BudgetTab() {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (!seeBudget) {
+    return (
+      <div style={{ padding: headerPadding }}>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: COLORS.crimson }}>Budget</div>
+        <p style={{ color: '#5A2020' }}>Friends do not have budget access.</p>
+      </div>
+    )
   }
 
   return (
@@ -129,6 +150,11 @@ export function BudgetTab() {
           </div>
         ))}
       </div>
+      {otherCurrencies.length > 0 && (
+        <p style={{ margin: '0 16px', fontSize: 12, color: '#7A3030' }}>
+          Rupee totals only. {otherCurrencies.map((line) => `${line.currency} ${money(line.estimated, CURRENCIES[line.currency]?.symbol || '')} estimated`).join(' · ')} is kept separate.
+        </p>
+      )}
 
       <Settlement items={budget} />
 
@@ -187,9 +213,9 @@ export function BudgetTab() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="button" onClick={() => { setError(null); setPayItemId(item.id) }} style={{ flex: 1, padding: 8, borderRadius: 10, border: `1px solid ${COLORS.green}`, background: 'transparent', color: COLORS.green, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Payment</button>
-                  <button type="button" aria-label="Edit budget item" onClick={() => openEdit(item)} style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${COLORS.gold}`, background: 'transparent', color: COLORS.gold, cursor: 'pointer' }}>✏️</button>
-                  <button type="button" aria-label="Delete budget item" onClick={() => void deleteBudgetItem(item.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #CC4444', background: 'transparent', color: '#CC4444', cursor: 'pointer' }}>🗑️</button>
+                  {logPayment && <button type="button" onClick={() => { setError(null); setPayItemId(item.id) }} style={{ flex: 1, padding: 8, borderRadius: 10, border: `1px solid ${COLORS.green}`, background: 'transparent', color: COLORS.green, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Payment</button>}
+                  {editBudget && <button type="button" aria-label="Edit budget item" onClick={() => openEdit(item)} style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${COLORS.gold}`, background: 'transparent', color: COLORS.gold, cursor: 'pointer' }}>✏️</button>}
+                  {editBudget && <button type="button" aria-label="Delete budget item" onClick={() => void deleteBudgetItem(item.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #CC4444', background: 'transparent', color: '#CC4444', cursor: 'pointer' }}>🗑️</button>}
                 </div>
               </div>
             )
@@ -197,12 +223,12 @@ export function BudgetTab() {
         )}
       </div>
 
-      {canEdit && <FAB onClick={openAdd} />}
+      {editBudget && <FAB onClick={openAdd} />}
 
       <Modal open={!!payItemId} onClose={() => setPayItemId(null)} title="Add Payment" headerColor={`linear-gradient(135deg,${COLORS.green},#1A5C35)`}>
         <FormError message={error} />
         <Field label="Amount">
-          <input style={inputStyle} type="number" value={payForm.amount || ''} onChange={(event) => setPayForm((current) => ({ ...current, amount: Number(event.target.value) }))} placeholder="0" />
+          <input style={inputStyle} type="number" min={0} max={MAX_BUDGET_AMOUNT} step="0.01" value={payForm.amount || ''} onChange={(event) => setPayForm((current) => ({ ...current, amount: Number(event.target.value) }))} placeholder="0" />
         </Field>
         <Field label="Paid By">
           <input style={inputStyle} value={payForm.paidBy} onChange={(event) => setPayForm((current) => ({ ...current, paidBy: event.target.value }))} placeholder="Name" />
@@ -237,10 +263,10 @@ export function BudgetTab() {
         </Field>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <Field label="Estimated">
-            <input style={inputStyle} type="number" value={form.estimated} onChange={(event) => setForm((current) => ({ ...current, estimated: Number(event.target.value) }))} />
+            <input style={inputStyle} type="number" min={0} max={MAX_BUDGET_AMOUNT} step="0.01" value={form.estimated} onChange={(event) => setForm((current) => ({ ...current, estimated: Number(event.target.value) }))} />
           </Field>
           <Field label="Actual">
-            <input style={inputStyle} type="number" value={form.actual} onChange={(event) => setForm((current) => ({ ...current, actual: Number(event.target.value) }))} />
+            <input style={inputStyle} type="number" min={0} max={MAX_BUDGET_AMOUNT} step="0.01" value={form.actual} onChange={(event) => setForm((current) => ({ ...current, actual: Number(event.target.value) }))} />
           </Field>
         </div>
         <Field label="Which family pays">

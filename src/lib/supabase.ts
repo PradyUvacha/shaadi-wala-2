@@ -1,11 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import { resolveSupabaseKey } from './supabaseKeys.ts'
 
 function clean(value: string | undefined): string {
   return (value ?? '').trim()
 }
 
 export const supabaseUrl = clean(import.meta.env.VITE_SUPABASE_URL)
-export const supabaseAnonKey = clean(import.meta.env.VITE_SUPABASE_ANON_KEY)
+export const supabaseAnonKey = resolveSupabaseKey({
+  anon: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  publishable: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+})
 
 export const isSupabaseConfigured = supabaseUrl.startsWith('http') && supabaseAnonKey.length > 0
 

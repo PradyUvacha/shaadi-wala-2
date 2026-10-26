@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import { HINDU_CHECKLIST } from '../../data/hinduChecklist.ts'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
+import { canManageTasks } from '../../lib/access.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
@@ -21,7 +22,9 @@ const emptyForm = (): TaskDraft => ({
 })
 
 export function TasksTab() {
-  const { bundle, canEdit, saveTask, deleteTask, toggleTask, loadHinduChecklist } = useWedding()
+  const { bundle, mode, saveTask, deleteTask, toggleTask, loadHinduChecklist } = useWedding()
+  const canEdit = mode === 'preview' || canManageTasks(bundle?.membership.role)
+  const canComplete = canEdit || bundle?.membership.role === 'friend'
   const tasks = bundle?.tasks ?? []
   const [filter, setFilter] = useState<'All' | TaskStatus>('All')
   const [modalOpen, setModalOpen] = useState(false)
@@ -134,7 +137,7 @@ export function TasksTab() {
               {filtered.filter((task) => task.ceremony === ceremony).map((task) => (
                 <div key={task.id} style={{ background: COLORS.cardBg, border: `1px solid ${task.status === 'Completed' ? '#4CAF5040' : '#E8D4B0'}`, borderRadius: 14, padding: 14, marginBottom: 10, animation: 'fadeIn 0.3s ease', opacity: task.status === 'Completed' ? 0.75 : 1 }}>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <button type="button" disabled={!canEdit} aria-label={task.status === 'Completed' ? 'Mark pending' : 'Mark completed'} onClick={() => void toggle(task)} style={{ width: 28, height: 28, borderRadius: '50%', border: `2px solid ${task.status === 'Completed' ? COLORS.green : COLORS.crimson}`, background: task.status === 'Completed' ? COLORS.green : 'transparent', cursor: canEdit ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                    <button type="button" disabled={!canComplete} aria-label={task.status === 'Completed' ? 'Mark pending' : 'Mark completed'} onClick={() => void toggle(task)} style={{ width: 28, height: 28, borderRadius: '50%', border: `2px solid ${task.status === 'Completed' ? COLORS.green : COLORS.crimson}`, background: task.status === 'Completed' ? COLORS.green : 'transparent', cursor: canComplete ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
                       {task.status === 'Completed' && <span style={{ color: '#fff', fontSize: 12 }}>✓</span>}
                     </button>
                     <div style={{ flex: 1, minWidth: 0 }}>

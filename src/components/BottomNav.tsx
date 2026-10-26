@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { canSeeBudget } from '../lib/access.ts'
 import { useWedding } from '../state/wedding-context.ts'
 import { COLORS } from '../styles/tokens.ts'
 
@@ -11,11 +12,12 @@ const tabs = [
 ]
 
 export function BottomNav() {
-  const { bundle } = useWedding()
+  const { bundle, mode } = useWedding()
   const pending = bundle?.tasks.filter((task) => task.status === 'Pending').length ?? 0
+  const visibleTabs = tabs.filter((tab) => tab.to !== '/budget' || mode === 'preview' || canSeeBudget(bundle?.membership.role))
   return (
     <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTop: '1px solid #E8D4B0', display: 'flex', justifyContent: 'space-around', padding: '8px var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) var(--safe-area-inset-left, env(safe-area-inset-left, 0px))', zIndex: 200, boxShadow: '0 -4px 20px rgba(139,0,0,0.1)' }}>
-      {tabs.map((tab) => (
+      {visibleTabs.map((tab) => (
         <NavLink key={tab.to} to={tab.to} end={tab.end} style={{ textDecoration: 'none' }}>
           {({ isActive }) => (
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '4px 8px', position: 'relative', minWidth: 52 }}>

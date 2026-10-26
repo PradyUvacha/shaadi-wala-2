@@ -5,7 +5,7 @@ import { isValidVersionCode, isValidVersionName } from '../src/config/version.ts
 import { ONBOARDING_STEPS } from '../src/features/onboarding/steps.ts'
 import { readdirSync } from 'node:fs'
 import { DELETE_ACCOUNT_URL, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../src/lib/legal.ts'
-import { isInviteCode, normalizeInviteCode } from '../src/features/invites/code.ts'
+import { inviteCodeProblem, isInviteCode, normalizeInviteCode } from '../src/features/invites/code.ts'
 
 const appConfig = JSON.parse(readFileSync(new URL('../app.config.json', import.meta.url), 'utf8')) as {
   appId: string
@@ -87,6 +87,8 @@ describe('v1 product paths', () => {
     expect(settings).toContain('Delete account')
     expect(settings).toContain('/profile/settings/delete-account')
     expect(deletion).toContain('Type DELETE to confirm')
+    expect(deletion).toContain('isExactDeleteConfirmation')
+    expect(deletion).not.toContain('toUpperCase()')
     expect(deletion).toContain('DELETE_ACCOUNT_URL')
     expect(DELETE_ACCOUNT_URL).toBe('https://shaadi-wala.in/delete-account/')
     expect(PRIVACY_POLICY_URL).toBe('https://shaadi-wala.in/privacy-policy/')
@@ -103,10 +105,29 @@ describe('v1 product paths', () => {
     expect(source).toContain('analyticsEnabled')
   })
 
-  it('uses a 6-digit invite code', () => {
+  it('uses a 6-digit invite code and rejects a short mixed token', () => {
     expect(normalizeInviteCode('12-34 56 extra')).toBe('123456')
     expect(isInviteCode('123456')).toBe(true)
     expect(isInviteCode('12345')).toBe(false)
+    expect(isInviteCode('12ab')).toBe(false)
+    expect(inviteCodeProblem('12ab')).toMatch(/not valid/)
+    expect(inviteCodeProblem('123456')).toBeNull()
+  })
+
+  it('requires the exact word DELETE on the screen', () => {
+    const helper = readFileSync(new URL('../src/features/account/deleteAccount.ts', import.meta.url), 'utf8')
+    expect(helper).toContain("value === 'DELETE'")
+    const home = readFileSync(new URL('../src/features/home/HomeTab.tsx', import.meta.url), 'utf8')
+    const budget = readFileSync(new URL('../src/features/budget/BudgetTab.tsx', import.meta.url), 'utf8')
+    const guests = readFileSync(new URL('../src/features/guests/GuestsTab.tsx', import.meta.url), 'utf8')
+    const invite = readFileSync(new URL('../src/features/invites/InviteScreen.tsx', import.meta.url), 'utf8')
+    expect(home).toContain('formatInrCompact')
+    expect(home).toContain('weddingCountdown')
+    expect(home).not.toContain('/ 1000')
+    expect(budget).toContain('budgetHeadline')
+    expect(budget).toContain('MAX_BUDGET_AMOUNT')
+    expect(guests).toContain('Unassigned')
+    expect(invite).toContain('inviteCodeProblem')
   })
 
   it('keeps Android target SDK 36 and pads for edge-to-edge safe areas', () => {

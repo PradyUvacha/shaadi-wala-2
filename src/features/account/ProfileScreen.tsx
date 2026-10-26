@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FormError } from '../../components/ui.tsx'
-import { roleLabel } from '../../lib/access.ts'
+import { canInvite, roleLabel } from '../../lib/access.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { validateWeddingSetup } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
@@ -46,7 +46,7 @@ export function ProfileScreen() {
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},${COLORS.crimson})`, padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, color: '#fff', fontWeight: 700 }}>Profile</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 4 }}>
-          {mode === 'preview' ? 'Preview on this device' : bundle ? `${roleLabel(bundle.membership.role)} · ${bundle.membership.side === 'bride' ? "Bride's side" : "Groom's side"}` : 'Signed in'}
+          {mode === 'preview' ? 'Preview on this device' : bundle ? roleLabel(bundle.membership.role, bundle.membership.side) : 'Signed in'}
         </div>
       </div>
       <div style={{ padding: 16 }}>
@@ -60,7 +60,7 @@ export function ProfileScreen() {
             <input style={{ ...inputStyle, marginBottom: 14 }} type="date" value={weddingDate} disabled={!canEdit} onChange={(event) => setWeddingDate(event.target.value)} />
             <Field label="City" value={city} onChange={setCity} disabled={!canEdit} />
             <label style={caption}>Your side</label>
-            <select style={{ ...selectStyle, marginBottom: 16 }} value={side} disabled={!canEdit} onChange={(event) => setSide(event.target.value as Side)}>
+            <select style={{ ...selectStyle, marginBottom: 16 }} value={side || 'bride'} disabled={!canEdit || bundle.membership.role === 'bride' || bundle.membership.role === 'groom' || bundle.membership.role === 'planner'} onChange={(event) => setSide(event.target.value as Side)}>
               <option value="bride">Bride's side</option>
               <option value="groom">Groom's side</option>
             </select>
@@ -69,7 +69,7 @@ export function ProfileScreen() {
                 {busy ? 'Saving…' : 'Save details'}
               </button>
             )}
-            {canEdit && (
+            {(mode === 'preview' || canInvite(bundle.membership.role)) && (
               <button type="button" onClick={() => navigate('/invite')} style={secondaryButton}>
                 Invite partner or family
               </button>

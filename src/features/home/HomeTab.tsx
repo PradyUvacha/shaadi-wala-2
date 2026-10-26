@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { ACHIEVEMENTS, MOTIVATIONAL_QUOTES } from '../../data/content.ts'
 import { Badge, MehendiPattern, ProgressRing } from '../../components/ui.tsx'
-import { countdownDays, formatDate, quoteForDay } from '../../lib/format.ts'
+import { formatDate, formatInrCompact, quoteForDay, weddingCountdown } from '../../lib/format.ts'
 import { inrBudgetTotals, percent, plannerLevel, unlockedAchievementIds } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS } from '../../styles/tokens.ts'
@@ -15,7 +15,8 @@ export function HomeTab() {
   const completedTasks = tasks.filter((task) => task.status === 'Completed').length
   const { estimated, actual } = inrBudgetTotals(budget)
   const confirmedGuests = guests.filter((guest) => guest.status === 'Confirmed').length
-  const days = countdownDays(wedding.weddingDate)
+  const countdown = weddingCountdown(wedding.weddingDate)
+  const countdownKicker = countdown.headline === '—' ? '🪔' : countdown.days > 0 ? '🪔 दिन बाकी है' : countdown.days === 0 ? '🪔 आज' : '🪔'
   const taskPct = percent(completedTasks, tasks.length)
   const budgetPct = percent(actual, estimated)
   const guestPct = percent(confirmedGuests, guests.length)
@@ -60,9 +61,9 @@ export function HomeTab() {
 
       <div style={{ margin: 16, background: `linear-gradient(135deg,${COLORS.maroon},#3D0000)`, borderRadius: 20, padding: '24px 20px', textAlign: 'center', position: 'relative', overflow: 'hidden', animation: 'glow 3s ease-in-out infinite' }}>
         <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontSize: 13, color: COLORS.lightGold, marginBottom: 8 }}>🪔 दिन बाकी है</div>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 72, fontWeight: 900, color: '#fff', lineHeight: 1, animation: 'pulse 2s ease-in-out infinite' }}>{days}</div>
-          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 8 }}>Days until your Big Day!</div>
+          <div style={{ fontSize: 13, color: COLORS.lightGold, marginBottom: 8 }}>{countdownKicker}</div>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: countdown.headline.includes(' ') ? 32 : 72, fontWeight: 900, color: '#fff', lineHeight: 1.1, animation: 'pulse 2s ease-in-out infinite' }}>{countdown.headline}</div>
+          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.8)', marginTop: 8 }}>{countdown.caption}</div>
           <div style={{ color: COLORS.lightGold, fontSize: 12, marginTop: 6 }}>📅 {formatDate(wedding.weddingDate)}</div>
           <div style={{ color: COLORS.gold, fontSize: 11, marginTop: 8, letterSpacing: 3 }}>✨ 💐 ✨ 💐 ✨</div>
         </div>
@@ -72,7 +73,7 @@ export function HomeTab() {
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 700, color: COLORS.crimson, marginBottom: 16 }}>🎯 Your Wedding Progress</div>
         <div style={{ display: 'flex', justifyContent: 'space-around' }}>
           <ProgressRing pct={taskPct} label="Tasks" sublabel={`${completedTasks}/${tasks.length} done`} color={COLORS.crimson} onClick={() => navigate('/tasks')} />
-          <ProgressRing pct={budgetPct} label="Budget" sublabel={`₹${(actual / 1000).toFixed(0)}k spent`} color={COLORS.gold} onClick={() => navigate('/budget')} />
+          <ProgressRing pct={budgetPct} label="Budget" sublabel={`${formatInrCompact(actual)} spent`} color={COLORS.gold} onClick={() => navigate('/budget')} />
           <ProgressRing pct={guestPct} label="RSVPs" sublabel={`${confirmedGuests}/${guests.length} confirmed`} color={COLORS.green} onClick={() => navigate('/guests')} />
         </div>
       </div>

@@ -4,8 +4,12 @@ import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
 import { CATEGORIES, PRIORITIES } from '../types.ts'
 import {
   canAddSplit,
+  budgetHeadline,
   inrBudgetTotals,
+  MAX_BUDGET_AMOUNT,
   missingTemplateTasks,
+  moneyAmountError,
+  otherCurrencyTotals,
   percent,
   plannerLevel,
   familySettlement,
@@ -18,7 +22,8 @@ import {
   validateAuth,
   validateWeddingSetup,
 } from './planning.ts'
-import { countdownDays, daysUntil, formatDate } from './format.ts'
+import { countdownDays, daysUntil, formatDate, formatInrCompact, weddingCountdown } from './format.ts'
+import { demoWeddingDate } from '../data/demoData.ts'
 
 describe('hindu checklist', () => {
   it('has a unique starter ritual for each title', () => {
@@ -73,6 +78,25 @@ describe('budget splits', () => {
     expect(totals).toEqual({ estimated: 1000, actual: 400 })
     expect(percent(totals.actual, totals.estimated)).toBe(40)
   })
+
+  it('keeps the All total in INR and lists dollars separately', () => {
+    const items = [
+      { currency: 'INR', estimated: 1155000, actual: 1102000 },
+      { currency: 'USD', estimated: 3000, actual: 2800 },
+    ]
+    expect(budgetHeadline(items, 'All')).toEqual({ currency: 'INR', estimated: 1155000, actual: 1102000 })
+    expect(budgetHeadline(items, 'USD')).toEqual({ currency: 'USD', estimated: 3000, actual: 2800 })
+    expect(otherCurrencyTotals(items)).toEqual([{ currency: 'USD', estimated: 3000, actual: 2800 }])
+    expect(formatInrCompact(1102000)).toBe('₹11.02 lakh')
+    expect(formatInrCompact(1155000)).toBe('₹11.55 lakh')
+  })
+
+  it('rejects negative amounts and amounts above ₹10 crore', () => {
+    expect(moneyAmountError(-1, 'Estimated')).toMatch(/negative/)
+    expect(moneyAmountError(0, 'Payment', false)).toMatch(/greater than zero/)
+    expect(moneyAmountError(MAX_BUDGET_AMOUNT + 1, 'Actual')).toMatch(/10 crore/)
+    expect(moneyAmountError(MAX_BUDGET_AMOUNT, 'Estimated')).toBeNull()
+  })
 })
 
 describe('family settlement and headcount', () => {
@@ -104,6 +128,18 @@ describe('family settlement and headcount', () => {
     expect(counts.groom.pending).toBe(2)
     expect(counts.groom.declined).toBe(1)
     expect(counts.confirmedPeople).toBe(3)
+    expect(counts.unassigned.confirmed).toBe(0)
+  })
+
+  it('counts guests with no side under Unassigned', () => {
+    const counts = guestHeadcount([
+      { status: 'Confirmed', plusOnes: 1, side: '' },
+      { status: 'Pending', plusOnes: 0, side: '' },
+      { status: 'Confirmed', plusOnes: 0, side: 'bride' },
+    ])
+    expect(counts.unassigned.confirmed).toBe(2)
+    expect(counts.unassigned.pending).toBe(1)
+    expect(counts.confirmedPeople).toBe(3)
   })
 })
 
@@ -113,6 +149,16 @@ describe('dates and progress', () => {
     expect(daysUntil('2026-10-25', today)).toBe(1)
     expect(daysUntil('2026-10-24', today)).toBe(0)
     expect(countdownDays('2026-10-20', today)).toBe(0)
+  })
+
+  it('describes a past wedding instead of zero days remaining', () => {
+    const today = new Date(2026, 9, 26)
+    const past = weddingCountdown('2026-06-20', today)
+    expect(past.days).toBeLessThan(0)
+    expect(past.headline).toBe('128 days ago')
+    expect(past.caption).toBe('The wedding day has passed.')
+    expect(weddingCountdown('2026-10-26', today)).toMatchObject({ headline: 'Today', caption: 'Today is the wedding day.' })
+    expect(demoWeddingDate(today)).toBe('2027-04-24')
   })
 
   it('formats dates for India', () => {

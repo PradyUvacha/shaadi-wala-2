@@ -49,29 +49,14 @@ begin
 end;
 $$;
 
-create or replace function public.is_wedding_member(p_wedding_id uuid)
-returns boolean
-language sql
-stable
-security definer
-set search_path = public
-as $$
-  select exists (
-    select 1
-    from public.wedding_members
-    where wedding_id = p_wedding_id
-      and user_id = auth.uid()
-  );
-$$;
-
-create table public.profiles (
+create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   display_name text not null default '',
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-create table public.weddings (
+create table if not exists public.weddings (
   id uuid primary key default gen_random_uuid(),
   couple_names text not null,
   wedding_date date not null,
@@ -81,7 +66,7 @@ create table public.weddings (
   constraint weddings_couple_names_not_blank check (char_length(trim(couple_names)) > 0)
 );
 
-create table public.wedding_members (
+create table if not exists public.wedding_members (
   id uuid primary key default gen_random_uuid(),
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -94,7 +79,7 @@ create table public.wedding_members (
 );
 
 -- Ready for the later "invite by link" flow. Clients cannot read invites by token.
-create table public.wedding_invites (
+create table if not exists public.wedding_invites (
   id uuid primary key default gen_random_uuid(),
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   token text not null unique,
@@ -107,7 +92,7 @@ create table public.wedding_invites (
   created_at timestamptz not null default now()
 );
 
-create table public.tasks (
+create table if not exists public.tasks (
   id uuid primary key default gen_random_uuid(),
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   title text not null,
@@ -123,13 +108,13 @@ create table public.tasks (
   constraint tasks_title_not_blank check (char_length(trim(title)) > 0)
 );
 
-create table public.budget_items (
+create table if not exists public.budget_items (
   id uuid primary key default gen_random_uuid(),
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   category text not null check (category in ('Venue', 'Catering', 'Decor', 'Attire', 'Invitations', 'Other')),
   currency text not null default 'INR' check (currency in ('INR', 'USD', 'EUR', 'GBP')),
-  estimated numeric(14, 2) not null default 0 check (estimated >= 0),
-  actual numeric(14, 2) not null default 0 check (actual >= 0),
+  estimated numeric(14, 2) not null default 0 check (estimated >= 0 and estimated <= 100000000),
+  actual numeric(14, 2) not null default 0 check (actual >= 0 and actual <= 100000000),
   paid boolean not null default false,
   notes text not null default '',
   paid_by_side text not null default 'custom' check (paid_by_side in ('bride', 'groom', 'both', 'custom')),
@@ -137,7 +122,7 @@ create table public.budget_items (
   updated_at timestamptz not null default now()
 );
 
-create table public.budget_splits (
+create table if not exists public.budget_splits (
   id uuid primary key default gen_random_uuid(),
   budget_item_id uuid not null references public.budget_items (id) on delete cascade,
   name text not null,
@@ -145,10 +130,10 @@ create table public.budget_splits (
   pct numeric(5, 2) not null check (pct > 0 and pct <= 100)
 );
 
-create table public.part_payments (
+create table if not exists public.part_payments (
   id uuid primary key default gen_random_uuid(),
   budget_item_id uuid not null references public.budget_items (id) on delete cascade,
-  amount numeric(14, 2) not null check (amount > 0),
+  amount numeric(14, 2) not null check (amount > 0 and amount <= 100000000),
   paid_by text not null default '',
   paid_by_side text check (paid_by_side in ('bride', 'groom', 'other')),
   paid_on date,
@@ -156,7 +141,7 @@ create table public.part_payments (
   created_at timestamptz not null default now()
 );
 
-create table public.guests (
+create table if not exists public.guests (
   id uuid primary key default gen_random_uuid(),
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   name text not null,
@@ -171,7 +156,7 @@ create table public.guests (
   constraint guests_name_not_blank check (char_length(trim(name)) > 0)
 );
 
-create table public.timeline_events (
+create table if not exists public.timeline_events (
   id uuid primary key default gen_random_uuid(),
   wedding_id uuid not null references public.weddings (id) on delete cascade,
   name text not null,
@@ -183,14 +168,14 @@ create table public.timeline_events (
   constraint timeline_events_name_not_blank check (char_length(trim(name)) > 0)
 );
 
-create table public.ritual_templates (
+create table if not exists public.ritual_templates (
   slug text primary key,
   name text not null,
   tradition text not null,
   description text not null
 );
 
-create table public.ritual_template_items (
+create table if not exists public.ritual_template_items (
   id uuid primary key default gen_random_uuid(),
   template_slug text not null references public.ritual_templates (slug) on delete cascade,
   title text not null,
@@ -202,7 +187,7 @@ create table public.ritual_template_items (
 );
 
 -- Ready for the later in-app feedback screen.
-create table public.feedback (
+create table if not exists public.feedback (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   wedding_id uuid references public.weddings (id) on delete set null,
@@ -211,64 +196,77 @@ create table public.feedback (
   constraint feedback_message_not_blank check (char_length(trim(message)) > 0)
 );
 
-create index wedding_members_user_id_idx on public.wedding_members (user_id);
-create index wedding_invites_wedding_id_idx on public.wedding_invites (wedding_id);
-create index tasks_wedding_id_idx on public.tasks (wedding_id);
-create index budget_items_wedding_id_idx on public.budget_items (wedding_id);
-create index budget_splits_item_idx on public.budget_splits (budget_item_id);
-create index part_payments_item_idx on public.part_payments (budget_item_id);
-create index guests_wedding_id_idx on public.guests (wedding_id);
-create index timeline_events_wedding_id_idx on public.timeline_events (wedding_id);
-create index feedback_user_id_idx on public.feedback (user_id);
+create index if not exists wedding_members_user_id_idx on public.wedding_members (user_id);
+create index if not exists wedding_invites_wedding_id_idx on public.wedding_invites (wedding_id);
+create index if not exists tasks_wedding_id_idx on public.tasks (wedding_id);
+create index if not exists budget_items_wedding_id_idx on public.budget_items (wedding_id);
+create index if not exists budget_splits_item_idx on public.budget_splits (budget_item_id);
+create index if not exists part_payments_item_idx on public.part_payments (budget_item_id);
+create index if not exists guests_wedding_id_idx on public.guests (wedding_id);
+create index if not exists timeline_events_wedding_id_idx on public.timeline_events (wedding_id);
+create index if not exists feedback_user_id_idx on public.feedback (user_id);
 
+drop trigger if exists profiles_updated_at on public.profiles;
 create trigger profiles_updated_at
 before update on public.profiles
 for each row execute function public.set_updated_at();
 
+drop trigger if exists weddings_updated_at on public.weddings;
 create trigger weddings_updated_at
 before update on public.weddings
 for each row execute function public.set_updated_at();
 
+drop trigger if exists weddings_protect_owner on public.weddings;
 create trigger weddings_protect_owner
 before update on public.weddings
 for each row execute function public.protect_wedding_owner();
 
+drop trigger if exists wedding_members_updated_at on public.wedding_members;
 create trigger wedding_members_updated_at
 before update on public.wedding_members
 for each row execute function public.set_updated_at();
 
+drop trigger if exists wedding_members_protect_keys on public.wedding_members;
 create trigger wedding_members_protect_keys
 before update on public.wedding_members
 for each row execute function public.protect_member_keys();
 
+drop trigger if exists tasks_updated_at on public.tasks;
 create trigger tasks_updated_at
 before update on public.tasks
 for each row execute function public.set_updated_at();
 
+drop trigger if exists tasks_protect_keys on public.tasks;
 create trigger tasks_protect_keys
 before update on public.tasks
 for each row execute function public.protect_parent_keys();
 
+drop trigger if exists budget_items_updated_at on public.budget_items;
 create trigger budget_items_updated_at
 before update on public.budget_items
 for each row execute function public.set_updated_at();
 
+drop trigger if exists budget_items_protect_keys on public.budget_items;
 create trigger budget_items_protect_keys
 before update on public.budget_items
 for each row execute function public.protect_parent_keys();
 
+drop trigger if exists guests_updated_at on public.guests;
 create trigger guests_updated_at
 before update on public.guests
 for each row execute function public.set_updated_at();
 
+drop trigger if exists guests_protect_keys on public.guests;
 create trigger guests_protect_keys
 before update on public.guests
 for each row execute function public.protect_parent_keys();
 
+drop trigger if exists timeline_events_updated_at on public.timeline_events;
 create trigger timeline_events_updated_at
 before update on public.timeline_events
 for each row execute function public.set_updated_at();
 
+drop trigger if exists timeline_events_protect_keys on public.timeline_events;
 create trigger timeline_events_protect_keys
 before update on public.timeline_events
 for each row execute function public.protect_parent_keys();
@@ -288,11 +286,13 @@ begin
       nullif(split_part(coalesce(new.email, ''), '@', 1), ''),
       'Guest'
     )
-  );
+  )
+  on conflict (id) do nothing;
   return new;
 end;
 $$;
 
+drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
@@ -340,6 +340,23 @@ begin
 end;
 $$;
 
+-- SQL functions check that referenced tables exist at creation time, so this
+-- comes after wedding_members.
+create or replace function public.is_wedding_member(p_wedding_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.wedding_members
+    where wedding_id = p_wedding_id
+      and user_id = auth.uid()
+  );
+$$;
+
 revoke all on function public.set_updated_at() from public;
 revoke all on function public.protect_wedding_owner() from public;
 revoke all on function public.protect_member_keys() from public;
@@ -364,6 +381,7 @@ alter table public.ritual_templates enable row level security;
 alter table public.ritual_template_items enable row level security;
 alter table public.feedback enable row level security;
 
+drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles
 for select to authenticated
 using (
@@ -376,28 +394,34 @@ using (
   )
 );
 
+drop policy if exists profiles_insert on public.profiles;
 create policy profiles_insert on public.profiles
 for insert to authenticated
 with check (id = auth.uid());
 
+drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles
 for update to authenticated
 using (id = auth.uid())
 with check (id = auth.uid());
 
+drop policy if exists weddings_select on public.weddings;
 create policy weddings_select on public.weddings
 for select to authenticated
 using (public.is_wedding_member(id) or created_by = auth.uid());
 
+drop policy if exists weddings_insert on public.weddings;
 create policy weddings_insert on public.weddings
 for insert to authenticated
 with check (created_by = auth.uid());
 
+drop policy if exists weddings_update on public.weddings;
 create policy weddings_update on public.weddings
 for update to authenticated
 using (public.is_wedding_member(id))
 with check (public.is_wedding_member(id));
 
+drop policy if exists weddings_delete on public.weddings;
 create policy weddings_delete on public.weddings
 for delete to authenticated
 using (
@@ -409,10 +433,12 @@ using (
   )
 );
 
+drop policy if exists members_select on public.wedding_members;
 create policy members_select on public.wedding_members
 for select to authenticated
 using (user_id = auth.uid() or public.is_wedding_member(wedding_id));
 
+drop policy if exists members_insert_self on public.wedding_members;
 create policy members_insert_self on public.wedding_members
 for insert to authenticated
 with check (
@@ -424,26 +450,31 @@ with check (
   )
 );
 
+drop policy if exists members_update_self on public.wedding_members;
 create policy members_update_self on public.wedding_members
 for update to authenticated
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
+drop policy if exists invites_member_all on public.wedding_invites;
 create policy invites_member_all on public.wedding_invites
 for all to authenticated
 using (public.is_wedding_member(wedding_id))
 with check (public.is_wedding_member(wedding_id));
 
+drop policy if exists tasks_member_all on public.tasks;
 create policy tasks_member_all on public.tasks
 for all to authenticated
 using (public.is_wedding_member(wedding_id))
 with check (public.is_wedding_member(wedding_id));
 
+drop policy if exists budget_member_all on public.budget_items;
 create policy budget_member_all on public.budget_items
 for all to authenticated
 using (public.is_wedding_member(wedding_id))
 with check (public.is_wedding_member(wedding_id));
 
+drop policy if exists splits_member_all on public.budget_splits;
 create policy splits_member_all on public.budget_splits
 for all to authenticated
 using (
@@ -461,6 +492,7 @@ with check (
   )
 );
 
+drop policy if exists payments_member_all on public.part_payments;
 create policy payments_member_all on public.part_payments
 for all to authenticated
 using (
@@ -478,28 +510,34 @@ with check (
   )
 );
 
+drop policy if exists guests_member_all on public.guests;
 create policy guests_member_all on public.guests
 for all to authenticated
 using (public.is_wedding_member(wedding_id))
 with check (public.is_wedding_member(wedding_id));
 
+drop policy if exists timeline_member_all on public.timeline_events;
 create policy timeline_member_all on public.timeline_events
 for all to authenticated
 using (public.is_wedding_member(wedding_id))
 with check (public.is_wedding_member(wedding_id));
 
+drop policy if exists ritual_templates_read on public.ritual_templates;
 create policy ritual_templates_read on public.ritual_templates
 for select to anon, authenticated
 using (true);
 
+drop policy if exists ritual_items_read on public.ritual_template_items;
 create policy ritual_items_read on public.ritual_template_items
 for select to anon, authenticated
 using (true);
 
+drop policy if exists feedback_select on public.feedback;
 create policy feedback_select on public.feedback
 for select to authenticated
 using (user_id = auth.uid());
 
+drop policy if exists feedback_insert on public.feedback;
 create policy feedback_insert on public.feedback
 for insert to authenticated
 with check (user_id = auth.uid());
@@ -528,7 +566,8 @@ values (
   'Hindu wedding checklist',
   'Hindu',
   'A starter list of rituals and planning tasks. Copy it into a wedding, then edit or delete anything that does not fit.'
-);
+)
+on conflict (slug) do nothing;
 
 insert into public.ritual_template_items (template_slug, title, description, category, priority, sort_order)
 values
@@ -563,4 +602,5 @@ values
   ('hindu-starter', 'Reception Planning', 'Reception flow, outfits, and hosting.', 'Venue', 'High', 29),
   ('hindu-starter', 'Honeymoon Planning', 'Travel dates and bookings.', 'Other', 'Medium', 30),
   ('hindu-starter', 'Return Gifts', 'Favours for guests.', 'Other', 'Low', 31),
-  ('hindu-starter', 'Thank You Cards', 'Notes to send after the wedding.', 'Invitations', 'Low', 32);
+  ('hindu-starter', 'Thank You Cards', 'Notes to send after the wedding.', 'Invitations', 'Low', 32)
+on conflict (template_slug, title) do nothing;

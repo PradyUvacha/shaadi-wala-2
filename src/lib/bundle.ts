@@ -1,4 +1,4 @@
-import { DEMO_BUDGET, DEMO_CITY, DEMO_COUPLE_NAMES, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS, DEMO_WEDDING_DATE } from '../data/demoData.ts'
+import { DEMO_BUDGET, DEMO_CITY, DEMO_COUPLE_NAMES, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS, demoWeddingDate } from '../data/demoData.ts'
 import type {
   BudgetDraft,
   BudgetItem,
@@ -16,6 +16,7 @@ import type {
   WeddingBundle,
   WeddingSettings,
 } from '../types.ts'
+import { moneyAmountError, validateBudgetAmounts } from './planning.ts'
 
 export function uid(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -39,7 +40,7 @@ function blankBundle(input: {
     },
     membership: {
       id: uid(),
-      role: 'owner',
+      role: input.side === 'groom' ? 'groom' : 'bride',
       side: input.side,
       displayName,
     },
@@ -70,17 +71,18 @@ export function createWeddingBundle(input: {
   return bundle
 }
 
-export function createDemoBundle(input: { side: Side; displayName: string }): WeddingBundle {
+export function createDemoBundle(input: { side: Side; displayName: string }, today = new Date()): WeddingBundle {
+  const weddingDate = demoWeddingDate(today)
   return createWeddingBundle({
     coupleNames: DEMO_COUPLE_NAMES,
-    weddingDate: DEMO_WEDDING_DATE,
+    weddingDate,
     city: DEMO_CITY,
     side: input.side,
     displayName: input.displayName,
-    tasks: DEMO_TASKS,
+    tasks: DEMO_TASKS.map((task) => (task.dueDate === '2026-06-20' ? { ...task, dueDate: weddingDate } : task)),
     budget: DEMO_BUDGET,
     guests: DEMO_GUESTS,
-    milestones: DEMO_MILESTONES,
+    milestones: DEMO_MILESTONES.map((milestone) => (milestone.date === '2026-06-20' ? { ...milestone, date: weddingDate } : milestone)),
   })
 }
 
@@ -149,6 +151,8 @@ export function removeTask(bundle: WeddingBundle, id: string): WeddingBundle {
 }
 
 export function saveBudgetDraft(bundle: WeddingBundle, draft: BudgetDraft, id?: string): WeddingBundle {
+  const invalid = validateBudgetAmounts(draft.estimated, draft.actual)
+  if (invalid) throw new Error(invalid)
   const splits = draft.splits.map(splitFromDraft)
   if (id) {
     const current = bundle.budget.find((item) => item.id === id)
@@ -186,6 +190,8 @@ export function removeBudgetItem(bundle: WeddingBundle, id: string): WeddingBund
 }
 
 export function addPayment(bundle: WeddingBundle, budgetItemId: string, draft: PartPaymentDraft): WeddingBundle {
+  const invalid = moneyAmountError(Number(draft.amount), 'Payment', false)
+  if (invalid) throw new Error(invalid)
   return {
     ...bundle,
     budget: bundle.budget.map((item) => {
@@ -260,6 +266,8 @@ function splitFromDraft(draft: SplitDraft): Split {
 }
 
 export function paymentFromDraft(draft: PartPaymentDraft): PartPayment {
+  const invalid = moneyAmountError(Number(draft.amount), 'Payment', false)
+  if (invalid) throw new Error(invalid)
   return {
     id: uid(),
     amount: Number(draft.amount || 0),

@@ -1,5 +1,10 @@
 import { supabase } from '../../lib/supabase.ts'
 
+/** The confirmation is the exact word DELETE. Lower case and surrounding spaces do not count. */
+export function isExactDeleteConfirmation(value: string): boolean {
+  return value === 'DELETE'
+}
+
 /** Deletes the signed-in user through the delete-account edge function. The service role stays on the server. */
 export async function deleteAccount(): Promise<void> {
   if (!supabase) throw new Error('Sign in with Supabase configured before deleting an account.')

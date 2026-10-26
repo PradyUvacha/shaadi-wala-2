@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/demoData.ts'
 import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
-import { addPayment, createDemoBundle, createWeddingBundle, removeTask, saveTaskDraft } from './bundle.ts'
+import { addPayment, createDemoBundle, createWeddingBundle, removeTask, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
 import { missingTemplateTasks, templateToDrafts } from './planning.ts'
 
 describe('wedding bundle', () => {
@@ -48,5 +48,30 @@ describe('wedding bundle', () => {
     const next = addPayment(bundle, item.id, { amount: 250, paidBy: 'Asha', paidBySide: 'bride', date: '2026-10-24', notes: 'Advance' })
     expect(next.budget[0]?.actual).toBe(350)
     expect(next.budget[0]?.partPayments[0]?.paidBy).toBe('Asha')
+  })
+
+  it('places the sample wedding 180 days ahead and rejects a negative amount', () => {
+    const today = new Date(2026, 9, 26)
+    const created = createDemoBundle({ side: 'bride', displayName: 'Asha' }, today)
+    expect(created.wedding.weddingDate).toBe('2027-04-24')
+    expect(created.milestones.find((milestone) => milestone.name === 'Wedding Day')?.date).toBe('2027-04-24')
+    expect(created.tasks.find((task) => task.title === 'Baraat Vehicle')?.dueDate).toBe('2027-04-24')
+    expect(() => saveBudgetDraft(created, {
+      category: 'Attire',
+      currency: 'INR',
+      estimated: -50,
+      actual: 0,
+      paid: false,
+      notes: '',
+      paidBySide: 'bride',
+      splits: [],
+    })).toThrow(/negative/)
+    expect(() => addPayment(created, created.budget[0]!.id, {
+      amount: -1,
+      paidBy: 'Asha',
+      paidBySide: 'bride',
+      date: '2026-10-26',
+      notes: '',
+    })).toThrow(/negative/)
   })
 })
