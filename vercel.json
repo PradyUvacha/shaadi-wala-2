@@ -1,3 +1,11 @@
 {
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "ignoreCommand": "node scripts/vercel-preview.mjs",
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "cursor/shaadi-wala-foundation-b7e2": true,
+      "cursor/join-flow-permissions-b7e2": true
+    }
+  }
 }

@@ -191,7 +191,8 @@ export function FAB({ onClick }: { onClick: () => void }) {
   const style: CSSProperties = {
     position: 'fixed',
     bottom: 'calc(90px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))',
-    right: 'max(20px, calc((100vw - 480px) / 2 + 20px))',
+    left: '50%',
+    transform: 'translateX(-50%)',
     width: 56,
     height: 56,
     borderRadius: '50%',

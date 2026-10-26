@@ -1,19 +1,19 @@
 import { useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { canEditTimeline } from '../../lib/access.ts'
-import { toErrorMessage } from '../../lib/errors.ts'
+import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { formatDate } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
+import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
 import type { Milestone, MilestoneDraft, MilestoneStatus } from '../../types.ts'
 import { MILESTONE_STATUSES } from '../../types.ts'
 
 const emptyForm = (): MilestoneDraft => ({ name: '', date: '', status: 'Upcoming', description: '' })
 
 export function TimelineTab() {
-  const { bundle, mode, saveMilestone, deleteMilestone, toggleMilestone } = useWedding()
+  const { bundle, mode, saveMilestone, deleteMilestone, toggleMilestone, refreshWedding } = useWedding()
   const canEdit = mode === 'preview' || canEditTimeline(bundle?.membership.role)
   const milestones = bundle?.milestones ?? []
   const [modalOpen, setModalOpen] = useState(false)
@@ -46,6 +46,14 @@ export function TimelineTab() {
       await saveMilestone(form, editMilestone?.id)
       setModalOpen(false)
     } catch (caught) {
+      const failure = saveErrorPresentation(caught)
+      if (failure.kind === 'deleted') {
+        setModalOpen(false)
+        setEditMilestone(null)
+        setError(DELETED_ITEM_MESSAGE)
+        await refreshWedding()
+        return
+      }
       setError(toErrorMessage(caught))
     } finally {
       setBusy(false)
@@ -53,7 +61,7 @@ export function TimelineTab() {
   }
 
   return (
-    <div style={{ paddingBottom: screenBottom }}>
+    <div style={{ paddingBottom: listAboveFab }}>
       <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>📅 Wedding Timeline</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{sorted.filter((milestone) => milestone.status === 'Completed').length}/{sorted.length} milestones completed</div>

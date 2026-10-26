@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { RowGuard } from '../lib/errors.ts'
 import type {
   BudgetDraft,
   CreateWeddingInput,
@@ -27,14 +28,18 @@ export type WeddingContextValue = {
   clearNotice: () => void
   clearError: () => void
   reload: () => void
+  refreshWedding: () => Promise<WeddingBundle | null>
   startPreview: () => void
   leavePreview: () => void
   createWedding: (input: CreateWeddingInput) => Promise<void>
   updateSettings: (settings: WeddingSettings) => Promise<void>
-  saveTask: (draft: TaskDraft, id?: string) => Promise<void>
+  saveTask: (draft: TaskDraft, id?: string, guard?: RowGuard) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
-  loadHinduChecklist: () => Promise<number>
+  saveFunction: (name: string, id?: string, guard?: RowGuard) => Promise<void>
+  deleteFunction: (id: string) => Promise<void>
+  moveFunction: (id: string, direction: -1 | 1) => Promise<void>
+  moveTask: (id: string, direction: -1 | 1) => Promise<void>
   saveBudgetItem: (draft: BudgetDraft, id?: string) => Promise<void>
   deleteBudgetItem: (id: string) => Promise<void>
   addPayment: (budgetItemId: string, payment: PartPaymentDraft) => Promise<void>
@@ -45,7 +50,9 @@ export type WeddingContextValue = {
   toggleMilestone: (milestone: Milestone) => Promise<void>
   createInvite: (role: InviteRole, side: Side | null) => Promise<WeddingInvite>
   listInvites: () => Promise<WeddingInvite[]>
-  acceptInvite: (code: string) => Promise<void>
+  acceptInvite: (code: string, role: InviteRole, side: Side | null) => Promise<void>
+  leaveWedding: () => Promise<void>
+  removeMember: (memberId: string) => Promise<void>
 }
 
 export const WeddingContext = createContext<WeddingContextValue | null>(null)

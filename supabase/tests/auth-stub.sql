@@ -23,7 +23,10 @@ as $$
   select jsonb_build_object(
     'sub', current_setting('request.jwt.claim.sub', true),
     'email', current_setting('request.jwt.claim.email', true),
-    'display_name', current_setting('request.jwt.claim.display_name', true)
+    'display_name', current_setting('request.jwt.claim.display_name', true),
+    'user_metadata', jsonb_build_object(
+      'display_name', current_setting('request.jwt.claim.meta_display_name', true)
+    )
   )
 $$;
 
@@ -36,3 +39,30 @@ begin
     create role authenticated nologin;
   end if;
 end $$;
+
+-- Enough of Supabase Storage for the feedback-screenshot policies. Not for the SQL editor.
+create schema if not exists storage;
+
+create table if not exists storage.buckets (
+  id text primary key,
+  name text not null,
+  public boolean not null default false
+);
+
+create table if not exists storage.objects (
+  id uuid primary key default gen_random_uuid(),
+  bucket_id text not null references storage.buckets (id),
+  name text not null,
+  created_at timestamptz not null default now(),
+  unique (bucket_id, name)
+);
+
+create or replace function storage.foldername(name text)
+returns text[]
+language sql
+immutable
+as $$
+  select string_to_array(name, '/')
+$$;
+
+alter table storage.objects enable row level security;

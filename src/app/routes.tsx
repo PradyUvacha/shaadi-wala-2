@@ -3,6 +3,7 @@ import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { AppShell } from './AppShell.tsx'
 import { Splash } from '../components/ui.tsx'
 import { COLORS } from '../styles/tokens.ts'
+import { pathWithSurvey } from '../features/surveys/surveys.ts'
 import { useAuth } from '../state/auth-context.ts'
 import { useWedding } from '../state/wedding-context.ts'
 
@@ -64,14 +65,15 @@ export function AppRoutes() {
   const canEnter = signedIn || inPreview
   const hasWedding = Boolean(bundle)
   const next = safeNext(location.search)
+  const home = pathWithSurvey(hasWedding ? '/' : '/setup', location.search)
 
   return (
     <Suspense fallback={<Splash />}>
       <Routes>
         <Route path="/invite/:token" element={<InviteScreen />} />
         <Route path="/invite" element={<InviteScreen />} />
-        <Route path="/auth" element={signedIn ? <Navigate to={next ?? (hasWedding ? '/' : '/setup')} replace /> : <AuthScreen />} />
-        <Route element={canEnter ? <AppShell /> : <Navigate to="/auth" replace />}>
+        <Route path="/auth" element={signedIn ? <Navigate to={next ? pathWithSurvey(next, location.search) : home} replace /> : <AuthScreen />} />
+        <Route element={canEnter ? <AppShell /> : <Navigate to={pathWithSurvey('/auth', location.search)} replace />}>
           <Route path="/setup" element={hasWedding ? <Navigate to="/" replace /> : <SetupScreen />} />
           <Route path="/profile" element={<ProfileScreen />} />
           <Route path="/profile/settings" element={<SettingsScreen />} />
@@ -86,7 +88,7 @@ export function AppRoutes() {
             <Route path="timeline" element={<TimelineTab />} />
           </Route>
         </Route>
-        <Route path="*" element={<Navigate to={canEnter && hasWedding ? '/' : signedIn ? '/setup' : '/auth'} replace />} />
+        <Route path="*" element={<Navigate to={canEnter ? home : pathWithSurvey('/auth', location.search)} replace />} />
       </Routes>
     </Suspense>
   )

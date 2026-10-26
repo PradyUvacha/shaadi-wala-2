@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { aboutVersionLabel } from '../../config/about.ts'
 import { appConfig } from '../../config/app.ts'
+import { commitSha } from '../../config/buildMeta.ts'
 import { FormError } from '../../components/ui.tsx'
 import { signOut } from '../../lib/auth.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
@@ -41,8 +43,13 @@ export function SettingsScreen() {
         <button type="button" onClick={() => navigate('/profile/settings/delete-account')} style={{ ...primaryButton('transparent'), color: '#CC4444', border: '1px solid #E7C1C1', marginTop: 18 }}>
           Delete account
         </button>
-        <p style={{ fontSize: 11, color: '#A08080', marginTop: 24 }}>
-          {appConfig.appName} · {appConfig.versionName} · versionCode {appConfig.versionCode}
+        <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: COLORS.crimson, margin: '28px 0 8px' }}>About</h2>
+        <p style={{ fontSize: 12, color: '#A08080', margin: 0 }}>
+          {aboutVersionLabel({
+            versionName: appConfig.versionName,
+            versionCode: appConfig.versionCode,
+            commitSha,
+          })}
         </p>
       </div>
     </div>

@@ -1,11 +1,11 @@
-import type { Category, Ceremony, Priority, TemplateTask } from '../types.ts'
+import type { Category, Priority, TemplateTask } from '../types.ts'
 import { TEMPLATE_SLUG } from '../types.ts'
 
 export const HINDU_TEMPLATE_SLUG = TEMPLATE_SLUG
 
 export const HINDU_TEMPLATE_NAME = 'Hindu wedding checklist'
 
-type Ritual = [Ceremony, string, string, Category, Priority]
+type Ritual = [string, string, string, Category, Priority]
 
 const RITUALS: Ritual[] = [
   ['Roka', 'Roka Ceremony', 'Formal agreement between both families that the wedding will happen.', 'Other', 'High'],
@@ -63,7 +63,7 @@ const RITUALS: Ritual[] = [
   ['Reception', 'Thank You Cards', 'Notes to send after the wedding.', 'Invitations', 'Low'],
 ]
 
-/** Hindu wedding rituals grouped by ceremony. Couples copy the ones they choose and edit them. */
+/** Hindu wedding rituals. The database copies the whole list onto a new wedding. */
 export const HINDU_CHECKLIST: TemplateTask[] = RITUALS.map(([ceremony, title, description, category, priority], index) => ({
   ceremony,
   title,

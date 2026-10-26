@@ -1,6 +1,5 @@
 import type { SupabaseClient, User } from '@supabase/supabase-js'
-import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
-import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/demoData.ts'
+import { DEMO_GUESTS, placeDemoContent } from '../data/demoData.ts'
 import type {
   BudgetDraft,
   BudgetItem,
@@ -12,15 +11,17 @@ import type {
   Side,
   Task,
   TaskDraft,
-  TemplateTask,
   WeddingBundle,
+  WeddingFunction,
   WeddingInvite,
+  WeddingMember,
   WeddingSettings,
 } from '../types.ts'
-import { TEMPLATE_SLUG } from '../types.ts'
-import { assertNoError } from './errors.ts'
-import { asRecord, mapBudgetItem, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
-import { ritualsForCeremonies, templateToDrafts } from './planning.ts'
+import { rosterDisplayName } from './access.ts'
+import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
+import { assertNoError, DeletedItemError, throwIfWriteMissed, type RowGuard } from './errors.ts'
+import { splitsForSave } from './planning.ts'
+import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
 import {
   budgetInsert,
   guestInsert,
@@ -45,6 +46,13 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     saveTask,
     deleteTask,
     addTasks,
+    listFunctions,
+    listTasks,
+    addFunction,
+    renameFunction,
+    deleteFunction,
+    moveFunction,
+    moveTask,
     saveBudgetItem,
     deleteBudgetItem,
     addPayment,
@@ -52,16 +60,17 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     deleteGuest,
     saveMilestone,
     deleteMilestone,
-    loadTemplate,
     createInvite,
     listInvites,
     acceptInvite,
+    leaveWedding,
+    removeMember,
   }
 
   async function getMine(): Promise<WeddingBundle | null> {
     const { data, error } = await client
       .from('wedding_members')
-      .select('id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, city, created_at)')
+      .select('id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, city, community, created_at)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -72,16 +81,18 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const wedding = one(member.weddings as Record<string, unknown> | Record<string, unknown>[] | null)
     if (!wedding) return null
     const weddingId = String(wedding.id)
-    const [tasks, budget, guests, milestones, profile] = await Promise.all([
+    const [tasks, functions, budget, guests, milestones, profile, members] = await Promise.all([
       loadTasks(weddingId),
+      loadFunctions(weddingId),
       loadBudget(weddingId),
       loadGuests(weddingId),
       loadMilestones(weddingId),
       loadProfile(),
+      loadMembers(weddingId),
     ])
     const membershipName = member.display_name ? String(member.display_name) : ''
     const profileName = profile ? String(profile) : ''
-    const displayName = profileName || membershipName || user.email?.split('@')[0] || 'there'
+    const displayName = rosterDisplayName(profileName, membershipName, mapMemberRole(member.role), member.side === 'bride' || member.side === 'groom' ? member.side : null)
     const side = member.side === 'bride' || member.side === 'groom' ? member.side : null
     const role = mapMemberRole(member.role)
     return {
@@ -90,14 +101,17 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         coupleNames: String(wedding.couple_names ?? ''),
         weddingDate: String(wedding.wedding_date ?? ''),
         city: String(wedding.city ?? ''),
+        community: String(wedding.community ?? 'hindu'),
       },
       membership: {
         id: String(member.id),
         role,
         side,
-        displayName: membershipName || displayName,
+        displayName,
       },
       displayName,
+      members,
+      functions,
       tasks,
       budget,
       guests,
@@ -117,15 +131,12 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const weddingId = String(data)
     let notice: string | null = null
     try {
-      if (input.seed === 'template') {
-        await addTasks(weddingId, templateToDrafts(ritualsForCeremonies(HINDU_CHECKLIST, input.ceremonies)))
-      }
-      if (input.seed === 'demo') await seedDemo(weddingId)
+      if (input.seed === 'demo') await seedDemo(weddingId, input.weddingDate)
     } catch (seedError) {
       notice =
         seedError instanceof Error
-          ? `Your wedding was created, but the starter list did not save (${seedError.message}). Open Tasks and load the Hindu checklist.`
-          : 'Your wedding was created, but the starter list did not save. Open Tasks and load the Hindu checklist.'
+          ? `Your wedding was created, but the sample list did not save (${seedError.message}).`
+          : 'Your wedding was created, but the sample list did not save.'
     }
     const bundle = await getMine()
     if (!bundle) throw new Error('The wedding was created, but it could not be loaded. Refresh and try again.')
@@ -155,14 +166,30 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(profileUpdate.error)
   }
 
-  async function saveTask(weddingId: string, draft: TaskDraft, id?: string): Promise<Task> {
+  async function saveTask(weddingId: string, draft: TaskDraft, id?: string, guard?: RowGuard): Promise<Task> {
+    const placed = await placeTask(weddingId, draft, id)
+    if (placed.functionId) {
+      const siblings = await client.from('tasks').select('id, title').eq('function_id', placed.functionId)
+      assertNoError(siblings.error)
+      const clash = duplicateRitualName(
+        (siblings.data ?? []).map((row) => ({
+          id: String(asRecord(row).id),
+          functionId: placed.functionId ?? null,
+          title: String(asRecord(row).title ?? ''),
+        })),
+        { functionId: placed.functionId, title: placed.title, exceptId: id },
+      )
+      if (clash) throw new Error(DUPLICATE_RITUAL_MESSAGE)
+    }
     if (id) {
-      const { data, error } = await client.from('tasks').update(taskUpdate(draft)).eq('id', id).select('*').single()
-      assertNoError(error)
-      return mapTask(asRecord(data))
+      const updated = await requireUpdatedRow(
+        withGuard(client.from('tasks').update(taskUpdate(placed)).eq('id', id), guard).select('*').maybeSingle(),
+        () => client.from('tasks').select('id').eq('id', id).maybeSingle(),
+      )
+      return mapTask(asRecord(updated))
     }
     const sortOrder = (await maxSort(weddingId)) + 1
-    const { data, error } = await client.from('tasks').insert(taskInsert(weddingId, draft, sortOrder)).select('*').single()
+    const { data, error } = await client.from('tasks').insert(taskInsert(weddingId, placed, sortOrder)).select('*').single()
     assertNoError(error)
     return mapTask(asRecord(data))
   }
@@ -187,13 +214,18 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function saveBudgetItem(weddingId: string, draft: BudgetDraft, id?: string): Promise<BudgetItem> {
     const payload = budgetInsert(weddingId, draft)
     const saved = id
-      ? await client.from('budget_items').update(payload).eq('id', id).select('id').single()
-      : await client.from('budget_items').insert(payload).select('id').single()
-    assertNoError(saved.error)
-    const itemId = String(asRecord(saved.data).id)
+      ? await requireUpdatedRow(
+          client.from('budget_items').update(payload).eq('id', id).select('id').maybeSingle(),
+          () => client.from('budget_items').select('id').eq('id', id).maybeSingle(),
+        )
+      : await client.from('budget_items').insert(payload).select('id').single().then((result) => {
+          assertNoError(result.error)
+          return result.data
+        })
+    const itemId = String(asRecord(saved).id)
     const cleared = await client.from('budget_splits').delete().eq('budget_item_id', itemId)
     assertNoError(cleared.error)
-    const splits = draft.splits.filter((split) => split.name.trim() && Number(split.pct) > 0)
+    const splits = splitsForSave(draft)
     if (splits.length > 0) {
       const inserted = await client.from('budget_splits').insert(splits.map((split) => splitInsert(itemId, split)))
       assertNoError(inserted.error)
@@ -213,21 +245,21 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function addPayment(item: BudgetItem, draft: PartPaymentDraft): Promise<BudgetItem> {
     const inserted = await client.from('part_payments').insert(paymentInsert(item.id, draft))
     assertNoError(inserted.error)
-    const updated = await client
-      .from('budget_items')
-      .update({ actual: Number(item.actual || 0) + Number(draft.amount || 0) })
-      .eq('id', item.id)
-    assertNoError(updated.error)
     return requireBudgetItem(item.id)
   }
 
   async function saveGuest(weddingId: string, draft: GuestDraft, id?: string) {
     const payload = guestInsert(weddingId, draft)
     const saved = id
-      ? await client.from('guests').update(payload).eq('id', id).select('*').single()
-      : await client.from('guests').insert(payload).select('*').single()
-    assertNoError(saved.error)
-    return mapGuest(asRecord(saved.data))
+      ? await requireUpdatedRow(
+          client.from('guests').update(payload).eq('id', id).select('*').maybeSingle(),
+          () => client.from('guests').select('id').eq('id', id).maybeSingle(),
+        )
+      : await client.from('guests').insert(payload).select('*').single().then((result) => {
+          assertNoError(result.error)
+          return result.data
+        })
+    return mapGuest(asRecord(saved))
   }
 
   async function deleteGuest(id: string): Promise<void> {
@@ -238,10 +270,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function saveMilestone(weddingId: string, draft: MilestoneDraft, id?: string) {
     const payload = milestoneInsert(weddingId, draft)
     const saved = id
-      ? await client.from('timeline_events').update(payload).eq('id', id).select('*').single()
-      : await client.from('timeline_events').insert(payload).select('*').single()
-    assertNoError(saved.error)
-    return mapMilestone(asRecord(saved.data))
+      ? await requireUpdatedRow(
+          client.from('timeline_events').update(payload).eq('id', id).select('*').maybeSingle(),
+          () => client.from('timeline_events').select('id').eq('id', id).maybeSingle(),
+        )
+      : await client.from('timeline_events').insert(payload).select('*').single().then((result) => {
+          assertNoError(result.error)
+          return result.data
+        })
+    return mapMilestone(asRecord(saved))
   }
 
   async function deleteMilestone(id: string): Promise<void> {
@@ -249,35 +286,68 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(error)
   }
 
-  async function loadTemplate(): Promise<TemplateTask[]> {
-    const { data, error } = await client
-      .from('ritual_template_items')
-      .select('title, description, category, priority, ceremony, sort_order')
-      .eq('template_slug', TEMPLATE_SLUG)
-      .order('sort_order')
-    if (error || !data || data.length === 0) return HINDU_CHECKLIST
-    return data.map((row) => {
-      const task = mapTask({
-        id: 'template',
-        title: row.title,
-        description: row.description,
-        category: row.category,
-        priority: row.priority,
-        ceremony: row.ceremony,
-        status: 'Pending',
-        due_date: null,
-        template_title: row.title,
-        sort_order: row.sort_order,
-      })
-      return {
-        title: task.title,
-        description: task.description,
-        category: task.category,
-        priority: task.priority,
-        ceremony: task.ceremony,
-        sortOrder: task.sortOrder,
-      }
-    })
+  async function listFunctions(weddingId: string): Promise<WeddingFunction[]> {
+    return loadFunctions(weddingId)
+  }
+
+  async function listTasks(weddingId: string): Promise<Task[]> {
+    return loadTasks(weddingId)
+  }
+
+  async function addFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Name the function.')
+    const existing = await findFunctionByName(weddingId, trimmed)
+    if (existing) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
+    return insertFunction(weddingId, trimmed)
+  }
+
+  async function renameFunction(id: string, name: string, guard?: RowGuard): Promise<void> {
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Name the function.')
+    const current = await client.from('wedding_functions').select('id, wedding_id, name').eq('id', id).maybeSingle()
+    assertNoError(current.error)
+    if (!current.data) throwIfWriteMissed(null, false)
+    const record = asRecord(current.data)
+    const weddingId = String(record.wedding_id)
+    const existing = await findFunctionByName(weddingId, trimmed)
+    if (existing && existing.id !== id) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
+    await requireUpdatedRow(
+      withGuard(client.from('wedding_functions').update({ name: trimmed }).eq('id', id), guard).select('id').maybeSingle(),
+      () => client.from('wedding_functions').select('id').eq('id', id).maybeSingle(),
+    )
+  }
+
+  async function deleteFunction(id: string): Promise<void> {
+    const { error } = await client.from('wedding_functions').delete().eq('id', id)
+    assertNoError(error)
+  }
+
+  async function moveFunction(weddingId: string, id: string, direction: -1 | 1): Promise<void> {
+    const functions = await loadFunctions(weddingId)
+    const moved = moveByPosition(functions, id, direction)
+    if (moved === functions) return
+    for (const fn of moved) {
+      const previous = functions.find((item) => item.id === fn.id)
+      if (!previous || previous.position === fn.position) continue
+      const { error } = await client.from('wedding_functions').update({ position: fn.position }).eq('id', fn.id)
+      assertNoError(error)
+    }
+  }
+
+  async function moveTask(weddingId: string, id: string, direction: -1 | 1): Promise<void> {
+    const tasks = await loadTasks(weddingId)
+    const task = tasks.find((item) => item.id === id)
+    if (!task) return
+    const siblings = tasks.filter((item) => item.functionId === task.functionId)
+    const moved = moveByPosition(siblings, id, direction)
+    if (moved === siblings) return
+    for (const item of moved) {
+      const previous = siblings.find((sibling) => sibling.id === item.id)
+      if (!previous || previous.position === item.position) continue
+      const { error } = await client.from('tasks').update({ position: item.position }).eq('id', item.id)
+      assertNoError(error)
+    }
   }
 
   async function createInvite(weddingId: string, role: InviteRole, side: Side | null): Promise<WeddingInvite> {
@@ -307,7 +377,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(error)
     return (data ?? []).map((row) => {
       const record = asRecord(row)
-      const role = mapMemberRole(record.role)
+      const role = record.role === 'open' ? 'open' : mapMemberRole(record.role)
       const inviteSide = record.side === 'bride' || record.side === 'groom' ? record.side : null
       return {
         id: String(record.id),
@@ -320,25 +390,160 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     })
   }
 
-  async function acceptInvite(code: string): Promise<string> {
-    const { data, error } = await client.rpc('accept_invite', { p_token: code.trim() })
+  async function leaveWedding(weddingId: string): Promise<void> {
+    const { error } = await client.rpc('leave_wedding', { p_wedding_id: weddingId })
+    assertNoError(error)
+  }
+
+  async function removeMember(memberId: string): Promise<void> {
+    const { error } = await client.rpc('remove_wedding_member', { p_member_id: memberId })
+    assertNoError(error)
+  }
+
+  async function acceptInvite(code: string, role: InviteRole, side: Side | null): Promise<string> {
+    const { data, error } = await client.rpc('accept_invite', {
+      p_token: code.trim(),
+      p_role: role === 'open' ? '' : role,
+      p_side: side ?? '',
+    })
     assertNoError(error)
     return String(data)
   }
 
-  async function seedDemo(weddingId: string): Promise<void> {
-    await addTasks(weddingId, DEMO_TASKS)
-    for (const item of DEMO_BUDGET) await saveBudgetItem(weddingId, item)
+  async function seedDemo(weddingId: string, weddingDate: string): Promise<void> {
+    const demo = placeDemoContent(weddingDate)
+    const removed = await client.from('tasks').delete().eq('wedding_id', weddingId)
+    assertNoError(removed.error)
+    const functions = await loadFunctions(weddingId)
+    const byName = new Map(functions.map((fn) => [fn.name, fn.id]))
+    await addTasks(
+      weddingId,
+      demo.tasks.map((task) => ({ ...task, functionId: byName.get(task.ceremony) ?? null })),
+    )
+    for (const item of demo.budget) await saveBudgetItem(weddingId, item)
     if (DEMO_GUESTS.length > 0) {
       const guests = await client.from('guests').insert(DEMO_GUESTS.map((guest) => guestInsert(weddingId, guest)))
       assertNoError(guests.error)
     }
-    if (DEMO_MILESTONES.length > 0) {
+    if (demo.milestones.length > 0) {
       const events = await client
         .from('timeline_events')
-        .insert(DEMO_MILESTONES.map((milestone) => milestoneInsert(weddingId, milestone)))
+        .insert(demo.milestones.map((milestone) => milestoneInsert(weddingId, milestone)))
       assertNoError(events.error)
     }
+  }
+
+  async function loadFunctions(weddingId: string): Promise<WeddingFunction[]> {
+    const { data, error } = await client
+      .from('wedding_functions')
+      .select('id, name, position, updated_at')
+      .eq('wedding_id', weddingId)
+      .order('position')
+    assertNoError(error)
+    return (data ?? []).map((row) => mapFunction(asRecord(row)))
+  }
+
+  async function findFunctionByName(weddingId: string, name: string): Promise<WeddingFunction | null> {
+    const key = name.trim().toLowerCase()
+    if (!key) return null
+    const functions = await loadFunctions(weddingId)
+    return functions.find((fn) => fn.name.trim().toLowerCase() === key) ?? null
+  }
+
+  async function insertFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+    const top = await client
+      .from('wedding_functions')
+      .select('position')
+      .eq('wedding_id', weddingId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    assertNoError(top.error)
+    const inserted = await client
+      .from('wedding_functions')
+      .insert({ wedding_id: weddingId, name, position: Number(top.data?.position ?? 0) + 1 })
+      .select('id, name, position, updated_at')
+      .single()
+    assertNoError(inserted.error)
+    return mapFunction(asRecord(inserted.data))
+  }
+
+  async function ensureFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+    const trimmed = name.trim() || 'Wedding'
+    const existing = await findFunctionByName(weddingId, trimmed)
+    if (existing) return existing
+    return insertFunction(weddingId, trimmed)
+  }
+
+  async function loadMembers(weddingId: string): Promise<WeddingMember[]> {
+    const { data, error } = await client
+      .from('wedding_members')
+      .select('id, user_id, role, side, display_name')
+      .eq('wedding_id', weddingId)
+      .order('created_at')
+    assertNoError(error)
+    const rows = (data ?? []).map((row) => asRecord(row))
+    const ids = rows.map((row) => String(row.user_id))
+    const profiles = ids.length === 0
+      ? { data: [], error: null }
+      : await client.from('profiles').select('id, display_name').in('id', ids)
+    assertNoError(profiles.error)
+    const names = new Map(
+      (profiles.data ?? []).map((row) => {
+        const record = asRecord(row)
+        return [String(record.id), String(record.display_name ?? '')] as const
+      }),
+    )
+    return rows.map((row) => {
+      const role = mapMemberRole(row.role)
+      const side = row.side === 'bride' || row.side === 'groom' ? row.side : null
+      return {
+        id: String(row.id),
+        userId: String(row.user_id),
+        role,
+        side,
+        displayName: rosterDisplayName(names.get(String(row.user_id)) ?? '', String(row.display_name ?? ''), role, side),
+      }
+    })
+  }
+
+  async function placeTask(weddingId: string, draft: TaskDraft, id?: string): Promise<TaskDraft> {
+    let functionId = draft.functionId ?? null
+    let ceremony = draft.ceremony.trim() || 'Wedding'
+    if (functionId) {
+      const fn = await client.from('wedding_functions').select('name').eq('id', functionId).maybeSingle()
+      assertNoError(fn.error)
+      if (fn.data?.name) ceremony = String(fn.data.name)
+      else functionId = null
+    }
+    if (!functionId) {
+      const fn = await ensureFunction(weddingId, ceremony)
+      functionId = fn.id
+      ceremony = fn.name
+    }
+    let position = draft.position
+    if (id) {
+      const current = await client.from('tasks').select('function_id, position').eq('id', id).maybeSingle()
+      assertNoError(current.error)
+      const sameFunction = current.data?.function_id === functionId
+      position = sameFunction ? Number(current.data?.position ?? position ?? 0) : (await maxTaskPosition(weddingId, functionId)) + 1
+    } else {
+      position = (await maxTaskPosition(weddingId, functionId)) + 1
+    }
+    return { ...draft, ceremony, functionId, position }
+  }
+
+  async function maxTaskPosition(weddingId: string, functionId: string): Promise<number> {
+    const { data, error } = await client
+      .from('tasks')
+      .select('position')
+      .eq('wedding_id', weddingId)
+      .eq('function_id', functionId)
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    assertNoError(error)
+    return Number(data?.position ?? 0)
   }
 
   async function loadTasks(weddingId: string): Promise<Task[]> {
@@ -391,5 +596,23 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const { data, error } = await client.from('budget_items').select(BUDGET_SELECT).eq('id', id).single()
     assertNoError(error)
     return mapBudgetItem(asRecord(data))
+  }
+
+  function withGuard<Q extends { eq: (column: string, value: string) => Q }>(query: Q, guard?: RowGuard): Q {
+    if (guard?.updatedAt && !guard.overwrite) return query.eq('updated_at', guard.updatedAt)
+    return query
+  }
+
+  async function requireUpdatedRow<T>(
+    saved: PromiseLike<{ data: T | null; error: { message: string; code?: string; details?: string | null } | null }>,
+    stillThere: () => PromiseLike<{ data: unknown; error: { message: string; code?: string; details?: string | null } | null }>,
+  ): Promise<T> {
+    const result = await saved
+    assertNoError(result.error)
+    if (result.data) return result.data
+    const still = await stillThere()
+    assertNoError(still.error)
+    throwIfWriteMissed(result.data, Boolean(still.data))
+    throw new DeletedItemError()
   }
 }

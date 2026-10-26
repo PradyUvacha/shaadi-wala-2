@@ -3,3 +3,5 @@ export const safeTop = 'var(--safe-area-inset-top, env(safe-area-inset-top, 0px)
 export const safeBottom = 'var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))'
 export const headerPadding = `max(52px, calc(16px + ${safeTop})) 20px 20px`
 export const screenBottom = `calc(108px + ${safeBottom})`
+/** Clears the bottom nav and the add button so the last row can scroll above both. */
+export const listAboveFab = `calc(176px + ${safeBottom})`

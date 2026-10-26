@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/demoData.ts'
 import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
-import { addPayment, createDemoBundle, createWeddingBundle, removeTask, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
-import { missingTemplateTasks, templateToDrafts } from './planning.ts'
+import { shiftDemoDate } from '../data/demoData.ts'
+import { formatInrCompact } from './format.ts'
+import { assignableMembers } from './access.ts'
+import { functionRemovalCopy } from './checklist.ts'
+import { addFunction, addPayment, createDemoBundle, createWeddingBundle, moveFunctionDraft, removeFunction, removeMemberFromBundle, removeTask, renameFunction, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
+import { budgetHeadline, inrBudgetTotals, missingTemplateTasks, templateToDrafts } from './planning.ts'
 
 describe('wedding bundle', () => {
   it('keeps a sample wedding after a reload of the saved snapshot', () => {
@@ -12,6 +16,9 @@ describe('wedding bundle', () => {
     expect(restored.membership.side).toBe('groom')
     expect(restored.wedding.coupleNames).toBe('Priya & Rahul')
     expect(restored.tasks).toHaveLength(DEMO_TASKS.length)
+    expect(restored.wedding.community).toBe('hindu')
+    expect([...restored.functions].sort((a, b) => a.position - b.position).map((fn) => fn.name)).toEqual(['Wedding', 'Mehendi', 'Sangeet'])
+    expect(restored.tasks.every((task) => task.functionId)).toBe(true)
     expect(restored.budget).toHaveLength(DEMO_BUDGET.length)
     expect(restored.guests).toHaveLength(DEMO_GUESTS.length)
     expect(restored.milestones).toHaveLength(DEMO_MILESTONES.length)
@@ -55,7 +62,38 @@ describe('wedding bundle', () => {
     const created = createDemoBundle({ side: 'bride', displayName: 'Asha' }, today)
     expect(created.wedding.weddingDate).toBe('2027-04-24')
     expect(created.milestones.find((milestone) => milestone.name === 'Wedding Day')?.date).toBe('2027-04-24')
+    expect(created.milestones.find((milestone) => milestone.name === 'Sangeet Night')?.date).toBe('2027-04-22')
+    expect(shiftDemoDate('2026-06-18', '2027-04-24')).toBe('2027-04-22')
     expect(created.tasks.find((task) => task.title === 'Baraat Vehicle')?.dueDate).toBe('2027-04-24')
+    expect(created.tasks.find((task) => task.title === 'Sangeet Arrangements')?.dueDate).not.toBe('2026-06-08')
+    const totals = inrBudgetTotals(created.budget)
+    expect(budgetHeadline(created.budget, 'All')).toEqual({ currency: 'INR', estimated: totals.estimated, actual: totals.actual })
+    expect(created.budget.some((item) => item.currency === 'USD')).toBe(true)
+    expect(totals).toEqual({ estimated: 1155000, actual: 1102000 })
+    expect(formatInrCompact(totals.actual)).toBe('₹11.02 lakh')
+    expect(formatInrCompact(totals.estimated)).toBe('₹11.55 lakh')
+    const mehendi = created.functions.find((fn) => fn.name === 'Mehendi')
+    expect(mehendi).toBeTruthy()
+    let renamed = renameFunction(created, mehendi!.id, 'Mehendi night')
+    expect(renamed.tasks.find((task) => task.title === 'Mehendi Ceremony Setup')?.ceremony).toBe('Mehendi night')
+    renamed = moveFunctionDraft(renamed, mehendi!.id, -1)
+    expect([...renamed.functions].sort((a, b) => a.position - b.position)[0]?.name).toBe('Mehendi night')
+    const removed = removeFunction(renamed, mehendi!.id)
+    expect(removed.functions.some((fn) => fn.id === mehendi!.id)).toBe(false)
+    expect(removed.tasks.some((task) => task.title === 'Mehendi Ceremony Setup')).toBe(false)
+    const weddingFn = created.functions.find((fn) => fn.name === 'Wedding')
+    const venue = created.tasks.find((task) => task.title === 'Book Wedding Venue')
+    expect(weddingFn && venue).toBeTruthy()
+    expect(() => saveTaskDraft(created, { ...venue!, title: 'book wedding venue', functionId: weddingFn!.id, ceremony: 'Wedding' })).toThrow(
+      /already has a ritual with that name/,
+    )
+    expect(() => renameFunction(created, created.functions.find((fn) => fn.name === 'Sangeet')!.id, ' mehendi ')).toThrow(/already has a function with that name/)
+    expect(() => addFunction(created, 'MEHENDI')).toThrow(/already has a function with that name/)
+    const renamedTitle = saveTaskDraft(created, { ...venue!, title: '  Book Wedding Venue  ' }, venue!.id)
+    expect(renamedTitle.tasks.find((task) => task.id === venue!.id)?.title).toBe('Book Wedding Venue')
+    const mehendiFn = created.functions.find((fn) => fn.name === 'Mehendi')
+    const copied = saveTaskDraft(created, { ...venue!, title: 'Book Wedding Venue', functionId: mehendiFn!.id, ceremony: 'Mehendi' })
+    expect(copied.tasks.filter((task) => task.title === 'Book Wedding Venue')).toHaveLength(2)
     expect(() => saveBudgetDraft(created, {
       category: 'Attire',
       currency: 'INR',
@@ -73,5 +111,28 @@ describe('wedding bundle', () => {
       date: '2026-10-26',
       notes: '',
     })).toThrow(/negative/)
+  })
+
+  it('keeps parent assignment on one side and names people without an email', () => {
+    const created = createDemoBundle({ side: 'bride', displayName: 'Asha' })
+    expect(created.members.map((member) => member.displayName)).toEqual(['Asha', 'Meera Sharma', 'Anil Patil'])
+    expect(created.members.some((member) => member.displayName.includes('@'))).toBe(false)
+    const ownSide = assignableMembers(created.members, 'family', 'bride').map((member) => member.displayName)
+    expect(ownSide).toEqual(['Asha', 'Meera Sharma'])
+    expect(assignableMembers(created.members, 'bride', 'bride')).toHaveLength(3)
+    const meera = created.members.find((member) => member.displayName === 'Meera Sharma')!
+    const mehendi = created.functions.find((fn) => fn.name === 'Mehendi')!
+    const assigned = saveTaskDraft(created, {
+      ...created.tasks.find((task) => task.functionId === mehendi.id)!,
+      assignedTo: meera.userId,
+    }, created.tasks.find((task) => task.functionId === mehendi.id)!.id)
+    const rituals = assigned.tasks.filter((task) => task.functionId === mehendi.id)
+    expect(functionRemovalCopy('Mehendi', rituals.length, rituals.filter((task) => task.assignedTo).length)).toBe(
+      'Remove Mehendi? 1 ritual will be removed, including 1 assigned task.',
+    )
+    const removed = removeMemberFromBundle(assigned, meera.id)
+    expect(removed.members.some((member) => member.id === meera.id)).toBe(false)
+    expect(removed.tasks.some((task) => task.assignedTo === meera.userId)).toBe(false)
+    expect(removed.tasks.find((task) => task.functionId === mehendi.id)?.side).toBe('bride')
   })
 })

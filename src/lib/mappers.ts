@@ -1,5 +1,5 @@
-import type { BudgetItem, Guest, MemberRole, Milestone, PartPayment, Split, Task } from '../types.ts'
-import { CATEGORIES, CEREMONIES, CURRENCY_CODES, MEMBER_ROLES, PAYERS, PRIORITIES, RSVP_STATUSES, TASK_STATUSES, MILESTONE_STATUSES } from '../types.ts'
+import type { BudgetItem, Guest, MemberRole, Milestone, PartPayment, Split, Task, WeddingFunction } from '../types.ts'
+import { CATEGORIES, CURRENCY_CODES, MEMBER_ROLES, PAYERS, PRIORITIES, RSVP_STATUSES, TASK_STATUSES, MILESTONE_STATUSES } from '../types.ts'
 
 export function one<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null
@@ -13,11 +13,25 @@ export function mapTask(row: Record<string, unknown>): Task {
     description: String(row.description ?? ''),
     category: asOneOf(row.category, CATEGORIES, 'Other'),
     priority: asOneOf(row.priority, PRIORITIES, 'Medium'),
-    ceremony: asOneOf(row.ceremony, CEREMONIES, 'Wedding'),
+    ceremony: row.ceremony == null || row.ceremony === '' ? 'Wedding' : String(row.ceremony),
     status: asOneOf(row.status, TASK_STATUSES, 'Pending'),
     dueDate: row.due_date ? String(row.due_date) : '',
     templateTitle: row.template_title ? String(row.template_title) : null,
     sortOrder: Number(row.sort_order ?? 0),
+    functionId: row.function_id ? String(row.function_id) : null,
+    position: row.position == null ? Number(row.sort_order ?? 0) : Number(row.position),
+    assignedTo: row.assigned_to ? String(row.assigned_to) : null,
+    side: row.side === 'bride' || row.side === 'groom' ? row.side : null,
+    updatedAt: row.updated_at ? String(row.updated_at) : '',
+  }
+}
+
+export function mapFunction(row: Record<string, unknown>): WeddingFunction {
+  return {
+    id: String(row.id),
+    name: String(row.name ?? ''),
+    position: Number(row.position ?? 0),
+    updatedAt: row.updated_at ? String(row.updated_at) : '',
   }
 }
 
