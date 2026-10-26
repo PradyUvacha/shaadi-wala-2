@@ -2,12 +2,20 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
 import { isNewApiKey, resolveEdgeKeys, userJwt } from "./keys.ts"
 
+const corsHeaders: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+}
+
 /**
  * Deletes the signed-in account.
  * The secret key is injected by Supabase and never ships in the app.
  * New `sb_` keys are sent as `apikey` only. The caller must send their user JWT.
+ * OPTIONS is the browser preflight and must succeed before the POST.
  */
 Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders })
   if (req.method !== "POST") return json({ error: "Use POST." }, 405)
 
   const jwt = userJwt(req.headers.get("Authorization"))
@@ -69,6 +77,6 @@ function fetchWithoutKeyBearer(apiKey: string): typeof fetch {
 function json(body: unknown, status: number) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   })
 }

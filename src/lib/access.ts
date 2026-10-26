@@ -61,6 +61,42 @@ export function inviteRoleLabel(role: InviteRole, side?: Side | null): string {
   return roleLabel(role, side)
 }
 
+/** A parent can assign only people who share their side. Couple and planner can assign anyone. */
+export function assignableMembers<T extends { side: Side | null }>(
+  members: readonly T[],
+  role: MemberRole | null | undefined,
+  side: Side | null,
+): T[] {
+  if (role === 'friend') return []
+  if (role === 'family') return members.filter((member) => member.side != null && member.side === side)
+  return [...members]
+}
+
+export function canLeaveWedding(role: MemberRole | null | undefined, members: readonly { role: MemberRole }[]): boolean {
+  if (role === 'bride') return members.some((member) => member.role === 'groom')
+  if (role === 'groom') return members.some((member) => member.role === 'bride')
+  return role === 'family' || role === 'friend' || role === 'planner'
+}
+
+export function rosterDisplayName(
+  profileName: string | null | undefined,
+  membershipName: string | null | undefined,
+  role: MemberRole,
+  side: Side | null,
+): string {
+  const profile = safePublicName(profileName)
+  if (profile && profile.toLowerCase() !== 'guest') return profile
+  const membership = safePublicName(membershipName)
+  if (membership && membership.toLowerCase() !== 'guest') return membership
+  return roleLabel(role, side)
+}
+
+function safePublicName(value: string | null | undefined): string {
+  const trimmed = (value ?? '').trim()
+  if (!trimmed || trimmed.includes('@')) return ''
+  return trimmed
+}
+
 export function roleLabel(role: MemberRole, side?: Side | null): string {
   if (role === 'bride') return 'Bride'
   if (role === 'groom') return 'Groom'

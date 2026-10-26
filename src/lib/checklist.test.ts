@@ -47,6 +47,7 @@ function openWedding(): WeddingBundle {
     wedding: { id: 'w1', coupleNames: 'A & B', weddingDate: '2027-04-24', city: 'Mumbai', community: 'hindu' },
     membership: { id: 'm1', role: 'family', side: 'bride', displayName: 'Parent' },
     displayName: 'Parent',
+    members: [],
     functions: [{ id: 'fn-roka', name: 'Roka', position: 1 }],
     tasks: [{
       id: 't1',
@@ -61,6 +62,7 @@ function openWedding(): WeddingBundle {
       sortOrder: 1,
       functionId: 'fn-roka',
       position: 1,
+      assignedTo: null,
     }],
     budget: [],
     guests: [],

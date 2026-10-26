@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FormError } from '../../components/ui.tsx'
-import { canInvite, roleLabel } from '../../lib/access.ts'
+import { FormError, Modal } from '../../components/ui.tsx'
+import { canInvite, canLeaveWedding, isCouple, roleLabel } from '../../lib/access.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { validateWeddingSetup } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
 import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
-import type { Side } from '../../types.ts'
+import type { Side, WeddingMember } from '../../types.ts'
 
 export function ProfileScreen() {
   const navigate = useNavigate()
-  const { bundle, mode, canEdit, updateSettings } = useWedding()
+  const { bundle, mode, canEdit, updateSettings, leaveWedding, removeMember } = useWedding()
   const [displayName, setDisplayName] = useState(bundle?.displayName ?? '')
   const [coupleNames, setCoupleNames] = useState(bundle?.wedding.coupleNames ?? '')
   const [weddingDate, setWeddingDate] = useState(bundle?.wedding.weddingDate ?? '')
@@ -21,6 +21,8 @@ export function ProfileScreen() {
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [pendingLeave, setPendingLeave] = useState(false)
+  const [pendingRemove, setPendingRemove] = useState<WeddingMember | null>(null)
 
   const save = async () => {
     const validation = validateWeddingSetup({ displayName, coupleNames, weddingDate, city, side })
@@ -34,6 +36,39 @@ export function ProfileScreen() {
     try {
       await updateSettings({ displayName, coupleNames, weddingDate, city, side })
       setSaved(true)
+    } catch (caught) {
+      setError(toErrorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const members = bundle?.members ?? []
+  const leaveAllowed = bundle ? canLeaveWedding(bundle.membership.role, members) : false
+  const canRemove = mode === 'preview' || (bundle ? isCouple(bundle.membership.role) : false)
+
+  const leave = async () => {
+    setBusy(true)
+    setError(null)
+    const previewing = mode === 'preview'
+    try {
+      await leaveWedding()
+      setPendingLeave(false)
+      navigate(previewing ? '/auth' : '/setup')
+    } catch (caught) {
+      setError(toErrorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const remove = async () => {
+    if (!pendingRemove) return
+    setBusy(true)
+    setError(null)
+    try {
+      await removeMember(pendingRemove.id)
+      setPendingRemove(null)
     } catch (caught) {
       setError(toErrorMessage(caught))
     } finally {
@@ -74,6 +109,32 @@ export function ProfileScreen() {
                 Invite partner or family
               </button>
             )}
+            <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: COLORS.crimson, margin: '22px 0 8px' }}>People</h2>
+            {members.map((member) => {
+              const mine = member.id === bundle.membership.id
+              return (
+                <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid #E8D4B0' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#2A0A0A' }}>{member.displayName}{mine ? ' (you)' : ''}</div>
+                    <div style={{ fontSize: 12, color: '#7A5050' }}>{roleLabel(member.role, member.side)}</div>
+                  </div>
+                  {canRemove && !mine && (
+                    <button type="button" aria-label={`Remove ${member.displayName}`} onClick={() => { setError(null); setPendingRemove(member) }} style={{ background: 'transparent', border: '1px solid #E7C1C1', color: '#CC4444', borderRadius: 10, padding: '8px 10px', fontWeight: 700, cursor: 'pointer' }}>
+                      Remove
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+            {leaveAllowed ? (
+              <button type="button" onClick={() => { setError(null); setPendingLeave(true) }} style={{ ...secondaryButton, color: '#CC4444', border: '1px solid #E7C1C1' }}>
+                Leave wedding
+              </button>
+            ) : (
+              <p style={{ fontSize: 13, color: '#5A2020', lineHeight: 1.5, marginTop: 14 }}>
+                The last bride or groom cannot leave. Delete the account instead.
+              </p>
+            )}
           </>
         ) : (
           <p style={{ color: '#5A2020', fontSize: 14, lineHeight: 1.5 }}>Finish setting up your wedding, or open Settings to manage this account.</p>
@@ -85,6 +146,24 @@ export function ProfileScreen() {
           Settings
         </button>
       </div>
+      <Modal open={pendingLeave} onClose={() => setPendingLeave(false)} title="Leave wedding">
+        <FormError message={error} />
+        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+          Leave this wedding? Tasks assigned to you will be unassigned.
+        </p>
+        <button type="button" disabled={busy} onClick={() => void leave()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
+          {busy ? 'Leaving…' : 'Leave wedding'}
+        </button>
+      </Modal>
+      <Modal open={pendingRemove !== null} onClose={() => setPendingRemove(null)} title="Remove member">
+        <FormError message={error} />
+        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+          Remove {pendingRemove?.displayName}? Their assigned tasks will be unassigned.
+        </p>
+        <button type="button" disabled={busy} onClick={() => void remove()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
+          {busy ? 'Removing…' : 'Remove member'}
+        </button>
+      </Modal>
     </div>
   )
 }

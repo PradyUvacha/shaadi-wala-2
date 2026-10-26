@@ -26,6 +26,7 @@ describe('database payloads', () => {
       sort_order: 4,
       function_id: null,
       position: 4,
+      assigned_to: null,
     })
   })
 

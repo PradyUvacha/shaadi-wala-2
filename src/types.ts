@@ -43,6 +43,7 @@ export type TaskDraft = {
   templateTitle?: string | null
   functionId?: string | null
   position?: number
+  assignedTo?: string | null
 }
 
 export type Task = {
@@ -58,12 +59,21 @@ export type Task = {
   sortOrder: number
   functionId: string | null
   position: number
+  assignedTo: string | null
 }
 
 export type WeddingFunction = {
   id: string
   name: string
   position: number
+}
+
+export type WeddingMember = {
+  id: string
+  userId: string
+  role: MemberRole
+  side: Side | null
+  displayName: string
 }
 
 export type SplitDraft = {
@@ -153,6 +163,7 @@ export type WeddingBundle = {
     displayName: string
   }
   displayName: string
+  members: WeddingMember[]
   functions: WeddingFunction[]
   tasks: Task[]
   budget: BudgetItem[]

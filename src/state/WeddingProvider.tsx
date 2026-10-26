@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { track } from '../lib/analytics.ts'
-import { canEditChecklist, canEditWedding, canInvite, canManageTasks } from '../lib/access.ts'
+import { canEditChecklist, canEditWedding, canInvite, canLeaveWedding, canManageTasks, isCouple } from '../lib/access.ts'
 import {
   addFunction,
   addPayment,
@@ -10,6 +10,7 @@ import {
   removeBudgetItem,
   removeFunction,
   removeGuest,
+  removeMemberFromBundle,
   removeMilestone,
   removeTask,
   renameFunction,
@@ -27,7 +28,7 @@ import { acceptsChecklistChange, applyChecklistChange, subscribeWeddingChecklist
 import { toErrorMessage } from '../lib/errors.ts'
 import { readPreview, writePreview } from '../lib/preview.ts'
 import { supabase } from '../lib/supabase.ts'
-import { createWeddingApi } from '../lib/weddingApi.ts'
+import type { createWeddingApi } from '../lib/weddingApi.ts'
 import type {
   BudgetDraft,
   CreateWeddingInput,
@@ -71,14 +72,23 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       apiRef.current = null
       return
     }
+    const client = supabase
+    const currentSession = session
     writePreview(null)
     let cancelled = false
-    const api = createWeddingApi(supabase, session.user)
-    apiRef.current = api
-    void api.getMine().then((next) => {
+    void import('../lib/weddingApi.ts').then(async ({ createWeddingApi: createApi }) => {
       if (cancelled) return
-      setPreview(null)
-      setRemote({ userId, bundle: next, error: null })
+      const api = createApi(client, currentSession.user)
+      apiRef.current = api
+      try {
+        const next = await api.getMine()
+        if (cancelled) return
+        setPreview(null)
+        setRemote({ userId, bundle: next, error: null })
+      } catch (caught: unknown) {
+        if (cancelled) return
+        setRemote({ userId, bundle: null, error: toErrorMessage(caught) })
+      }
     }).catch((caught: unknown) => {
       if (cancelled) return
       setRemote({ userId, bundle: null, error: toErrorMessage(caught) })
@@ -354,6 +364,38 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       await api.acceptInvite(code, role, side)
       track('invite_accepted')
       setReloadKey((current) => current + 1)
+    },
+    leaveWedding: async () => {
+      const current = requireBundle()
+      if (!canLeaveWedding(current.membership.role, current.members)) {
+        throw new Error('The last bride or groom cannot leave. Delete the account instead.')
+      }
+      if (modeRef.current === 'remote') {
+        if (!apiRef.current || !userId) throw new Error('Sign in before leaving a wedding.')
+        await apiRef.current.leaveWedding(current.wedding.id)
+        bundleRef.current = null
+        setRemote({ userId, bundle: null, error: null })
+        return
+      }
+      modeRef.current = null
+      bundleRef.current = null
+      writePreview(null)
+      setPreview(null)
+    },
+    removeMember: async (memberId: string) => {
+      const current = requireBundle()
+      const member = current.members.find((item) => item.id === memberId)
+      if (!member || member.id === current.membership.id) {
+        throw new Error('Use leave wedding to remove yourself.')
+      }
+      if (modeRef.current === 'remote' && !isCouple(current.membership.role)) {
+        throw new Error('Only the bride or groom can remove a member.')
+      }
+      if (modeRef.current === 'remote') {
+        if (!apiRef.current) throw new Error('Sign in before removing a member.')
+        await apiRef.current.removeMember(memberId)
+      }
+      commit(removeMemberFromBundle(requireBundle(), memberId))
     },
   }), [bundle, commit, error, mode, notice, pullChecklist, ready, requireBundle, requireChecklist, requireEditor, requireTaskWriter, userId])
 

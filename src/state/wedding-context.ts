@@ -49,6 +49,8 @@ export type WeddingContextValue = {
   createInvite: (role: InviteRole, side: Side | null) => Promise<WeddingInvite>
   listInvites: () => Promise<WeddingInvite[]>
   acceptInvite: (code: string, role: InviteRole, side: Side | null) => Promise<void>
+  leaveWedding: () => Promise<void>
+  removeMember: (memberId: string) => Promise<void>
 }
 
 export const WeddingContext = createContext<WeddingContextValue | null>(null)

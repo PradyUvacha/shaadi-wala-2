@@ -15,9 +15,10 @@ import type {
   TaskDraft,
   WeddingBundle,
   WeddingFunction,
+  WeddingMember,
   WeddingSettings,
 } from '../types.ts'
-import { DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
+import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { moneyAmountError, splitsForSave, validateBudgetAmounts } from './planning.ts'
 
 export function uid(): string {
@@ -33,6 +34,15 @@ function blankBundle(input: {
   displayName: string
 }): WeddingBundle {
   const displayName = input.displayName.trim() || 'there'
+  const membershipId = uid()
+  const role = input.side === 'groom' ? 'groom' : 'bride'
+  const self: WeddingMember = {
+    id: membershipId,
+    userId: membershipId,
+    role,
+    side: input.side,
+    displayName,
+  }
   return {
     wedding: {
       id: uid(),
@@ -42,12 +52,13 @@ function blankBundle(input: {
       community: 'hindu',
     },
     membership: {
-      id: uid(),
-      role: input.side === 'groom' ? 'groom' : 'bride',
+      id: membershipId,
+      role,
       side: input.side,
       displayName,
     },
     displayName,
+    members: [self],
     functions: [],
     tasks: [],
     budget: [],
@@ -78,7 +89,7 @@ export function createWeddingBundle(input: {
 export function createDemoBundle(input: { side: Side; displayName: string }, today = new Date()): WeddingBundle {
   const weddingDate = demoWeddingDate(today)
   const demo = placeDemoContent(weddingDate)
-  return createWeddingBundle({
+  const bundle = createWeddingBundle({
     coupleNames: DEMO_COUPLE_NAMES,
     weddingDate,
     city: DEMO_CITY,
@@ -89,11 +100,24 @@ export function createDemoBundle(input: { side: Side; displayName: string }, tod
     guests: DEMO_GUESTS,
     milestones: demo.milestones,
   })
+  const otherSide: Side = input.side === 'bride' ? 'groom' : 'bride'
+  return {
+    ...bundle,
+    members: [
+      ...bundle.members,
+      { id: uid(), userId: uid(), role: 'family', side: input.side, displayName: 'Meera Sharma' },
+      { id: uid(), userId: uid(), role: 'family', side: otherSide, displayName: 'Anil Patil' },
+    ],
+  }
+}
+
+function sameFunctionName(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase()
 }
 
 function ensureFunction(bundle: WeddingBundle, name: string): { bundle: WeddingBundle; fn: WeddingFunction } {
   const trimmed = name.trim() || 'Wedding'
-  const existing = bundle.functions.find((fn) => fn.name === trimmed)
+  const existing = bundle.functions.find((fn) => sameFunctionName(fn.name, trimmed))
   if (existing) return { bundle, fn: existing }
   const position = bundle.functions.reduce((max, fn) => Math.max(max, fn.position), 0) + 1
   const fn: WeddingFunction = { id: uid(), name: trimmed, position }
@@ -107,14 +131,21 @@ function nextTaskPosition(bundle: WeddingBundle, functionId: string): number {
 }
 
 export function addFunction(bundle: WeddingBundle, name: string): WeddingBundle {
-  return ensureFunction(bundle, name).bundle
+  const trimmed = name.trim()
+  if (!trimmed) return bundle
+  if (bundle.functions.some((fn) => sameFunctionName(fn.name, trimmed))) {
+    throw new Error(DUPLICATE_FUNCTION_MESSAGE)
+  }
+  return ensureFunction(bundle, trimmed).bundle
 }
 
 export function renameFunction(bundle: WeddingBundle, id: string, name: string): WeddingBundle {
   const trimmed = name.trim()
   const current = bundle.functions.find((fn) => fn.id === id)
   if (!trimmed || !current || current.name === trimmed) return bundle
-  if (bundle.functions.some((fn) => fn.id !== id && fn.name === trimmed)) return bundle
+  if (bundle.functions.some((fn) => fn.id !== id && sameFunctionName(fn.name, trimmed))) {
+    throw new Error(DUPLICATE_FUNCTION_MESSAGE)
+  }
   return {
     ...bundle,
     functions: bundle.functions.map((fn) => (fn.id === id ? { ...fn, name: trimmed } : fn)),
@@ -123,6 +154,16 @@ export function renameFunction(bundle: WeddingBundle, id: string, name: string):
         ? { ...task, ceremony: trimmed, functionId: task.functionId ?? id }
         : task,
     ),
+  }
+}
+
+export function removeMemberFromBundle(bundle: WeddingBundle, memberId: string): WeddingBundle {
+  const member = bundle.members.find((item) => item.id === memberId)
+  if (!member || member.id === bundle.membership.id) return bundle
+  return {
+    ...bundle,
+    members: bundle.members.filter((item) => item.id !== memberId),
+    tasks: bundle.tasks.map((task) => (task.assignedTo === member.userId ? { ...task, assignedTo: null } : task)),
   }
 }
 
@@ -175,6 +216,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
       dueDate: draft.dueDate,
       functionId: fn.id,
       position: moved ? nextTaskPosition(base, fn.id) : (draft.position ?? current.position),
+      assignedTo: draft.assignedTo === undefined ? current.assignedTo : (draft.assignedTo || null),
     }
     return { ...base, tasks: base.tasks.map((task) => (task.id === id ? next : task)) }
   }
@@ -192,6 +234,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
     sortOrder,
     functionId: fn.id,
     position: draft.position ?? nextTaskPosition(base, fn.id),
+    assignedTo: draft.assignedTo || null,
   }
   return { ...base, tasks: [...base.tasks, task] }
 }
@@ -327,6 +370,7 @@ export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
     ceremony: task.ceremony || 'Wedding',
     functionId: task.functionId ?? null,
     position: Number.isFinite(task.position) ? task.position : task.sortOrder,
+    assignedTo: task.assignedTo ?? null,
   }))
   let functions = Array.isArray(bundle.functions) ? bundle.functions.map((fn) => ({ ...fn })) : []
   if (functions.length === 0 && tasks.length > 0) {
@@ -340,7 +384,16 @@ export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
   for (const task of tasks) {
     if (!task.functionId) task.functionId = byName.get(task.ceremony) ?? null
   }
-  return { ...bundle, wedding: { ...bundle.wedding, community }, functions, tasks }
+  const members = Array.isArray(bundle.members) && bundle.members.length > 0
+    ? bundle.members
+    : [{
+        id: bundle.membership.id,
+        userId: bundle.membership.id,
+        role: bundle.membership.role,
+        side: bundle.membership.side,
+        displayName: bundle.membership.displayName,
+      }]
+  return { ...bundle, wedding: { ...bundle.wedding, community }, members, functions, tasks }
 }
 
 export function updateBundleSettings(bundle: WeddingBundle, settings: WeddingSettings): WeddingBundle {
@@ -359,6 +412,9 @@ export function updateBundleSettings(bundle: WeddingBundle, settings: WeddingSet
       side: settings.side,
       displayName,
     },
+    members: (bundle.members ?? []).map((member) =>
+      member.id === bundle.membership.id ? { ...member, side: settings.side, displayName } : member,
+    ),
   }
 }
 

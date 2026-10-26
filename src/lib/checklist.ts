@@ -17,6 +17,13 @@ export function communityLabel(community: string | null | undefined): string {
 }
 
 export const DUPLICATE_RITUAL_MESSAGE = 'This function already has a ritual with that name.'
+export const DUPLICATE_FUNCTION_MESSAGE = 'This wedding already has a function with that name.'
+
+export function functionRemovalCopy(name: string, rituals: number, assigned: number): string {
+  const ritualLabel = rituals === 1 ? '1 ritual' : `${rituals} rituals`
+  const assignedLabel = assigned === 1 ? '1 assigned task' : `${assigned} assigned tasks`
+  return `Remove ${name}? ${ritualLabel} will be removed, including ${assignedLabel}.`
+}
 
 export function ritualNameKey(title: string): string {
   return title.trim().toLowerCase()

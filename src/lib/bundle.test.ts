@@ -3,7 +3,9 @@ import { DEMO_BUDGET, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS } from '../data/d
 import { HINDU_CHECKLIST } from '../data/hinduChecklist.ts'
 import { shiftDemoDate } from '../data/demoData.ts'
 import { formatInrCompact } from './format.ts'
-import { addPayment, createDemoBundle, createWeddingBundle, moveFunctionDraft, removeFunction, removeTask, renameFunction, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
+import { assignableMembers } from './access.ts'
+import { functionRemovalCopy } from './checklist.ts'
+import { addFunction, addPayment, createDemoBundle, createWeddingBundle, moveFunctionDraft, removeFunction, removeMemberFromBundle, removeTask, renameFunction, saveBudgetDraft, saveTaskDraft } from './bundle.ts'
 import { budgetHeadline, inrBudgetTotals, missingTemplateTasks, templateToDrafts } from './planning.ts'
 
 describe('wedding bundle', () => {
@@ -85,6 +87,8 @@ describe('wedding bundle', () => {
     expect(() => saveTaskDraft(created, { ...venue!, title: 'book wedding venue', functionId: weddingFn!.id, ceremony: 'Wedding' })).toThrow(
       /already has a ritual with that name/,
     )
+    expect(() => renameFunction(created, created.functions.find((fn) => fn.name === 'Sangeet')!.id, ' mehendi ')).toThrow(/already has a function with that name/)
+    expect(() => addFunction(created, 'MEHENDI')).toThrow(/already has a function with that name/)
     const renamedTitle = saveTaskDraft(created, { ...venue!, title: '  Book Wedding Venue  ' }, venue!.id)
     expect(renamedTitle.tasks.find((task) => task.id === venue!.id)?.title).toBe('Book Wedding Venue')
     const mehendiFn = created.functions.find((fn) => fn.name === 'Mehendi')
@@ -107,5 +111,27 @@ describe('wedding bundle', () => {
       date: '2026-10-26',
       notes: '',
     })).toThrow(/negative/)
+  })
+
+  it('keeps parent assignment on one side and names people without an email', () => {
+    const created = createDemoBundle({ side: 'bride', displayName: 'Asha' })
+    expect(created.members.map((member) => member.displayName)).toEqual(['Asha', 'Meera Sharma', 'Anil Patil'])
+    expect(created.members.some((member) => member.displayName.includes('@'))).toBe(false)
+    const ownSide = assignableMembers(created.members, 'family', 'bride').map((member) => member.displayName)
+    expect(ownSide).toEqual(['Asha', 'Meera Sharma'])
+    expect(assignableMembers(created.members, 'bride', 'bride')).toHaveLength(3)
+    const meera = created.members.find((member) => member.displayName === 'Meera Sharma')!
+    const mehendi = created.functions.find((fn) => fn.name === 'Mehendi')!
+    const assigned = saveTaskDraft(created, {
+      ...created.tasks.find((task) => task.functionId === mehendi.id)!,
+      assignedTo: meera.userId,
+    }, created.tasks.find((task) => task.functionId === mehendi.id)!.id)
+    const rituals = assigned.tasks.filter((task) => task.functionId === mehendi.id)
+    expect(functionRemovalCopy('Mehendi', rituals.length, rituals.filter((task) => task.assignedTo).length)).toBe(
+      'Remove Mehendi? 1 ritual will be removed, including 1 assigned task.',
+    )
+    const removed = removeMemberFromBundle(assigned, meera.id)
+    expect(removed.members.some((member) => member.id === meera.id)).toBe(false)
+    expect(removed.tasks.some((task) => task.assignedTo === meera.userId)).toBe(false)
   })
 })

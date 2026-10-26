@@ -1,14 +1,14 @@
 import { useCallback, useState } from 'react'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
-import { canEditChecklist, canManageTasks } from '../../lib/access.ts'
-import { communityLabel } from '../../lib/checklist.ts'
+import { assignableMembers, canEditChecklist, canManageTasks } from '../../lib/access.ts'
+import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
 import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
-import type { Category, Priority, Task, TaskDraft, TaskStatus, WeddingFunction } from '../../types.ts'
+import type { Category, MemberRole, Priority, Side, Task, TaskDraft, TaskStatus, WeddingFunction, WeddingMember } from '../../types.ts'
 import { CATEGORIES, PRIORITIES, TASK_STATUSES } from '../../types.ts'
 
 const emptyForm = (fn?: WeddingFunction): TaskDraft => ({
@@ -20,6 +20,7 @@ const emptyForm = (fn?: WeddingFunction): TaskDraft => ({
   functionId: fn?.id ?? null,
   dueDate: '',
   status: 'Pending',
+  assignedTo: null,
 })
 
 export function TasksTab() {
@@ -29,6 +30,8 @@ export function TasksTab() {
   const canStructure = mode === 'preview' || canEditChecklist(role)
   const canComplete = canEdit || role === 'friend'
   const tasks = bundle?.tasks ?? []
+  const members = bundle?.members ?? []
+  const ownSide = bundle?.membership.side ?? null
   const functions = [...(bundle?.functions ?? [])].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
   const [filter, setFilter] = useState<'All' | TaskStatus>('All')
   const [modalOpen, setModalOpen] = useState(false)
@@ -58,6 +61,14 @@ export function TasksTab() {
   const placed = new Set(groups.flatMap((group) => group.rituals.map((task) => task.id)))
   const loose = filtered.filter((task) => !placed.has(task.id)).sort((a, b) => a.position - b.position || a.sortOrder - b.sortOrder)
   const visibleGroups = groups.filter((group) => group.rituals.length > 0 || (filter === 'All' && canStructure))
+  const ritualsFor = (fn: WeddingFunction) => tasks.filter((task) => task.functionId === fn.id || (task.functionId == null && task.ceremony === fn.name))
+  const deleteCopy = pendingDelete
+    ? functionRemovalCopy(
+        pendingDelete.name,
+        ritualsFor(pendingDelete).length,
+        ritualsFor(pendingDelete).filter((task) => task.assignedTo).length,
+      )
+    : ''
 
   const openAdd = () => {
     setEditTask(null)
@@ -79,6 +90,7 @@ export function TasksTab() {
       position: task.position,
       dueDate: task.dueDate,
       status: task.status,
+      assignedTo: task.assignedTo,
     })
     setNewFunction(false)
     setFunctionName('')
@@ -179,6 +191,11 @@ export function TasksTab() {
             <Badge color={CATEGORY_COLORS[task.category] || '#666'} small>{task.category}</Badge>
             <Badge color={PRIORITY_COLORS[task.priority] || COLORS.gold} small>{task.priority}</Badge>
             {task.dueDate && <span style={{ fontSize: 10, color: '#8B5050' }}>📅 {task.dueDate}</span>}
+            {task.assignedTo && (
+              <span style={{ fontSize: 10, color: '#8B5050' }}>
+                Assigned to {members.find((member) => member.userId === task.assignedTo)?.displayName ?? 'a member'}
+              </span>
+            )}
           </div>
         </div>
         {(canEdit || canStructure) && (
@@ -285,7 +302,7 @@ export function TasksTab() {
       <Modal open={pendingDelete !== null} onClose={() => setPendingDelete(null)} title="Remove function">
         <FormError message={error} />
         <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
-          Remove {pendingDelete?.name}? Its rituals are removed too.
+          {deleteCopy}
         </p>
         <button type="button" disabled={busy} onClick={() => void removeFunctionNow()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
           {busy ? 'Removing…' : 'Remove function'}
@@ -354,6 +371,20 @@ export function TasksTab() {
             </select>
           </Field>
         )}
+        {canEdit && (
+          <Field label="Assign to">
+            <select
+              style={selectStyle}
+              value={form.assignedTo ?? ''}
+              onChange={(event) => setForm((current) => ({ ...current, assignedTo: event.target.value || null }))}
+            >
+              <option value="">Unassigned</option>
+              {assigneeChoices(members, role, ownSide, editTask?.assignedTo).map((member) => (
+                <option key={member.id} value={member.userId}>{member.displayName}</option>
+              ))}
+            </select>
+          </Field>
+        )}
         <Field label="Due Date">
           <input style={inputStyle} type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
         </Field>
@@ -363,6 +394,18 @@ export function TasksTab() {
       </Modal>
     </div>
   )
+}
+
+function assigneeChoices(
+  members: readonly WeddingMember[],
+  role: MemberRole | undefined,
+  side: Side | null,
+  currentAssignee: string | null | undefined,
+) {
+  const allowed = assignableMembers(members, role, side)
+  if (!currentAssignee || allowed.some((member) => member.userId === currentAssignee)) return allowed
+  const current = members.find((member) => member.userId === currentAssignee)
+  return current ? [current, ...allowed] : allowed
 }
 
 const iconButton = {

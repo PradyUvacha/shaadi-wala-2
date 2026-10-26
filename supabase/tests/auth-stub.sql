@@ -23,7 +23,10 @@ as $$
   select jsonb_build_object(
     'sub', current_setting('request.jwt.claim.sub', true),
     'email', current_setting('request.jwt.claim.email', true),
-    'display_name', current_setting('request.jwt.claim.display_name', true)
+    'display_name', current_setting('request.jwt.claim.display_name', true),
+    'user_metadata', jsonb_build_object(
+      'display_name', current_setting('request.jwt.claim.meta_display_name', true)
+    )
   )
 $$;
 

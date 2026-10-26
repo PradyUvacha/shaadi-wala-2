@@ -14,9 +14,11 @@ import type {
   WeddingBundle,
   WeddingFunction,
   WeddingInvite,
+  WeddingMember,
   WeddingSettings,
 } from '../types.ts'
-import { DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
+import { rosterDisplayName } from './access.ts'
+import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { assertNoError } from './errors.ts'
 import { splitsForSave } from './planning.ts'
 import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
@@ -61,6 +63,8 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     createInvite,
     listInvites,
     acceptInvite,
+    leaveWedding,
+    removeMember,
   }
 
   async function getMine(): Promise<WeddingBundle | null> {
@@ -77,17 +81,18 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const wedding = one(member.weddings as Record<string, unknown> | Record<string, unknown>[] | null)
     if (!wedding) return null
     const weddingId = String(wedding.id)
-    const [tasks, functions, budget, guests, milestones, profile] = await Promise.all([
+    const [tasks, functions, budget, guests, milestones, profile, members] = await Promise.all([
       loadTasks(weddingId),
       loadFunctions(weddingId),
       loadBudget(weddingId),
       loadGuests(weddingId),
       loadMilestones(weddingId),
       loadProfile(),
+      loadMembers(weddingId),
     ])
     const membershipName = member.display_name ? String(member.display_name) : ''
     const profileName = profile ? String(profile) : ''
-    const displayName = profileName || membershipName || user.email?.split('@')[0] || 'there'
+    const displayName = rosterDisplayName(profileName, membershipName, mapMemberRole(member.role), member.side === 'bride' || member.side === 'groom' ? member.side : null)
     const side = member.side === 'bride' || member.side === 'groom' ? member.side : null
     const role = mapMemberRole(member.role)
     return {
@@ -102,9 +107,10 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         id: String(member.id),
         role,
         side,
-        displayName: membershipName || displayName,
+        displayName,
       },
       displayName,
+      members,
       functions,
       tasks,
       budget,
@@ -272,11 +278,24 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   }
 
   async function addFunction(weddingId: string, name: string): Promise<WeddingFunction> {
-    return ensureFunction(weddingId, name)
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Name the function.')
+    const existing = await findFunctionByName(weddingId, trimmed)
+    if (existing) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
+    return insertFunction(weddingId, trimmed)
   }
 
   async function renameFunction(id: string, name: string): Promise<void> {
-    const { error } = await client.from('wedding_functions').update({ name: name.trim() }).eq('id', id)
+    const trimmed = name.trim()
+    if (!trimmed) throw new Error('Name the function.')
+    const current = await client.from('wedding_functions').select('id, wedding_id, name').eq('id', id).maybeSingle()
+    assertNoError(current.error)
+    if (!current.data) return
+    const record = asRecord(current.data)
+    const weddingId = String(record.wedding_id)
+    const existing = await findFunctionByName(weddingId, trimmed)
+    if (existing && existing.id !== id) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
+    const { error } = await client.from('wedding_functions').update({ name: trimmed }).eq('id', id)
     assertNoError(error)
   }
 
@@ -352,6 +371,16 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     })
   }
 
+  async function leaveWedding(weddingId: string): Promise<void> {
+    const { error } = await client.rpc('leave_wedding', { p_wedding_id: weddingId })
+    assertNoError(error)
+  }
+
+  async function removeMember(memberId: string): Promise<void> {
+    const { error } = await client.rpc('remove_wedding_member', { p_member_id: memberId })
+    assertNoError(error)
+  }
+
   async function acceptInvite(code: string, role: InviteRole, side: Side | null): Promise<string> {
     const { data, error } = await client.rpc('accept_invite', {
       p_token: code.trim(),
@@ -395,16 +424,14 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return (data ?? []).map((row) => mapFunction(asRecord(row)))
   }
 
-  async function ensureFunction(weddingId: string, name: string): Promise<WeddingFunction> {
-    const trimmed = name.trim() || 'Wedding'
-    const existing = await client
-      .from('wedding_functions')
-      .select('id, name, position')
-      .eq('wedding_id', weddingId)
-      .eq('name', trimmed)
-      .maybeSingle()
-    assertNoError(existing.error)
-    if (existing.data) return mapFunction(asRecord(existing.data))
+  async function findFunctionByName(weddingId: string, name: string): Promise<WeddingFunction | null> {
+    const key = name.trim().toLowerCase()
+    if (!key) return null
+    const functions = await loadFunctions(weddingId)
+    return functions.find((fn) => fn.name.trim().toLowerCase() === key) ?? null
+  }
+
+  async function insertFunction(weddingId: string, name: string): Promise<WeddingFunction> {
     const top = await client
       .from('wedding_functions')
       .select('position')
@@ -415,11 +442,50 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(top.error)
     const inserted = await client
       .from('wedding_functions')
-      .insert({ wedding_id: weddingId, name: trimmed, position: Number(top.data?.position ?? 0) + 1 })
+      .insert({ wedding_id: weddingId, name, position: Number(top.data?.position ?? 0) + 1 })
       .select('id, name, position')
       .single()
     assertNoError(inserted.error)
     return mapFunction(asRecord(inserted.data))
+  }
+
+  async function ensureFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+    const trimmed = name.trim() || 'Wedding'
+    const existing = await findFunctionByName(weddingId, trimmed)
+    if (existing) return existing
+    return insertFunction(weddingId, trimmed)
+  }
+
+  async function loadMembers(weddingId: string): Promise<WeddingMember[]> {
+    const { data, error } = await client
+      .from('wedding_members')
+      .select('id, user_id, role, side, display_name')
+      .eq('wedding_id', weddingId)
+      .order('created_at')
+    assertNoError(error)
+    const rows = (data ?? []).map((row) => asRecord(row))
+    const ids = rows.map((row) => String(row.user_id))
+    const profiles = ids.length === 0
+      ? { data: [], error: null }
+      : await client.from('profiles').select('id, display_name').in('id', ids)
+    assertNoError(profiles.error)
+    const names = new Map(
+      (profiles.data ?? []).map((row) => {
+        const record = asRecord(row)
+        return [String(record.id), String(record.display_name ?? '')] as const
+      }),
+    )
+    return rows.map((row) => {
+      const role = mapMemberRole(row.role)
+      const side = row.side === 'bride' || row.side === 'groom' ? row.side : null
+      return {
+        id: String(row.id),
+        userId: String(row.user_id),
+        role,
+        side,
+        displayName: rosterDisplayName(names.get(String(row.user_id)) ?? '', String(row.display_name ?? ''), role, side),
+      }
+    })
   }
 
   async function placeTask(weddingId: string, draft: TaskDraft, id?: string): Promise<TaskDraft> {

@@ -1,4 +1,4 @@
-import { DUPLICATE_RITUAL_MESSAGE } from './checklist.ts'
+import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE } from './checklist.ts'
 
 export function toErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message
@@ -10,8 +10,12 @@ export function toErrorMessage(error: unknown): string {
 
 export function assertNoError(error: { message: string; code?: string; details?: string | null } | null): void {
   if (!error) return
-  if (error.code === '23505' && /tasks_function_title_ci/i.test(`${error.message} ${error.details ?? ''}`)) {
+  const constraint = `${error.message} ${error.details ?? ''}`
+  if (error.code === '23505' && /tasks_function_title_ci/i.test(constraint)) {
     throw new Error(DUPLICATE_RITUAL_MESSAGE)
+  }
+  if (error.code === '23505' && /wedding_functions_name_ci/i.test(constraint)) {
+    throw new Error(DUPLICATE_FUNCTION_MESSAGE)
   }
   const missingSchema =
     error.code === 'PGRST202' ||

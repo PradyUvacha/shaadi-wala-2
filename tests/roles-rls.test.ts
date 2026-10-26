@@ -203,6 +203,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026230000_budget_payment_actual.sql`)
   file(`${root}supabase/migrations/20261026240000_survey_responses.sql`)
   file(`${root}supabase/migrations/20261026240000_survey_responses.sql`)
+  file(`${root}supabase/migrations/20261026250000_members_assignment.sql`)
+  file(`${root}supabase/migrations/20261026250000_members_assignment.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -253,6 +255,8 @@ describe('approved role permissions', () => {
 
   it('parent/family can edit and assign tasks for their own side only', () => {
     expect(asUser(family, `update public.tasks set assigned_to = '${friend}' where title = 'Bride task'; select assigned_to::text from public.tasks where title = 'Bride task';`)).toBe(friend)
+    expect(errorOf(family, `update public.tasks set assigned_to = '${groom}' where title = 'Bride task';`)).toMatch(/own side/)
+    expect(psql(`select assigned_to::text from public.tasks where title = 'Bride task';`).trim()).toBe(friend)
     expect(asUser(family, `update public.tasks set title = 'Nope' where title = 'Groom task'; select count(*) from public.tasks where title = 'Nope';`)).toBe('0')
   })
 
@@ -696,6 +700,99 @@ describe('approved role permissions', () => {
       values ('${family}', 'price', 'price', '2000');
       select 1;
     `)).toMatch(/survey_responses_payload|check/i)
+  })
+
+  it('rejects a function name that matches after trimming and ignoring case', () => {
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    expect(errorOf(bride, `update public.wedding_functions set name = '  mehendi ' where name = 'Haldi' and wedding_id = ${wedding};`)).toMatch(/wedding_functions_name_ci|duplicate key|unique/i)
+    expect(psql(`select name from public.wedding_functions where name = 'Haldi' and wedding_id = ${wedding};`).trim()).toBe('Haldi')
+    expect(asUser(bride, `update public.wedding_functions set name = ' Haldi ' where name = 'Haldi' and wedding_id = ${wedding}; select btrim(name) from public.wedding_functions where wedding_id = ${wedding} and lower(btrim(name)) = 'haldi';`)).toBe('Haldi')
+  })
+
+  it('stores a profile or sign-up name and never an email prefix', () => {
+    const named = 'f1f1f1f1-f1f1-f1f1-f1f1-f1f1f1f1f1f1'
+    const prefixed = 'f2f2f2f2-f2f2-f2f2-f2f2-f2f2f2f2f2f2'
+    psql(`
+      insert into auth.users (id, email) values
+        ('${named}', 'named@example.com'),
+        ('${prefixed}', 'prefixuser@example.com');
+      update public.profiles set display_name = 'Real Kavita' where id = '${named}';
+      update public.profiles set display_name = 'prefixuser' where id = '${prefixed}';
+    `)
+    const namedCode = asUser(bride, `select public.create_invite((select id from public.weddings where couple_names = 'Role Fixture'), 'friend', 'bride');`)
+    const prefixedCode = asUser(bride, `select public.create_invite((select id from public.weddings where couple_names = 'Role Fixture'), 'friend', 'bride');`)
+    expect(psql(`
+      select set_config('request.jwt.claim.sub', '${named}', false);
+      select set_config('request.jwt.claim.email', 'named@example.com', false);
+      select set_config('request.jwt.claim.display_name', 'Ignored Claim', false);
+      select set_config('request.jwt.claim.meta_display_name', 'Metadata Name', false);
+      set role authenticated;
+      select public.accept_invite('${namedCode}', 'friend', 'bride');
+      select display_name from public.wedding_members where user_id = '${named}';
+    `).trim().split('\n').filter(Boolean).at(-1)).toBe('Real Kavita')
+    expect(psql(`
+      select set_config('request.jwt.claim.sub', '${prefixed}', false);
+      select set_config('request.jwt.claim.email', 'prefixuser@example.com', false);
+      select set_config('request.jwt.claim.display_name', 'prefixuser', false);
+      select set_config('request.jwt.claim.meta_display_name', 'Kavita Rao', false);
+      set role authenticated;
+      select public.accept_invite('${prefixedCode}', 'friend', 'bride');
+      select display_name from public.wedding_members where user_id = '${prefixed}';
+    `).trim().split('\n').filter(Boolean).at(-1)).toBe('Kavita Rao')
+    expect(psql(`select count(*) from information_schema.columns where table_schema = 'public' and table_name in ('profiles', 'wedding_members') and column_name = 'email';`).trim()).toBe('0')
+    expect(asUser(family, `select display_name from public.profiles where id = '${prefixed}';`)).toBe('Kavita Rao')
+  })
+})
+
+describe('leave wedding and remove member', () => {
+  const leaveBride = 'c1c1c1c1-c1c1-c1c1-c1c1-c1c1c1c1c1c1'
+  const leaveGroom = 'c2c2c2c2-c2c2-c2c2-c2c2-c2c2c2c2c2c2'
+  const leaveFamily = 'c3c3c3c3-c3c3-c3c3-c3c3-c3c3c3c3c3c3'
+  const leaveFriend = 'c4c4c4c4-c4c4-c4c4-c4c4-c4c4c4c4c4c4'
+  const soloBride = 'c5c5c5c5-c5c5-c5c5-c5c5-c5c5c5c5c5c5'
+  const wedding = 'd1d1d1d1-d1d1-d1d1-d1d1-d1d1d1d1d1d1'
+  const solo = 'd2d2d2d2-d2d2-d2d2-d2d2-d2d2d2d2d2d2'
+
+  it('lets anyone except the last bride or groom leave, and lets only the couple remove someone', () => {
+    psql(`
+      insert into auth.users (id, email) values
+        ('${leaveBride}', 'leave-bride@example.com'),
+        ('${leaveGroom}', 'leave-groom@example.com'),
+        ('${leaveFamily}', 'leave-family@example.com'),
+        ('${leaveFriend}', 'leave-friend@example.com'),
+        ('${soloBride}', 'solo-bride@example.com');
+      insert into public.weddings (id, couple_names, wedding_date, created_by) values
+        ('${wedding}', 'Leave Fixture', '2027-05-01', '${leaveBride}'),
+        ('${solo}', 'Solo Fixture', '2027-05-02', '${soloBride}');
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name) values
+        ('${wedding}', '${leaveBride}', 'bride', 'bride', 'Asha'),
+        ('${wedding}', '${leaveGroom}', 'groom', 'groom', 'Rahul'),
+        ('${wedding}', '${leaveFamily}', 'family', 'bride', 'Parent'),
+        ('${wedding}', '${leaveFriend}', 'friend', 'groom', 'Friend'),
+        ('${solo}', '${soloBride}', 'bride', 'bride', 'Only');
+      insert into public.tasks (wedding_id, title, category, priority, status, side, assigned_to) values
+        ('${wedding}', 'Family helper', 'Other', 'Low', 'Pending', 'bride', '${leaveFamily}'),
+        ('${wedding}', 'Bride helper', 'Other', 'Low', 'Pending', 'bride', '${leaveBride}');
+    `)
+    expect(errorOf(soloBride, `select public.leave_wedding('${solo}');`)).toMatch(/last bride or groom/)
+    expect(psql(`select count(*) from public.wedding_members where wedding_id = '${solo}';`).trim()).toBe('1')
+    expect(psql(`select count(*) from public.weddings where id = '${solo}';`).trim()).toBe('1')
+
+    expect(errorOf(leaveFamily, `select public.remove_wedding_member((select id from public.wedding_members where user_id = '${leaveFriend}'));`)).toMatch(/bride or groom/)
+    expect(errorOf(leaveBride, `select public.remove_wedding_member((select id from public.wedding_members where user_id = '${leaveBride}' and wedding_id = '${wedding}'));`)).toMatch(/leave wedding/)
+
+    expect(asUser(leaveBride, `select public.remove_wedding_member((select id from public.wedding_members where user_id = '${leaveFamily}' and wedding_id = '${wedding}')); select 'removed';`)).toBe('removed')
+    expect(psql(`select count(*) from public.wedding_members where user_id = '${leaveFamily}';`).trim()).toBe('0')
+    expect(psql(`select assigned_to is null from public.tasks where title = 'Family helper';`).trim()).toBe('t')
+
+    expect(asUser(leaveBride, `select public.leave_wedding('${wedding}'); select 'left';`)).toBe('left')
+    expect(psql(`select count(*) from public.wedding_members where user_id = '${leaveBride}' and wedding_id = '${wedding}';`).trim()).toBe('0')
+    expect(psql(`select count(*) from public.weddings where id = '${wedding}';`).trim()).toBe('1')
+    expect(psql(`select count(*) from public.wedding_members where user_id = '${leaveGroom}' and wedding_id = '${wedding}';`).trim()).toBe('1')
+    expect(psql(`select assigned_to is null from public.tasks where title = 'Bride helper';`).trim()).toBe('t')
+
+    expect(asUser(leaveFriend, `select public.leave_wedding('${wedding}'); select 'left';`)).toBe('left')
+    expect(psql(`select count(*) from public.wedding_members where user_id = '${leaveFriend}';`).trim()).toBe('0')
   })
 })
 
