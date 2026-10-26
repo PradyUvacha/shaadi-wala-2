@@ -2,16 +2,17 @@ import type { BudgetDraft, GuestDraft, MilestoneDraft, TaskDraft } from '../type
 
 export const DEMO_COUPLE_NAMES = 'Priya & Rahul'
 export const DEMO_WEDDING_DATE = '2026-06-20'
+export const DEMO_CITY = 'Mumbai'
 
 export const DEMO_TASKS: TaskDraft[] = [
-  { title: 'Book Wedding Venue', description: 'Grand Palace Hotel confirmed', category: 'Venue', priority: 'High', status: 'Completed', dueDate: '2026-06-01' },
-  { title: 'Book Pandit Ji', description: 'For Saat Phere & rituals', category: 'Other', priority: 'High', status: 'In Progress', dueDate: '2026-06-15' },
-  { title: 'Bridal Lehenga', description: 'Visit Sabyasachi boutique', category: 'Attire', priority: 'High', status: 'Pending', dueDate: '2026-05-20' },
-  { title: 'Mehendi Ceremony Setup', description: 'Artist booking & decor', category: 'Decor', priority: 'Medium', status: 'Pending', dueDate: '2026-06-10' },
-  { title: 'Book Caterer', description: '700 guest capacity required', category: 'Catering', priority: 'High', status: 'Completed', dueDate: '2026-05-15' },
-  { title: 'Wedding Invitations', description: 'Design & print 500 cards', category: 'Invitations', priority: 'Medium', status: 'In Progress', dueDate: '2026-05-25' },
-  { title: 'Sangeet Arrangements', description: 'DJ, stage, lighting', category: 'Decor', priority: 'Medium', status: 'Pending', dueDate: '2026-06-08' },
-  { title: 'Baraat Vehicle', description: 'Decorated horse + vintage car', category: 'Other', priority: 'Low', status: 'Pending', dueDate: '2026-06-20' },
+  { title: 'Book Wedding Venue', description: 'Grand Palace Hotel confirmed', category: 'Venue', priority: 'High', ceremony: 'Wedding', status: 'Completed', dueDate: '2026-06-01' },
+  { title: 'Book Pandit Ji', description: 'For Saat Phere & rituals', category: 'Other', priority: 'High', ceremony: 'Wedding', status: 'In Progress', dueDate: '2026-06-15' },
+  { title: 'Bridal Lehenga', description: 'Visit Sabyasachi boutique', category: 'Attire', priority: 'High', ceremony: 'Wedding', status: 'Pending', dueDate: '2026-05-20' },
+  { title: 'Mehendi Ceremony Setup', description: 'Artist booking & decor', category: 'Decor', priority: 'Medium', ceremony: 'Mehendi', status: 'Pending', dueDate: '2026-06-10' },
+  { title: 'Book Caterer', description: '700 guest capacity required', category: 'Catering', priority: 'High', ceremony: 'Wedding', status: 'Completed', dueDate: '2026-05-15' },
+  { title: 'Wedding Invitations', description: 'Design & print 500 cards', category: 'Invitations', priority: 'Medium', ceremony: 'Wedding', status: 'In Progress', dueDate: '2026-05-25' },
+  { title: 'Sangeet Arrangements', description: 'DJ, stage, lighting', category: 'Decor', priority: 'Medium', ceremony: 'Sangeet', status: 'Pending', dueDate: '2026-06-08' },
+  { title: 'Baraat Vehicle', description: 'Decorated horse + vintage car', category: 'Other', priority: 'Low', ceremony: 'Wedding', status: 'Pending', dueDate: '2026-06-20' },
 ]
 
 export const DEMO_BUDGET: BudgetDraft[] = [

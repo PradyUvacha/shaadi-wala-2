@@ -1,6 +1,6 @@
 import type { AchievementType } from '../data/content.ts'
 import { ACHIEVEMENTS } from '../data/content.ts'
-import type { Payer, SplitDraft, Task, TemplateTask } from '../types.ts'
+import type { BudgetItem, Ceremony, Guest, Payer, SplitDraft, Task, TemplateTask } from '../types.ts'
 
 export function percent(part: number, total: number): number {
   if (!total) return 0
@@ -86,10 +86,124 @@ export function templateToDrafts(items: TemplateTask[]) {
     description: item.description,
     category: item.category,
     priority: item.priority,
+    ceremony: item.ceremony,
     status: 'Pending' as const,
     dueDate: '',
     templateTitle: item.title,
   }))
+}
+
+export function ritualsForCeremonies(items: TemplateTask[], ceremonies: readonly Ceremony[]): TemplateTask[] {
+  const chosen = new Set(ceremonies)
+  return items.filter((item) => chosen.has(item.ceremony))
+}
+
+export type SideHeadcount = {
+  confirmed: number
+  pending: number
+  declined: number
+}
+
+export type GuestHeadcount = {
+  bride: SideHeadcount
+  groom: SideHeadcount
+  both: SideHeadcount
+  confirmedPeople: number
+}
+
+function people(guests: Pick<Guest, 'status' | 'plusOnes' | 'side'>[], side: Guest['side'], status: Guest['status']): number {
+  return guests
+    .filter((guest) => guest.side === side && guest.status === status)
+    .reduce((total, guest) => total + 1 + Math.max(0, Number(guest.plusOnes) || 0), 0)
+}
+
+export function guestHeadcount(guests: Pick<Guest, 'status' | 'plusOnes' | 'side'>[]): GuestHeadcount {
+  const count = (side: Guest['side']): SideHeadcount => ({
+    confirmed: people(guests, side, 'Confirmed'),
+    pending: people(guests, side, 'Pending'),
+    declined: people(guests, side, 'Declined'),
+  })
+  const bride = count('bride')
+  const groom = count('groom')
+  const both = count('both')
+  return {
+    bride,
+    groom,
+    both,
+    confirmedPeople: bride.confirmed + groom.confirmed + both.confirmed,
+  }
+}
+
+export type FamilySettlement = {
+  brideShare: number
+  groomShare: number
+  bridePaid: number
+  groomPaid: number
+  /** Positive when the groom's family owes the bride's family. */
+  groomOwesBride: number
+}
+
+function roundRupee(value: number): number {
+  return Math.round(value)
+}
+
+export function familySettlement(items: Pick<BudgetItem, 'currency' | 'estimated' | 'actual' | 'paid' | 'paidBySide' | 'splits' | 'partPayments'>[]): FamilySettlement {
+  let brideShare = 0
+  let groomShare = 0
+  let bridePaid = 0
+  let groomPaid = 0
+  for (const item of items) {
+    if (item.currency !== 'INR') continue
+    const estimated = Number(item.estimated) || 0
+    const splits = item.splits.length > 0 ? item.splits : splitsForPayer(item.paidBySide)
+    for (const split of splits) {
+      const amount = (estimated * (Number(split.pct) || 0)) / 100
+      if (split.side === 'bride') brideShare += amount
+      if (split.side === 'groom') groomShare += amount
+    }
+    if (item.partPayments.length > 0) {
+      for (const payment of item.partPayments) {
+        const amount = Number(payment.amount) || 0
+        if (payment.paidBySide === 'bride') bridePaid += amount
+        if (payment.paidBySide === 'groom') groomPaid += amount
+      }
+    } else if (item.paid || Number(item.actual) > 0) {
+      const amount = Number(item.actual) || 0
+      if (item.paidBySide === 'bride') bridePaid += amount
+      else if (item.paidBySide === 'groom') groomPaid += amount
+      else if (item.paidBySide === 'both') {
+        bridePaid += amount / 2
+        groomPaid += amount / 2
+      }
+    }
+  }
+  const shareTotal = brideShare + groomShare
+  const paidTotal = bridePaid + groomPaid
+  let groomOwesBride = 0
+  if (shareTotal > 0 && paidTotal > 0) {
+    const brideShouldPay = (brideShare / shareTotal) * paidTotal
+    groomOwesBride = bridePaid - brideShouldPay
+  }
+  return {
+    brideShare: roundRupee(brideShare),
+    groomShare: roundRupee(groomShare),
+    bridePaid: roundRupee(bridePaid),
+    groomPaid: roundRupee(groomPaid),
+    groomOwesBride: roundRupee(groomOwesBride),
+  }
+}
+
+export function settlementSummary(settlement: FamilySettlement): string {
+  if (settlement.brideShare === 0 && settlement.groomShare === 0) {
+    return 'Add INR items with a family split to see who covers what.'
+  }
+  if (settlement.bridePaid === 0 && settlement.groomPaid === 0) {
+    return "Shares are set. Record a payment to see who should settle with whom."
+  }
+  const amount = Math.abs(settlement.groomOwesBride).toLocaleString('en-IN')
+  if (settlement.groomOwesBride > 0) return `Groom's family owes bride's family ₹${amount}.`
+  if (settlement.groomOwesBride < 0) return `Bride's family owes groom's family ₹${amount}.`
+  return 'The two families are settled for what has been paid so far.'
 }
 
 export function unlockedAchievementIds(input: {
@@ -115,12 +229,14 @@ function valueForAchievement(
 export function validateWeddingSetup(input: {
   coupleNames: string
   weddingDate: string
+  city: string
   side: string
   displayName: string
 }): string | null {
   if (!input.displayName.trim()) return 'Add your name.'
   if (!input.coupleNames.trim()) return "Add the couple's names."
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.weddingDate)) return 'Choose the wedding date.'
+  if (!input.city.trim()) return 'Add the city.'
   if (input.side !== 'bride' && input.side !== 'groom') return "Choose the bride's side or the groom's side."
   return null
 }

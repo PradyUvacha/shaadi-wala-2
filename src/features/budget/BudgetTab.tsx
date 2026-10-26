@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { Badge, FAB, Field, FormError, MehendiPattern, Modal } from '../../components/ui.tsx'
 import { toErrorMessage } from '../../lib/errors.ts'
-import { canAddSplit, payerLabel, splitsForPayer, sumAmounts } from '../../lib/planning.ts'
+import { canAddSplit, familySettlement, payerLabel, settlementSummary, splitsForPayer, sumAmounts } from '../../lib/planning.ts'
+import { money } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, CURRENCIES } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
+import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
 import type { BudgetDraft, BudgetItem, Category, CurrencyCode, Payer, PartPaymentDraft, PaymentSide } from '../../types.ts'
 import { CATEGORIES, CURRENCY_CODES, PAYERS } from '../../types.ts'
 
@@ -20,7 +22,7 @@ const emptyForm = (): BudgetDraft => ({
 })
 
 export function BudgetTab() {
-  const { bundle, saveBudgetItem, deleteBudgetItem, addPayment } = useWedding()
+  const { bundle, canEdit, saveBudgetItem, deleteBudgetItem, addPayment } = useWedding()
   const budget = bundle?.budget ?? []
   const [currFilter, setCurrFilter] = useState('All')
   const [modalOpen, setModalOpen] = useState(false)
@@ -100,8 +102,8 @@ export function BudgetTab() {
   }
 
   return (
-    <div style={{ paddingBottom: 100 }}>
-      <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},#5C0000)`, padding: '52px 20px 16px', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ paddingBottom: screenBottom }}>
+      <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},#5C0000)`, padding: headerPadding, position: 'relative', overflow: 'hidden' }}>
         <MehendiPattern />
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 12 }}>💰 Budget Planner</div>
@@ -127,6 +129,8 @@ export function BudgetTab() {
           </div>
         ))}
       </div>
+
+      <Settlement items={budget} />
 
       <div style={{ padding: '0 16px' }}>
         {filtered.length === 0 ? (
@@ -193,7 +197,7 @@ export function BudgetTab() {
         )}
       </div>
 
-      <FAB onClick={openAdd} />
+      {canEdit && <FAB onClick={openAdd} />}
 
       <Modal open={!!payItemId} onClose={() => setPayItemId(null)} title="Add Payment" headerColor={`linear-gradient(135deg,${COLORS.green},#1A5C35)`}>
         <FormError message={error} />
@@ -286,6 +290,22 @@ export function BudgetTab() {
           {busy ? 'Saving…' : editItem ? 'Save Changes' : 'Add Item'}
         </button>
       </Modal>
+    </div>
+  )
+}
+
+function Settlement({ items }: { items: BudgetItem[] }) {
+  const settlement = familySettlement(items)
+  return (
+    <div style={{ margin: '0 16px 8px', background: '#fff', border: `1px solid ${COLORS.gold}`, borderRadius: 16, padding: 14 }}>
+      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.crimson, marginBottom: 8 }}>Family settlement</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13, color: '#3C1515' }}>
+        <div>Bride's share<br /><strong>{money(settlement.brideShare, '₹')}</strong></div>
+        <div>Groom's share<br /><strong>{money(settlement.groomShare, '₹')}</strong></div>
+        <div>Bride's family paid<br /><strong>{money(settlement.bridePaid, '₹')}</strong></div>
+        <div>Groom's family paid<br /><strong>{money(settlement.groomPaid, '₹')}</strong></div>
+      </div>
+      <p style={{ margin: '10px 0 0', fontSize: 13, fontWeight: 600, color: '#5A2020' }}>{settlementSummary(settlement)}</p>
     </div>
   )
 }

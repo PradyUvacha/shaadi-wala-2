@@ -3,12 +3,22 @@ import type { Session } from '@supabase/supabase-js'
 import { App } from '@capacitor/app'
 import { Browser } from '@capacitor/browser'
 import { Capacitor } from '@capacitor/core'
+import { identifyUser, initAnalytics, trackAppOpen } from '../lib/analytics.ts'
 import { isSupabaseConfigured, supabase } from '../lib/supabase.ts'
 import { AuthContext } from './auth-context.ts'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(!isSupabaseConfigured)
+
+  useEffect(() => {
+    initAnalytics()
+    trackAppOpen()
+  }, [])
+
+  useEffect(() => {
+    identifyUser(session?.user.id ?? null)
+  }, [session])
 
   useEffect(() => {
     if (!supabase) return

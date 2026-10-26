@@ -2,15 +2,16 @@ import { useNavigate } from 'react-router-dom'
 import { ACHIEVEMENTS, MOTIVATIONAL_QUOTES } from '../../data/content.ts'
 import { Badge, MehendiPattern, ProgressRing } from '../../components/ui.tsx'
 import { countdownDays, formatDate, quoteForDay } from '../../lib/format.ts'
-import { inrBudgetTotals, percent, plannerLevel, sideLabel, unlockedAchievementIds } from '../../lib/planning.ts'
+import { inrBudgetTotals, percent, plannerLevel, unlockedAchievementIds } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS } from '../../styles/tokens.ts'
+import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
 
 export function HomeTab() {
   const navigate = useNavigate()
   const { bundle, notice, clearNotice } = useWedding()
   if (!bundle) return null
-  const { tasks, budget, guests, wedding, displayName, membership } = bundle
+  const { tasks, budget, guests, wedding, displayName } = bundle
   const completedTasks = tasks.filter((task) => task.status === 'Completed').length
   const { estimated, actual } = inrBudgetTotals(budget)
   const confirmedGuests = guests.filter((guest) => guest.status === 'Confirmed').length
@@ -28,20 +29,20 @@ export function HomeTab() {
   })
 
   return (
-    <div style={{ paddingBottom: 100 }}>
-      <div style={{ background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 60%,${COLORS.saffron}33 100%)`, padding: '52px 20px 28px', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ paddingBottom: screenBottom }}>
+      <div style={{ background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 60%,${COLORS.saffron}33 100%)`, padding: headerPadding, position: 'relative', overflow: 'hidden' }}>
         <MehendiPattern />
         <div style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <div style={{ fontSize: 12, color: '#FFD88B', fontWeight: 500, letterSpacing: 1 }}>🙏 NAMASTE,</div>
               <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, color: '#fff', fontWeight: 700, lineHeight: 1.2 }}>{displayName}</div>
-              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>💐 {wedding.coupleNames}</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 4 }}>💐 {wedding.coupleNames}{wedding.city ? ` · ${wedding.city}` : ''}</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '5px 12px', fontSize: 12, color: '#FFD88B', fontWeight: 600 }}>👑 Level {level}</div>
-              <button type="button" onClick={() => navigate('/account')} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '5px 12px', fontSize: 12, color: '#FF9E5E', fontWeight: 600, cursor: 'pointer' }}>
-                {sideLabel(membership.side)}
+              <button type="button" onClick={() => navigate('/profile')} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '8px 12px', fontSize: 12, color: '#fff', fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>
+                Profile
               </button>
             </div>
           </div>

@@ -7,7 +7,7 @@ export const inputStyle: CSSProperties = {
   borderRadius: 10,
   border: '1.5px solid #E0CABB',
   background: '#FFFAF4',
-  fontSize: 14,
+  fontSize: 16,
   outline: 'none',
   color: '#2A0A0A',
 }

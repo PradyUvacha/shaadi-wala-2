@@ -8,7 +8,10 @@ import {
   missingTemplateTasks,
   percent,
   plannerLevel,
+  familySettlement,
+  guestHeadcount,
   splitsForPayer,
+  settlementSummary,
   splitTotal,
   templateToDrafts,
   unlockedAchievementIds,
@@ -21,6 +24,8 @@ describe('hindu checklist', () => {
   it('has a unique starter ritual for each title', () => {
     const titles = HINDU_CHECKLIST.map((item) => item.title)
     expect(new Set(titles).size).toBe(titles.length)
+    expect(titles.length).toBeGreaterThanOrEqual(45)
+    expect(new Set(HINDU_CHECKLIST.map((item) => item.ceremony)).size).toBe(8)
     expect(titles).toContain('Saat Phere Setup')
     expect(titles).toContain('Mehendi Ceremony Setup')
     expect(titles).toContain('Haldi Ceremony Prep')
@@ -42,7 +47,7 @@ describe('hindu checklist', () => {
       { title: 'Roka done our way', templateTitle: drafts[0]?.templateTitle ?? null },
     ]
     const missing = missingTemplateTasks(existing, HINDU_CHECKLIST.slice(0, 2))
-    expect(missing.map((item) => item.title)).toEqual(['Sagai/Engagement'])
+    expect(missing.map((item) => item.title)).toEqual([HINDU_CHECKLIST[1]?.title])
   })
 })
 
@@ -67,6 +72,38 @@ describe('budget splits', () => {
     ])
     expect(totals).toEqual({ estimated: 1000, actual: 400 })
     expect(percent(totals.actual, totals.estimated)).toBe(40)
+  })
+})
+
+describe('family settlement and headcount', () => {
+  it('says which family should settle when one side paid the other side share', () => {
+    const settlement = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 1000,
+        actual: 1000,
+        paid: true,
+        paidBySide: 'bride',
+        splits: [{ id: 'split-1', name: "Groom's Family", pct: 100, side: 'groom' }],
+        partPayments: [],
+      },
+    ])
+    expect(settlement.groomShare).toBe(1000)
+    expect(settlement.bridePaid).toBe(1000)
+    expect(settlement.groomOwesBride).toBe(1000)
+    expect(settlementSummary(settlement)).toMatch(/Groom's family owes/)
+  })
+
+  it('counts confirmed people with plus-ones on each side', () => {
+    const counts = guestHeadcount([
+      { status: 'Confirmed', plusOnes: 2, side: 'bride' },
+      { status: 'Pending', plusOnes: 1, side: 'groom' },
+      { status: 'Declined', plusOnes: 0, side: 'groom' },
+    ])
+    expect(counts.bride.confirmed).toBe(3)
+    expect(counts.groom.pending).toBe(2)
+    expect(counts.groom.declined).toBe(1)
+    expect(counts.confirmedPeople).toBe(3)
   })
 })
 
@@ -99,8 +136,8 @@ describe('dates and progress', () => {
 
 describe('validation', () => {
   it('asks for the couple, the date, and a side', () => {
-    expect(validateWeddingSetup({ coupleNames: '', weddingDate: '', side: '', displayName: '' })).toMatch(/name/i)
-    expect(validateWeddingSetup({ coupleNames: 'A & B', weddingDate: '2026-12-01', side: 'bride', displayName: 'Asha' })).toBeNull()
+    expect(validateWeddingSetup({ coupleNames: '', weddingDate: '', city: '', side: '', displayName: '' })).toMatch(/name/i)
+    expect(validateWeddingSetup({ coupleNames: 'A & B', weddingDate: '2026-12-01', city: 'Pune', side: 'bride', displayName: 'Asha' })).toBeNull()
   })
 
   it('checks email and password length', () => {

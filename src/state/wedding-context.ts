@@ -3,12 +3,15 @@ import type {
   BudgetDraft,
   CreateWeddingInput,
   GuestDraft,
+  InviteRole,
   Milestone,
   MilestoneDraft,
   PartPaymentDraft,
+  Side,
   Task,
   TaskDraft,
   WeddingBundle,
+  WeddingInvite,
   WeddingSettings,
 } from '../types.ts'
 
@@ -18,12 +21,14 @@ export type WeddingContextValue = {
   ready: boolean
   mode: WeddingMode
   bundle: WeddingBundle | null
+  canEdit: boolean
   notice: string | null
   error: string | null
   clearNotice: () => void
   clearError: () => void
   reload: () => void
   startPreview: () => void
+  leavePreview: () => void
   createWedding: (input: CreateWeddingInput) => Promise<void>
   updateSettings: (settings: WeddingSettings) => Promise<void>
   saveTask: (draft: TaskDraft, id?: string) => Promise<void>
@@ -38,6 +43,9 @@ export type WeddingContextValue = {
   saveMilestone: (draft: MilestoneDraft, id?: string) => Promise<void>
   deleteMilestone: (id: string) => Promise<void>
   toggleMilestone: (milestone: Milestone) => Promise<void>
+  createInvite: (role: InviteRole, side: Side) => Promise<WeddingInvite>
+  listInvites: () => Promise<WeddingInvite[]>
+  acceptInvite: (code: string) => Promise<void>
 }
 
 export const WeddingContext = createContext<WeddingContextValue | null>(null)

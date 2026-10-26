@@ -5,13 +5,14 @@ import { formatDate } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
+import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
 import type { Milestone, MilestoneDraft, MilestoneStatus } from '../../types.ts'
 import { MILESTONE_STATUSES } from '../../types.ts'
 
 const emptyForm = (): MilestoneDraft => ({ name: '', date: '', status: 'Upcoming', description: '' })
 
 export function TimelineTab() {
-  const { bundle, saveMilestone, deleteMilestone, toggleMilestone } = useWedding()
+  const { bundle, canEdit, saveMilestone, deleteMilestone, toggleMilestone } = useWedding()
   const milestones = bundle?.milestones ?? []
   const [modalOpen, setModalOpen] = useState(false)
   const [editMilestone, setEditMilestone] = useState<Milestone | null>(null)
@@ -50,8 +51,8 @@ export function TimelineTab() {
   }
 
   return (
-    <div style={{ paddingBottom: 100 }}>
-      <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: '52px 20px 20px' }}>
+    <div style={{ paddingBottom: screenBottom }}>
+      <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>📅 Wedding Timeline</div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{sorted.filter((milestone) => milestone.status === 'Completed').length}/{sorted.length} milestones completed</div>
       </div>
@@ -94,7 +95,7 @@ export function TimelineTab() {
         )}
       </div>
       {error && !modalOpen && <p style={{ padding: '0 20px 12px', color: COLORS.crimson, fontSize: 13 }}>{error}</p>}
-      <FAB onClick={openAdd} />
+      {canEdit && <FAB onClick={openAdd} />}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editMilestone ? 'Edit Milestone' : 'New Milestone'} headerColor="linear-gradient(135deg,#1A4060,#0D2A40)">
         <FormError message={error} />
         <Field label="Milestone Name *">

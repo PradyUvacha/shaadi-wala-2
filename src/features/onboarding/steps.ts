@@ -1,7 +1,8 @@
-/** Later PR: a guided first-run wizard. The setup screen already covers these in one step. */
+/** First-run wizard. Creating the wedding from the last step seeds the chosen ceremonies. */
 export const ONBOARDING_STEPS = [
-  { id: 'account', title: 'Create your account' },
-  { id: 'wedding', title: 'Name the couple and pick the date' },
-  { id: 'side', title: 'Choose your side of the family' },
-  { id: 'checklist', title: 'Start from the Hindu ritual checklist' },
+  { id: 'names', title: 'Your name and the couple' },
+  { id: 'date', title: 'Wedding date' },
+  { id: 'city', title: 'City' },
+  { id: 'side', title: 'Which side you are on' },
+  { id: 'ceremonies', title: 'Pick the ceremonies' },
 ] as const

@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { toErrorMessage } from '../../lib/errors.ts'
+import { guestHeadcount } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
+import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
 import type { Guest, GuestDraft, GuestSide, RsvpStatus } from '../../types.ts'
 import { MEALS, RSVP_STATUSES } from '../../types.ts'
 
@@ -20,7 +22,7 @@ const emptyForm = (): GuestDraft => ({
 const statusColors: Record<string, string> = { Confirmed: COLORS.green, Pending: COLORS.saffron, Declined: '#CC4444' }
 
 export function GuestsTab() {
-  const { bundle, saveGuest, deleteGuest } = useWedding()
+  const { bundle, canEdit, saveGuest, deleteGuest } = useWedding()
   const guests = bundle?.guests ?? []
   const [modalOpen, setModalOpen] = useState(false)
   const [editGuest, setEditGuest] = useState<Guest | null>(null)
@@ -58,8 +60,8 @@ export function GuestsTab() {
   }
 
   return (
-    <div style={{ paddingBottom: 100 }}>
-      <div style={{ background: `linear-gradient(135deg,#4A1060,${COLORS.crimson})`, padding: '52px 20px 20px' }}>
+    <div style={{ paddingBottom: screenBottom }}>
+      <div style={{ background: `linear-gradient(135deg,#4A1060,${COLORS.crimson})`, padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 12 }}>👥 Guest List</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
           {[
@@ -75,6 +77,7 @@ export function GuestsTab() {
           ))}
         </div>
       </div>
+      <Headcount guests={guests} />
       <div style={{ padding: '14px 16px' }}>
         {guests.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>
@@ -107,7 +110,7 @@ export function GuestsTab() {
           ))
         )}
       </div>
-      <FAB onClick={openAdd} />
+      {canEdit && <FAB onClick={openAdd} />}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editGuest ? 'Edit Guest' : 'New Guest'}>
         <FormError message={error} />
         <Field label="Name *">
@@ -146,6 +149,27 @@ export function GuestsTab() {
           {busy ? 'Saving…' : editGuest ? 'Save Changes' : 'Add Guest'}
         </button>
       </Modal>
+    </div>
+  )
+}
+
+function Headcount({ guests }: { guests: Guest[] }) {
+  const counts = guestHeadcount(guests)
+  const rows = [
+    ['Bride\'s side', counts.bride],
+    ['Groom\'s side', counts.groom],
+    ['Both', counts.both],
+  ] as const
+  return (
+    <div style={{ margin: '14px 16px 0', background: '#fff', border: '1px solid #E8D4B0', borderRadius: 16, padding: 14 }}>
+      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.crimson }}>Headcount by side</div>
+      <p style={{ margin: '4px 0 10px', fontSize: 13, color: '#5A2020' }}>{counts.confirmedPeople} people confirmed, including plus-ones.</p>
+      {rows.map(([label, side]) => (
+        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderTop: '1px solid #F0E0CC' }}>
+          <span>{label}</span>
+          <span>{side.confirmed} confirmed · {side.pending} pending · {side.declined} declined</span>
+        </div>
+      ))}
     </div>
   )
 }

@@ -6,9 +6,14 @@ export const MILESTONE_STATUSES = ['Upcoming', 'Completed'] as const
 export const MEALS = ['', 'Vegetarian', 'Non-Vegetarian', 'Jain', 'Vegan'] as const
 export const CURRENCY_CODES = ['INR', 'USD', 'EUR', 'GBP'] as const
 export const PAYERS = ['bride', 'groom', 'both', 'custom'] as const
+export const CEREMONIES = ['Roka', 'Sagai', 'Haldi', 'Mehendi', 'Sangeet', 'Wedding', 'Vidaai', 'Reception'] as const
+export const MEMBER_ROLES = ['owner', 'editor', 'viewer'] as const
+export const INVITE_ROLES = ['editor', 'viewer'] as const
 export const TEMPLATE_SLUG = 'hindu-starter'
 
 export type Category = (typeof CATEGORIES)[number]
+export type Ceremony = (typeof CEREMONIES)[number]
+export type InviteRole = (typeof INVITE_ROLES)[number]
 export type Priority = (typeof PRIORITIES)[number]
 export type TaskStatus = (typeof TASK_STATUSES)[number]
 export type RsvpStatus = (typeof RSVP_STATUSES)[number]
@@ -18,13 +23,14 @@ export type Payer = (typeof PAYERS)[number]
 export type Side = 'bride' | 'groom'
 export type GuestSide = '' | Side | 'both'
 export type PaymentSide = '' | 'bride' | 'groom' | 'other'
-export type MemberRole = 'owner' | 'partner' | 'family'
+export type MemberRole = (typeof MEMBER_ROLES)[number]
 
 export type TemplateTask = {
   title: string
   description: string
   category: Category
   priority: Priority
+  ceremony: Ceremony
   sortOrder: number
 }
 
@@ -33,6 +39,7 @@ export type TaskDraft = {
   description: string
   category: Category
   priority: Priority
+  ceremony: Ceremony
   status: TaskStatus
   dueDate: string
   templateTitle?: string | null
@@ -44,6 +51,7 @@ export type Task = {
   description: string
   category: Category
   priority: Priority
+  ceremony: Ceremony
   status: TaskStatus
   dueDate: string
   templateTitle: string | null
@@ -117,6 +125,7 @@ export type Milestone = MilestoneDraft & { id: string }
 export type WeddingSettings = {
   coupleNames: string
   weddingDate: string
+  city: string
   side: Side
   displayName: string
 }
@@ -126,6 +135,7 @@ export type WeddingBundle = {
     id: string
     coupleNames: string
     weddingDate: string
+    city: string
   }
   membership: {
     id: string
@@ -142,4 +152,14 @@ export type WeddingBundle = {
 
 export type CreateWeddingInput = WeddingSettings & {
   seed: 'template' | 'demo' | 'empty'
+  ceremonies: Ceremony[]
+}
+
+export type WeddingInvite = {
+  id: string
+  code: string
+  role: InviteRole
+  side: Side
+  expiresAt: string | null
+  acceptedAt: string | null
 }

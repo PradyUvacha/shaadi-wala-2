@@ -1,5 +1,5 @@
-import type { BudgetItem, Guest, Milestone, PartPayment, Split, Task } from '../types.ts'
-import { CATEGORIES, CURRENCY_CODES, PAYERS, PRIORITIES, RSVP_STATUSES, TASK_STATUSES, MILESTONE_STATUSES } from '../types.ts'
+import type { BudgetItem, Guest, MemberRole, Milestone, PartPayment, Split, Task } from '../types.ts'
+import { CATEGORIES, CEREMONIES, CURRENCY_CODES, MEMBER_ROLES, PAYERS, PRIORITIES, RSVP_STATUSES, TASK_STATUSES, MILESTONE_STATUSES } from '../types.ts'
 
 export function one<T>(value: T | T[] | null | undefined): T | null {
   if (value == null) return null
@@ -13,6 +13,7 @@ export function mapTask(row: Record<string, unknown>): Task {
     description: String(row.description ?? ''),
     category: asOneOf(row.category, CATEGORIES, 'Other'),
     priority: asOneOf(row.priority, PRIORITIES, 'Medium'),
+    ceremony: asOneOf(row.ceremony, CEREMONIES, 'Wedding'),
     status: asOneOf(row.status, TASK_STATUSES, 'Pending'),
     dueDate: row.due_date ? String(row.due_date) : '',
     templateTitle: row.template_title ? String(row.template_title) : null,
@@ -88,6 +89,12 @@ export function mapPayment(row: Record<string, unknown>): PartPayment {
 export function asRecord(value: unknown): Record<string, unknown> {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
   return {}
+}
+
+export function mapMemberRole(value: unknown): MemberRole {
+  if (value === 'editor' || value === 'partner') return 'editor'
+  if (value === 'viewer' || value === 'family') return 'viewer'
+  return asOneOf(value, MEMBER_ROLES, 'owner')
 }
 
 function asOneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {

@@ -3,8 +3,9 @@ import { describe, expect, it } from 'vitest'
 import { HINDU_CHECKLIST } from '../src/data/hinduChecklist.ts'
 import { isValidVersionCode, isValidVersionName } from '../src/config/version.ts'
 import { ONBOARDING_STEPS } from '../src/features/onboarding/steps.ts'
-import { deleteAccount } from '../src/features/account/deleteAccount.ts'
-import { acceptInvite } from '../src/features/invites/acceptInvite.ts'
+import { readdirSync } from 'node:fs'
+import { DELETE_ACCOUNT_URL, PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../src/lib/legal.ts'
+import { isInviteCode, normalizeInviteCode } from '../src/features/invites/code.ts'
 
 const appConfig = JSON.parse(readFileSync(new URL('../app.config.json', import.meta.url), 'utf8')) as {
   appId: string
@@ -57,24 +58,66 @@ describe('app.config.json', () => {
 
 describe('starter checklist migration', () => {
   it('seeds every Hindu checklist title', () => {
-    const sql = readFileSync(new URL('../supabase/migrations/20261024180000_init.sql', import.meta.url), 'utf8')
+    const directory = new URL('../supabase/migrations/', import.meta.url)
+    const sql = readdirSync(directory)
+      .filter((name) => name.endsWith('.sql'))
+      .map((name) => readFileSync(new URL(name, directory), 'utf8'))
+      .join('\n')
     expect(sql).toContain('hindu-starter')
     expect(sql).toContain('enable row level security')
     expect(sql).toContain('create_wedding')
+    expect(sql).toContain('can_edit_wedding')
+    expect(sql).toContain("'viewer'")
+    expect(sql).toContain('accept_invite')
     for (const item of HINDU_CHECKLIST) {
       expect(sql).toContain(item.title.replaceAll("'", "''"))
     }
   })
 })
 
-describe('later product seams', () => {
-  it('lists the onboarding steps without building the wizard yet', () => {
-    expect(ONBOARDING_STEPS.map((step) => step.id)).toEqual(['account', 'wedding', 'side', 'checklist'])
+describe('v1 product paths', () => {
+  it('walks Profile, Settings, then Delete account', () => {
+    expect(ONBOARDING_STEPS.map((step) => step.id)).toEqual(['names', 'date', 'city', 'side', 'ceremonies'])
+    const settings = readFileSync(new URL('../src/features/account/SettingsScreen.tsx', import.meta.url), 'utf8')
+    const profile = readFileSync(new URL('../src/features/account/ProfileScreen.tsx', import.meta.url), 'utf8')
+    const deletion = readFileSync(new URL('../src/features/account/DeleteAccountScreen.tsx', import.meta.url), 'utf8')
+    expect(profile).toContain('>Profile<')
+    expect(profile).toContain('Settings')
+    expect(settings).toContain('>Settings<')
+    expect(settings).toContain('Delete account')
+    expect(settings).toContain('/profile/settings/delete-account')
+    expect(deletion).toContain('Type DELETE to confirm')
+    expect(deletion).toContain('DELETE_ACCOUNT_URL')
+    expect(DELETE_ACCOUNT_URL).toBe('https://shaadi-wala.in/delete-account/')
+    expect(PRIVACY_POLICY_URL).toBe('https://shaadi-wala.in/privacy-policy/')
+    expect(TERMS_OF_SERVICE_URL).toBe('https://shaadi-wala.in/terms-of-service/')
+    expect(settings).toContain('PRIVACY_POLICY_URL')
+    expect(settings).toContain('TERMS_OF_SERVICE_URL')
   })
 
-  it('reserves account deletion and invite acceptance', async () => {
-    await expect(deleteAccount()).rejects.toThrow(/not available/i)
-    await expect(acceptInvite('token')).rejects.toThrow(/not available/i)
-    await expect(acceptInvite('  ')).rejects.toThrow(/missing/i)
+  it('names the privacy-policy analytics events', () => {
+    const source = readFileSync(new URL('../src/lib/analytics.ts', import.meta.url), 'utf8')
+    for (const event of ['sign_up', 'wedding_created', 'onboarding_completed', 'invite_sent', 'invite_accepted', 'first_task_added', 'first_guest_added', 'first_budget_item_added', 'app_open']) {
+      expect(source).toContain(`'${event}'`)
+    }
+    expect(source).toContain('analyticsEnabled')
+  })
+
+  it('uses a 6-digit invite code', () => {
+    expect(normalizeInviteCode('12-34 56 extra')).toBe('123456')
+    expect(isInviteCode('123456')).toBe(true)
+    expect(isInviteCode('12345')).toBe(false)
+  })
+
+  it('keeps Android target SDK 36 and pads for edge-to-edge safe areas', () => {
+    const gradle = readFileSync(new URL('../android/variables.gradle', import.meta.url), 'utf8')
+    expect(gradle).toContain('targetSdkVersion = 36')
+    const css = readFileSync(new URL('../src/index.css', import.meta.url), 'utf8')
+    expect(css).toContain('--safe-area-inset-top')
+    expect(css).toContain('--safe-area-inset-bottom')
+    const theme = readFileSync(new URL('../android/app/src/main/res/values/styles.xml', import.meta.url), 'utf8')
+    expect(theme).toContain('android:windowLayoutInDisplayCutoutMode')
+    const routes = readFileSync(new URL('../src/app/routes.tsx', import.meta.url), 'utf8')
+    expect(routes).toContain('lazy(')
   })
 })

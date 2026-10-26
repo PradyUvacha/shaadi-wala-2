@@ -14,7 +14,7 @@ export function BottomNav() {
   const { bundle } = useWedding()
   const pending = bundle?.tasks.filter((task) => task.status === 'Pending').length ?? 0
   return (
-    <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTop: '1px solid #E8D4B0', display: 'flex', justifyContent: 'space-around', padding: '8px 0 calc(8px + env(safe-area-inset-bottom))', zIndex: 200, boxShadow: '0 -4px 20px rgba(139,0,0,0.1)' }}>
+    <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, background: '#fff', borderTop: '1px solid #E8D4B0', display: 'flex', justifyContent: 'space-around', padding: '8px var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) calc(8px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))) var(--safe-area-inset-left, env(safe-area-inset-left, 0px))', zIndex: 200, boxShadow: '0 -4px 20px rgba(139,0,0,0.1)' }}>
       {tabs.map((tab) => (
         <NavLink key={tab.to} to={tab.to} end={tab.end} style={{ textDecoration: 'none' }}>
           {({ isActive }) => (

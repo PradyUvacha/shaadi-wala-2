@@ -6,18 +6,21 @@ import type {
   BudgetItem,
   CreateWeddingInput,
   GuestDraft,
+  InviteRole,
   MilestoneDraft,
   PartPaymentDraft,
+  Side,
   Task,
   TaskDraft,
   TemplateTask,
   WeddingBundle,
+  WeddingInvite,
   WeddingSettings,
 } from '../types.ts'
 import { TEMPLATE_SLUG } from '../types.ts'
 import { assertNoError } from './errors.ts'
-import { asRecord, mapBudgetItem, mapGuest, mapMilestone, mapTask, one } from './mappers.ts'
-import { templateToDrafts } from './planning.ts'
+import { asRecord, mapBudgetItem, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
+import { ritualsForCeremonies, templateToDrafts } from './planning.ts'
 import {
   budgetInsert,
   guestInsert,
@@ -50,12 +53,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     saveMilestone,
     deleteMilestone,
     loadTemplate,
+    createInvite,
+    listInvites,
+    acceptInvite,
   }
 
   async function getMine(): Promise<WeddingBundle | null> {
     const { data, error } = await client
       .from('wedding_members')
-      .select('id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, created_at)')
+      .select('id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, city, created_at)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -77,12 +83,13 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const profileName = profile ? String(profile) : ''
     const displayName = profileName || membershipName || user.email?.split('@')[0] || 'there'
     const side = member.side === 'groom' ? 'groom' : 'bride'
-    const role = member.role === 'partner' || member.role === 'family' ? member.role : 'owner'
+    const role = mapMemberRole(member.role)
     return {
       wedding: {
         id: weddingId,
         coupleNames: String(wedding.couple_names ?? ''),
         weddingDate: String(wedding.wedding_date ?? ''),
+        city: String(wedding.city ?? ''),
       },
       membership: {
         id: String(member.id),
@@ -104,12 +111,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       p_wedding_date: input.weddingDate,
       p_side: input.side,
       p_display_name: input.displayName.trim(),
+      p_city: input.city.trim(),
     })
     assertNoError(error)
     const weddingId = String(data)
     let notice: string | null = null
     try {
-      if (input.seed === 'template') await addTasks(weddingId, templateToDrafts(HINDU_CHECKLIST))
+      if (input.seed === 'template') {
+        await addTasks(weddingId, templateToDrafts(ritualsForCeremonies(HINDU_CHECKLIST, input.ceremonies)))
+      }
       if (input.seed === 'demo') await seedDemo(weddingId)
     } catch (seedError) {
       notice =
@@ -125,7 +135,11 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function updateSettings(current: WeddingBundle, settings: WeddingSettings): Promise<void> {
     const weddingUpdate = await client
       .from('weddings')
-      .update({ couple_names: settings.coupleNames.trim(), wedding_date: settings.weddingDate })
+      .update({
+        couple_names: settings.coupleNames.trim(),
+        wedding_date: settings.weddingDate,
+        city: settings.city.trim(),
+      })
       .eq('id', current.wedding.id)
     assertNoError(weddingUpdate.error)
     const memberUpdate = await client
@@ -234,7 +248,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function loadTemplate(): Promise<TemplateTask[]> {
     const { data, error } = await client
       .from('ritual_template_items')
-      .select('title, description, category, priority, sort_order')
+      .select('title, description, category, priority, ceremony, sort_order')
       .eq('template_slug', TEMPLATE_SLUG)
       .order('sort_order')
     if (error || !data || data.length === 0) return HINDU_CHECKLIST
@@ -245,6 +259,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         description: row.description,
         category: row.category,
         priority: row.priority,
+        ceremony: row.ceremony,
         status: 'Pending',
         due_date: null,
         template_title: row.title,
@@ -255,9 +270,55 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         description: task.description,
         category: task.category,
         priority: task.priority,
+        ceremony: task.ceremony,
         sortOrder: task.sortOrder,
       }
     })
+  }
+
+  async function createInvite(weddingId: string, role: InviteRole, side: Side): Promise<WeddingInvite> {
+    const { data, error } = await client.rpc('create_invite', {
+      p_wedding_id: weddingId,
+      p_role: role,
+      p_side: side,
+    })
+    assertNoError(error)
+    const code = String(data ?? '')
+    return {
+      id: code,
+      code,
+      role,
+      side,
+      expiresAt: null,
+      acceptedAt: null,
+    }
+  }
+
+  async function listInvites(weddingId: string): Promise<WeddingInvite[]> {
+    const { data, error } = await client
+      .from('wedding_invites')
+      .select('id, token, role, side, expires_at, accepted_at')
+      .eq('wedding_id', weddingId)
+      .order('created_at', { ascending: false })
+    assertNoError(error)
+    return (data ?? []).map((row) => {
+      const record = asRecord(row)
+      const role = record.role === 'viewer' ? 'viewer' : 'editor'
+      return {
+        id: String(record.id),
+        code: String(record.token ?? ''),
+        role,
+        side: record.side === 'groom' ? 'groom' : 'bride',
+        expiresAt: record.expires_at ? String(record.expires_at) : null,
+        acceptedAt: record.accepted_at ? String(record.accepted_at) : null,
+      }
+    })
+  }
+
+  async function acceptInvite(code: string): Promise<string> {
+    const { data, error } = await client.rpc('accept_invite', { p_token: code.trim() })
+    assertNoError(error)
+    return String(data)
   }
 
   async function seedDemo(weddingId: string): Promise<void> {

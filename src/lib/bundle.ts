@@ -1,4 +1,4 @@
-import { DEMO_BUDGET, DEMO_COUPLE_NAMES, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS, DEMO_WEDDING_DATE } from '../data/demoData.ts'
+import { DEMO_BUDGET, DEMO_CITY, DEMO_COUPLE_NAMES, DEMO_GUESTS, DEMO_MILESTONES, DEMO_TASKS, DEMO_WEDDING_DATE } from '../data/demoData.ts'
 import type {
   BudgetDraft,
   BudgetItem,
@@ -25,6 +25,7 @@ export function uid(): string {
 function blankBundle(input: {
   coupleNames: string
   weddingDate: string
+  city?: string
   side: Side
   displayName: string
 }): WeddingBundle {
@@ -34,6 +35,7 @@ function blankBundle(input: {
       id: uid(),
       coupleNames: input.coupleNames.trim(),
       weddingDate: input.weddingDate,
+      city: input.city?.trim() ?? '',
     },
     membership: {
       id: uid(),
@@ -52,6 +54,7 @@ function blankBundle(input: {
 export function createWeddingBundle(input: {
   coupleNames: string
   weddingDate: string
+  city?: string
   side: Side
   displayName: string
   tasks?: TaskDraft[]
@@ -71,6 +74,7 @@ export function createDemoBundle(input: { side: Side; displayName: string }): We
   return createWeddingBundle({
     coupleNames: DEMO_COUPLE_NAMES,
     weddingDate: DEMO_WEDDING_DATE,
+    city: DEMO_CITY,
     side: input.side,
     displayName: input.displayName,
     tasks: DEMO_TASKS,
@@ -90,6 +94,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
       description: draft.description.trim(),
       category: draft.category,
       priority: draft.priority,
+      ceremony: draft.ceremony,
       status: draft.status,
       dueDate: draft.dueDate,
     }
@@ -102,6 +107,7 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
     description: draft.description.trim(),
     category: draft.category,
     priority: draft.priority,
+    ceremony: draft.ceremony,
     status: draft.status,
     dueDate: draft.dueDate,
     templateTitle: draft.templateTitle ?? null,
@@ -239,6 +245,7 @@ export function updateBundleSettings(bundle: WeddingBundle, settings: WeddingSet
       ...bundle.wedding,
       coupleNames: settings.coupleNames.trim(),
       weddingDate: settings.weddingDate,
+      city: settings.city.trim(),
     },
     membership: {
       ...bundle.membership,

@@ -15,7 +15,7 @@ export function AppShell() {
   }, [location.pathname])
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', height: '100dvh', background: COLORS.ivory, position: 'relative' }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', height: '100dvh', background: COLORS.ivory, position: 'relative', paddingLeft: 'var(--safe-area-inset-left, env(safe-area-inset-left, 0px))', paddingRight: 'var(--safe-area-inset-right, env(safe-area-inset-right, 0px))' }}>
       <div ref={scroller} style={{ overflowY: 'auto', height: '100%' }}>
         {mode === 'preview' && (
           <button type="button" onClick={() => navigate('/auth')} style={{ width: '100%', border: 'none', background: COLORS.gold, color: '#3C1515', fontSize: 12, fontWeight: 700, padding: '8px 12px', cursor: 'pointer' }}>

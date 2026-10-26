@@ -4,6 +4,7 @@ import { MehendiPattern } from '../../components/ui.tsx'
 import { isSupabaseConfigured } from '../../lib/supabase.ts'
 import { signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../lib/auth.ts'
 import { track } from '../../lib/analytics.ts'
+import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../lib/legal.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
 import { validateAuth } from '../../lib/planning.ts'
 import { useWedding } from '../../state/wedding-context.ts'
@@ -32,14 +33,13 @@ export function AuthScreen() {
     try {
       if (mode === 'sign-up') {
         const result = await signUpWithEmail(email, password, displayName)
-        track('auth_sign_up')
+        track('sign_up')
         if (result === 'confirm-email') {
           setInfo('Check your email to confirm the account, then sign in.')
           setMode('sign-in')
         }
       } else {
         await signInWithEmail(email, password)
-        track('auth_sign_in')
       }
     } catch (caught) {
       setError(toErrorMessage(caught))
@@ -53,7 +53,6 @@ export function AuthScreen() {
     setError(null)
     try {
       await signInWithGoogle()
-      track('auth_sign_in')
     } catch (caught) {
       setError(toErrorMessage(caught))
       setBusy(false)
@@ -89,7 +88,7 @@ export function AuthScreen() {
             ))}
           </div>
           {mode === 'sign-up' && (
-            <AuthField label="Your name" value={displayName} onChange={setDisplayName} placeholder="Prathamesh" />
+            <AuthField label="Your name" value={displayName} onChange={setDisplayName} placeholder="Your name" />
           )}
           <AuthField label="Email" value={email} onChange={setEmail} placeholder="you@email.com" type="email" />
           <AuthField label="Password" value={password} onChange={setPassword} placeholder="At least 6 characters" type="password" />
@@ -104,6 +103,11 @@ export function AuthScreen() {
           <button type="button" onClick={preview} style={{ width: '100%', marginTop: 10, padding: 12, borderRadius: 14, background: 'transparent', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
             🔍 Preview the demo on this device
           </button>
+          <p style={{ margin: '14px 0 0', fontSize: 12, lineHeight: 1.5, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>
+            <a href={TERMS_OF_SERVICE_URL} target="_blank" rel="noreferrer" style={{ color: COLORS.lightGold }}>Terms of Service</a>
+            {' · '}
+            <a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer" style={{ color: COLORS.lightGold }}>Privacy Policy</a>
+          </p>
         </div>
       </div>
     </div>

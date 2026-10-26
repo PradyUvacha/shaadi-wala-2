@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "cap:sync": "npm run build && cap sync android",
     "android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
-    "android:release": "npm run cap:sync && cd android && ./gradlew bundleRelease"
+    "android:release": "npm run cap:sync && cd android && ./gradlew bundleRelease",
+    "keystore:upload": "bash scripts/generate-keystore.sh"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.2",
@@ -24,6 +25,7 @@
     "@capacitor/splash-screen": "^8.0.2",
     "@capacitor/status-bar": "^8.0.4",
     "@supabase/supabase-js": "^2.118.0",
+    "posthog-js": "^1.364.2",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-router-dom": "^7.18.4"
