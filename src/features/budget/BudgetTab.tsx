@@ -149,7 +149,7 @@ export function BudgetTab() {
           <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 12 }}>💰 Budget Planner</div>
           <div style={{ display: 'flex', gap: 10, overflowX: 'auto' }}>
             {['All', ...CURRENCY_CODES].map((code) => (
-              <button key={code} type="button" onClick={() => setCurrFilter(code)} style={{ padding: '5px 14px', borderRadius: 99, border: `1px solid ${currFilter === code ? '#fff' : 'rgba(255,255,255,0.4)'}`, background: currFilter === code ? 'rgba(255,255,255,0.25)' : 'transparent', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+              <button key={code} type="button" onClick={() => setCurrFilter(code)} style={{ padding: '5px 14px', borderRadius: 99, border: `1px solid ${currFilter === code ? '#fff' : 'rgba(255,255,255,0.4)'}`, background: currFilter === code ? 'rgba(255,255,255,0.25)' : 'transparent', color: '#fff', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
                 {code === 'All' ? 'All' : `${CURRENCIES[code]?.symbol || code} ${code}`}
               </button>
             ))}
@@ -233,7 +233,7 @@ export function BudgetTab() {
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {logPayment && <button type="button" onClick={() => { setError(null); setPayItemId(item.id) }} style={{ flex: 1, padding: 8, borderRadius: 10, border: `1px solid ${COLORS.green}`, background: 'transparent', color: COLORS.green, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Payment</button>}
+                  {logPayment && <button type="button" onClick={() => { setError(null); setPayItemId(item.id) }} style={{ flex: 1, padding: 8, borderRadius: 10, border: `1px solid ${COLORS.green}`, background: 'transparent', color: COLORS.green, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>+ Payment</button>}
                   {editBudget && <button type="button" aria-label="Edit budget item" onClick={() => openEdit(item)} style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${COLORS.gold}`, background: 'transparent', color: COLORS.gold, cursor: 'pointer' }}>✏️</button>}
                   {editBudget && <button type="button" aria-label="Delete budget item" onClick={() => void deleteBudgetItem(item.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #CC4444', background: 'transparent', color: '#CC4444', cursor: 'pointer' }}>🗑️</button>}
                 </div>
@@ -332,9 +332,9 @@ export function BudgetTab() {
         <Field label="Notes">
           <textarea style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Notes..." />
         </Field>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-          <input type="checkbox" id="paid" checked={form.paid} onChange={(event) => setForm((current) => ({ ...current, paid: event.target.checked }))} style={{ width: 18, height: 18, accentColor: COLORS.crimson }} />
-          <label htmlFor="paid" style={{ fontSize: 13, color: '#5A2020', fontWeight: 600 }}>Mark as Paid</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, minHeight: 44 }}>
+          <input type="checkbox" id="paid" checked={form.paid} onChange={(event) => setForm((current) => ({ ...current, paid: event.target.checked }))} style={{ width: 22, height: 22, accentColor: COLORS.crimson }} />
+          <label htmlFor="paid" style={{ fontSize: 16, color: '#5A2020', fontWeight: 600 }}>Mark as Paid</label>
         </div>
         <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
           {busy ? 'Saving…' : editItem ? 'Save Changes' : 'Add Item'}

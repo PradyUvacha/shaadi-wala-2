@@ -32,7 +32,7 @@ export function primaryButton(background: string): CSSProperties {
     background,
     border: 'none',
     color: '#fff',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 600,
     cursor: 'pointer',
   }

@@ -42,7 +42,7 @@ export function HomeTab() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <div style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '5px 12px', fontSize: 12, color: '#FFD88B', fontWeight: 600 }}>👑 Level {level}</div>
-              <button type="button" onClick={() => navigate('/profile')} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '8px 12px', fontSize: 12, color: '#fff', fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>
+              <button type="button" onClick={() => navigate('/profile')} style={{ background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 20, padding: '8px 12px', fontSize: 16, color: '#fff', fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>
                 Profile
               </button>
             </div>
@@ -71,7 +71,7 @@ export function HomeTab() {
 
       <div style={{ margin: '0 16px 16px', background: COLORS.cardBg, borderRadius: 16, padding: 18, border: `1px solid ${COLORS.parchment}`, boxShadow: '0 2px 12px rgba(139,0,0,0.07)' }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 700, color: COLORS.crimson, marginBottom: 16 }}>🎯 Your Wedding Progress</div>
-        <div style={{ display: 'flex', justifyContent: 'space-around' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, minWidth: 0 }}>
           <ProgressRing pct={taskPct} label="Tasks" sublabel={`${completedTasks}/${tasks.length} done`} color={COLORS.crimson} onClick={() => navigate('/tasks')} />
           <ProgressRing pct={budgetPct} label="Budget" sublabel={`${formatInrCompact(actual)} spent`} color={COLORS.gold} onClick={() => navigate('/budget')} />
           <ProgressRing pct={guestPct} label="RSVPs" sublabel={`${confirmedGuests}/${guests.length} confirmed`} color={COLORS.green} onClick={() => navigate('/guests')} />
@@ -113,7 +113,7 @@ export function HomeTab() {
         <div style={{ margin: '0 16px 16px', background: COLORS.cardBg, borderRadius: 16, padding: 18, border: `1px solid ${COLORS.parchment}` }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 700, color: COLORS.crimson }}>🔥 Priority Tasks</div>
-            <button type="button" onClick={() => navigate('/tasks')} style={{ background: 'none', border: 'none', color: COLORS.gold, fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+            <button type="button" onClick={() => navigate('/tasks')} style={{ background: 'none', border: 'none', color: COLORS.gold, fontSize: 16, cursor: 'pointer', fontWeight: 600 }}>
               View All →
             </button>
           </div>

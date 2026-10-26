@@ -78,7 +78,7 @@ export function TimelineTab() {
             return (
               <div key={milestone.id} style={{ display: 'flex', gap: 16, animation: 'fadeIn 0.3s ease' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <button type="button" aria-label={done ? 'Mark upcoming' : 'Mark completed'} onClick={() => void toggleMilestone(milestone).catch((caught) => setError(toErrorMessage(caught)))} style={{ width: 32, height: 32, borderRadius: '50%', border: `2px solid ${done ? COLORS.green : COLORS.gold}`, background: done ? COLORS.green : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <button type="button" aria-label={done ? 'Mark upcoming' : 'Mark completed'} onClick={() => void toggleMilestone(milestone).catch((caught) => setError(toErrorMessage(caught)))} style={{ width: 44, height: 44, borderRadius: '50%', border: `2px solid ${done ? COLORS.green : COLORS.gold}`, background: done ? COLORS.green : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {done ? <span style={{ color: '#fff', fontSize: 14 }}>✓</span> : <span style={{ width: 10, height: 10, borderRadius: '50%', background: COLORS.gold, display: 'block' }} />}
                   </button>
                   {index < sorted.length - 1 && <div style={{ width: 2, flex: 1, minHeight: 32, background: done ? `${COLORS.green}40` : '#E8D4B0', margin: '4px 0' }} />}
@@ -93,8 +93,8 @@ export function TimelineTab() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                       <Badge color={done ? COLORS.green : COLORS.gold} small>{done ? 'Completed' : 'Upcoming'}</Badge>
                       <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-                        <button type="button" aria-label="Edit milestone" onClick={() => openEdit(milestone)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: COLORS.gold }}>✏️</button>
-                        <button type="button" aria-label="Delete milestone" onClick={() => void deleteMilestone(milestone.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: '#CC4444' }}>🗑️</button>
+                        <button type="button" aria-label="Edit milestone" onClick={() => openEdit(milestone)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: COLORS.gold }}>✏️</button>
+                        <button type="button" aria-label="Delete milestone" onClick={() => void deleteMilestone(milestone.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#CC4444' }}>🗑️</button>
                       </div>
                     </div>
                   </div>

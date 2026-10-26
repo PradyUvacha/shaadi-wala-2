@@ -67,9 +67,9 @@ export function AuthScreen() {
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 50%,${COLORS.saffron}44 100%)`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative', overflow: 'hidden' }}>
+    <div className="page-fill" style={{ background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 50%,#C4481A 100%)`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', position: 'relative', overflow: 'hidden' }}>
       <MehendiPattern />
-      <div style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 400, animation: 'fadeIn 0.6s ease' }}>
+      <div className="desktop-column" style={{ position: 'relative', zIndex: 1, animation: 'fadeIn 0.6s ease' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <div style={{ fontSize: 52, marginBottom: 12 }}>💍</div>
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32, color: '#fff', fontWeight: 900, margin: '0 0 8px' }}>Shaadi Wala</h1>
@@ -99,10 +99,10 @@ export function AuthScreen() {
           <button type="button" disabled={busy} onClick={() => void submit()} style={{ width: '100%', padding: 14, borderRadius: 14, background: `linear-gradient(135deg,${COLORS.gold},${COLORS.saffron})`, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(201,168,76,0.5)' }}>
             {busy ? 'Please wait…' : mode === 'sign-up' ? '🎉 Create account' : 'Sign in'}
           </button>
-          <button type="button" disabled={busy} onClick={() => void google()} style={{ width: '100%', marginTop: 10, padding: 12, borderRadius: 14, background: '#fff', border: 'none', color: '#3C1515', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+          <button type="button" disabled={busy} onClick={() => void google()} style={{ width: '100%', marginTop: 10, padding: 12, borderRadius: 14, background: '#fff', border: 'none', color: '#3C1515', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
             Continue with Google
           </button>
-          <button type="button" onClick={preview} style={{ width: '100%', marginTop: 10, padding: 12, borderRadius: 14, background: 'transparent', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={preview} style={{ width: '100%', marginTop: 10, padding: 12, borderRadius: 14, background: 'transparent', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
             🔍 Preview the demo on this device
           </button>
           <p style={{ margin: '14px 0 0', fontSize: 12, lineHeight: 1.5, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>
@@ -132,7 +132,7 @@ function AuthField({
   return (
     <div style={{ marginBottom: 14 }}>
       <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: COLORS.lightGold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</label>
-      <input className="auth-input" style={{ width: '100%', padding: 12, borderRadius: 12, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 14, outline: 'none' }} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} autoCapitalize={type === 'email' ? 'none' : 'words'} />
+      <input className="auth-input" style={{ width: '100%', padding: 12, borderRadius: 12, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 16, outline: 'none' }} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} autoCapitalize={type === 'email' ? 'none' : 'words'} />
     </div>
   )
 }

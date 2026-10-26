@@ -93,11 +93,11 @@ export function InviteScreen() {
   const showInviteSide = role === 'family' || role === 'friend' || (role === 'open' && bundle?.membership.role === 'family')
 
   return (
-    <div style={{ minHeight: '100dvh', background: `linear-gradient(160deg,${COLORS.maroon},${COLORS.crimson})`, color: '#fff', padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
+    <div className="page-fill" style={{ background: `linear-gradient(160deg,${COLORS.maroon},${COLORS.crimson})`, color: '#fff', padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
       <MehendiPattern />
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 440, margin: '0 auto' }}>
-        <Link to={bundle ? '/profile' : '/'} style={{ color: COLORS.lightGold, fontWeight: 700, textDecoration: 'none' }}>{bundle ? 'Profile' : 'Shaadi Wala'}</Link>
-        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32 }}>{joining ? 'Join a wedding' : 'Invite someone'}</h1>
+      <div className="desktop-column" style={{ position: 'relative', zIndex: 1 }}>
+        <Link to={bundle ? '/profile' : '/'} style={{ color: COLORS.lightGold, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>{bundle ? 'Profile' : 'Shaadi Wala'}</Link>
+        <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32 }}>{joining || !bundle ? 'Join a wedding' : 'Invite someone'}</h1>
         {joining || !bundle ? (
           <>
             <p>Enter the 6-digit code, then pick your role. A parent or friend also picks Bride's side or Groom's side.</p>
@@ -152,7 +152,7 @@ export function InviteScreen() {
                 <li key={`${invite.id}-${invite.code}`} style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginTop: 10 }}>
                   <div style={{ fontSize: 22, letterSpacing: 3, fontWeight: 800 }}>{invite.code}</div>
                   <div style={{ fontSize: 13 }}>{inviteRoleLabel(invite.role, invite.side)} · {invite.acceptedAt ? 'Accepted' : 'Waiting'}</div>
-                  {!invite.acceptedAt && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 6 }}>{inviteLink(origin, invite.code)}</div>}
+                  {!invite.acceptedAt && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 6 }}>{inviteLink(origin, invite.code, invite.role, invite.side)}</div>}
                 </li>
               ))}
             </ul>

@@ -83,10 +83,10 @@ export function ProgressRing({
     <button
       type="button"
       onClick={onClick}
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: onClick ? 'pointer' : 'default', gap: 6, background: 'none', border: 'none', padding: 0 }}
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1 1 0', minWidth: 0, maxWidth: '100%', cursor: onClick ? 'pointer' : 'default', gap: 6, background: 'none', border: 'none', padding: 0 }}
     >
-      <div style={{ position: 'relative', width: 96, height: 96 }}>
-        <svg width="96" height="96" style={{ transform: 'rotate(-90deg)' }} aria-hidden="true">
+      <div style={{ position: 'relative', width: '100%', maxWidth: 96, aspectRatio: '1' }}>
+        <svg viewBox="0 0 96 96" width="100%" height="100%" style={{ display: 'block', transform: 'rotate(-90deg)' }} aria-hidden="true">
           <circle cx="48" cy="48" r={radius} fill="none" stroke="#E8D4B0" strokeWidth="7" />
           <circle
             cx="48"
@@ -106,8 +106,8 @@ export function ProgressRing({
         </div>
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: '#5A2020' }}>{label}</div>
-        <div style={{ fontSize: 10, color: '#8B5050' }}>{sublabel}</div>
+        <div style={{ fontSize: 12, fontWeight: 600, color: '#5A2020' }}>{label}</div>
+        <div style={{ fontSize: 12, color: '#8B5050', lineHeight: 1.3, overflowWrap: 'anywhere' }}>{sublabel}</div>
       </div>
     </button>
   )
@@ -153,7 +153,7 @@ export function Modal({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div style={{ width: '100%', maxWidth: 480, margin: '0 auto', maxHeight: '92vh', overflowY: 'auto', background: '#FFF9F0', borderRadius: '20px 20px 0 0', animation: 'slideUp 0.3s ease' }}>
+      <div className="sheet-panel" style={{ maxHeight: '92vh', overflowY: 'auto', background: '#FFF9F0', borderRadius: '20px 20px 0 0', animation: 'slideUp 0.3s ease' }}>
         <div
           style={{
             background: headerColor || `linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`,
@@ -168,7 +168,7 @@ export function Modal({
           }}
         >
           <span style={{ color: '#fff', fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: 17 }}>{title}</span>
-          <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', fontSize: 16 }}>
+          <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', fontSize: 16 }}>
             ✕
           </button>
         </div>
@@ -189,27 +189,21 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
 export function FAB({ onClick }: { onClick: () => void }) {
   const style: CSSProperties = {
-    position: 'fixed',
-    bottom: 'calc(90px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: 56,
-    height: 56,
     borderRadius: '50%',
     background: `linear-gradient(135deg,${COLORS.crimson},${COLORS.saffron})`,
     border: 'none',
     color: '#fff',
     fontSize: 28,
     cursor: 'pointer',
-    zIndex: 100,
     boxShadow: '0 4px 20px rgba(139,0,0,0.5)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     animation: 'glow 2s ease-in-out infinite',
+    padding: 0,
   }
   return (
-    <button type="button" onClick={onClick} aria-label="Add" style={style}>
+    <button type="button" className="fab" onClick={onClick} aria-label="Add" style={style}>
       +
     </button>
   )

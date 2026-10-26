@@ -48,8 +48,8 @@ export function AppRoutes() {
 
   if (session && error && !bundle && !location.pathname.startsWith('/profile') && !location.pathname.startsWith('/invite')) {
     return (
-      <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: COLORS.ivory }}>
-        <div style={{ maxWidth: 420 }}>
+      <div className="page-fill" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: COLORS.ivory }}>
+        <div className="desktop-column">
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: COLORS.crimson }}>Could not load your wedding</h1>
           <p>{error}</p>
           <button type="button" onClick={reload} style={{ background: COLORS.crimson, color: '#fff', border: 'none', borderRadius: 12, padding: '12px 16px', fontWeight: 700, cursor: 'pointer' }}>
