@@ -126,12 +126,12 @@ The package id is `in.shaadiwala.app`. It is final. The web app, Capacitor, and 
 {
   "appId": "in.shaadiwala.app",
   "appName": "Shaadi Wala",
-  "versionCode": 3,
+  "versionCode": 4,
   "versionName": "SW_0.1_FoundationOAuthMixpanel_03Nov26"
 }
 ```
 
-`versionName` must match `SW_<version>_<Key-Features>_<YYYY-MM-DD>` or `SW_<version>_<Key-Features>_<DDMonYY>`. Features are hyphenated words with no spaces. This slice ships as `SW_0.1_FoundationOAuthMixpanel_03Nov26`. `versionCode` stays a positive integer. Raise it by 1 for every Play upload. Change both values only in `app.config.json`. The native package declaration in `MainActivity.java` matches the final id; changing the id later means regenerating `android/`.
+`versionName` must match `SW_<version>_<Key-Features>_<YYYY-MM-DD>` or `SW_<version>_<Key-Features>_<DDMonYY>`. Features are hyphenated words with no spaces. This slice ships as `SW_0.1_FoundationOAuthMixpanel_03Nov26`. That release name stays until the release itself changes. `versionCode` is the build number: a positive integer, raised by 1 on each push, and still the Play `versionCode`. Change both values only in `app.config.json`. Profile → Settings → About shows `versionName (build N, short sha)`, where N is `versionCode`. Vercel fills the SHA from `VERCEL_GIT_COMMIT_SHA`. GitHub Actions fills it from `GITHUB_SHA`. The native package declaration in `MainActivity.java` matches the final id; changing the id later means regenerating `android/`.
 
 After this project exists, sync with `npx cap sync android`. Do not run `npx cap add android` again. That command rewrites the manifest and string resources.
 

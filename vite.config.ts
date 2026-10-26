@@ -1,7 +1,18 @@
+import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
+
+function commitSha(): string {
+  const fromEnv = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || ''
+  if (fromEnv.trim()) return fromEnv.trim()
+  try {
+    return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+  } catch {
+    return ''
+  }
+}
 
 /**
  * A false flag still leaves a dynamic import() in the module graph, so Rollup
@@ -29,6 +40,9 @@ function parkDisabledSlices(): Plugin {
 
 export default defineConfig({
   plugins: [react(), parkDisabledSlices()],
+  define: {
+    __SHAADI_COMMIT_SHA__: JSON.stringify(commitSha()),
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],

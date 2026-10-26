@@ -25,7 +25,7 @@ describe('app.config.json', () => {
 
   it('follows SW_<version>_<key features>_<date> and keeps versionCode an integer', () => {
     expect(appConfig.versionName).toBe('SW_0.1_FoundationOAuthMixpanel_03Nov26')
-    expect(appConfig.versionCode).toBe(3)
+    expect(appConfig.versionCode).toBe(4)
     expect(isValidVersionName(appConfig.versionName)).toBe(true)
     expect(isValidVersionName('SW_1.0_Checklist-Budget-Guests_2026-11-17')).toBe(true)
     const appSource = readFileSync(new URL('../src/config/app.ts', import.meta.url), 'utf8')
@@ -127,6 +127,11 @@ describe('v1 product paths', () => {
     expect(TERMS_OF_SERVICE_URL).toBe('https://shaadi-wala.in/terms-of-service/')
     expect(settings).toContain('PRIVACY_POLICY_URL')
     expect(settings).toContain('TERMS_OF_SERVICE_URL')
+    expect(settings).toContain('>About<')
+    expect(settings).toContain('aboutVersionLabel')
+    const viteConfig = readFileSync(new URL('../vite.config.ts', import.meta.url), 'utf8')
+    expect(viteConfig).toContain('VERCEL_GIT_COMMIT_SHA')
+    expect(viteConfig).toContain('GITHUB_SHA')
   })
 
   it('names the privacy-policy analytics events', () => {
