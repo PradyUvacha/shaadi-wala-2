@@ -71,6 +71,8 @@ describe('survey schedule', () => {
     expect(npsAnswerError(0)).toBeNull()
     expect(npsAnswerError(10)).toBeNull()
     expect(priceOpenError('  ')).toMatch(/digits only/)
+    expect(priceOpenError('-50')).toMatch(/digits only/)
+    expect(priceOpenError('50.5')).toMatch(/digits only/)
     expect(priceOpenError('about 2000')).toMatch(/digits only/)
     expect(priceOpenError('4,999')).toMatch(/digits only/)
     expect(priceOpenError('1000001')).toMatch(/₹0 to ₹10,00,000/)
@@ -91,6 +93,7 @@ describe('survey schedule', () => {
       nps_score: null,
     })
     expect(() => surveyAnswerRow('user-1', { kind: 'price-open', willingness: 'about 2000' })).toThrow(/digits only/)
+    expect(() => surveyAnswerRow('user-1', { kind: 'price-open', willingness: '-50' })).toThrow(/digits only/)
     expect(surveyDismissalRow('user-1', 'day_30')).toMatchObject({
       kind: 'nps',
       prompt: 'day_30',

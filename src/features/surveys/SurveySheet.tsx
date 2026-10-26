@@ -116,13 +116,14 @@ export function SurveySheet({
               <p style={{ color: '#3C1515', fontSize: 15, lineHeight: 1.45 }}>{PRICE_OPEN_QUESTION}</p>
               <input
                 style={inputStyle}
+                type="text"
                 inputMode="numeric"
                 autoComplete="off"
                 value={willingness}
-                maxLength={7}
                 onChange={(event) => {
-                  setWillingness(event.target.value.replace(/\D/g, '').slice(0, 7))
-                  setError(null)
+                  const next = event.target.value
+                  setWillingness(next)
+                  setError(priceOpenError(next))
                 }}
                 placeholder="Amount in rupees"
                 aria-label={PRICE_OPEN_QUESTION}
