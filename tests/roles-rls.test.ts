@@ -231,6 +231,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261027150000_function_phases.sql`)
   file(`${root}supabase/migrations/20261027160000_task_event_phase.sql`)
   file(`${root}supabase/migrations/20261027160000_task_event_phase.sql`)
+  file(`${root}supabase/migrations/20261027170000_mutual_side.sql`)
+  file(`${root}supabase/migrations/20261027170000_mutual_side.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),

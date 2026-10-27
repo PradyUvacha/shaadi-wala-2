@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canDeleteGuestRow, canEditGuestRow, guestSideChoices, roleLabel, unassignedSideGroups } from './access.ts'
+import { canDeleteGuestRow, canEditGuestRow, guestIncluded, guestListFilters, guestSideChoices, roleLabel, unassignedSideGroups } from './access.ts'
 
 describe('role labels', () => {
   it('names the bride, groom, parent, friend, and planner', () => {
@@ -44,5 +44,16 @@ describe('role labels', () => {
     expect(guestSideChoices('family', 'groom')).toEqual(['groom', 'both'])
     expect(guestSideChoices('planner', null)).toEqual(['both', 'bride', 'groom'])
     expect(guestSideChoices('friend', 'bride')).toEqual(['', 'bride', 'groom', 'both'])
+    expect(guestListFilters('bride', 'bride').map((chip) => chip.label)).toEqual(["All sides", "Bride's", "Groom's", 'Mutual'])
+    expect(guestListFilters('family', 'groom').map((chip) => chip.label)).toEqual(['All sides', "Groom's", 'Mutual'])
+    expect(guestListFilters('friend', 'groom')).toEqual([{ value: 'groom', label: "Groom's" }])
+    expect(guestListFilters('friend', 'bride')).toEqual([{ value: 'bride', label: "Bride's" }])
+    expect(guestIncluded('friend', 'groom', 'groom', 'bride')).toBe(false)
+    expect(guestIncluded('friend', 'groom', 'groom', 'both')).toBe(true)
+    expect(guestIncluded('friend', 'groom', 'groom', 'groom')).toBe(true)
+    expect(guestIncluded('family', 'bride', 'all', 'groom')).toBe(false)
+    expect(guestIncluded('family', 'bride', 'both', 'both')).toBe(true)
+    expect(guestIncluded('planner', null, 'bride', 'bride')).toBe(true)
+    expect(guestIncluded('planner', null, 'both', 'both')).toBe(true)
   })
 })

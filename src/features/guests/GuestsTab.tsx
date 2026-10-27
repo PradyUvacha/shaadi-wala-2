@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
-import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestSideChoices } from '../../lib/access.ts'
+import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
 import { compareGuestNames, guestMatchesQuery, guestStatCounts } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
@@ -49,8 +49,6 @@ function UsersIcon() {
 }
 
 type RsvpModule = typeof import('./RsvpBySide.tsx')
-type GuestFilter = 'all' | 'side' | 'mutual'
-
 export function GuestsTab() {
   const { bundle, mode, saveGuest, deleteGuest, refreshWedding } = useWedding()
   const role = bundle?.membership.role
@@ -58,12 +56,12 @@ export function GuestsTab() {
   const canEdit = mode === 'preview' || canEditGuests(role)
   const planner = role === 'planner'
   const family = role === 'family'
-  const showSideFilters = role === 'family' || role === 'friend'
   const ownSide = viewerSide === 'bride' || viewerSide === 'groom' ? viewerSide : null
   const sideChoices = guestSideChoices(role, ownSide)
+  const sideChips = guestListFilters(role, ownSide)
   const defaultSide: GuestSide = planner ? 'both' : family && ownSide ? ownSide : ''
   const guests = [...(bundle?.guests ?? [])].sort((left, right) => compareGuestNames(left.name, right.name))
-  const [filter, setFilter] = useState<GuestFilter>('all')
+  const [filter, setFilter] = useState<GuestListFilter>('all')
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -89,19 +87,18 @@ export function GuestsTab() {
     }
   }, [])
 
-  const visible = guests.filter((guest) => {
-    const sideOk = !showSideFilters || filter === 'all' || (filter === 'mutual' ? guest.side === 'both' : guest.side === viewerSide)
-    return sideOk && guestMatchesQuery(guest, debouncedQuery)
-  })
+  const visible = guests.filter((guest) => guestIncluded(role, ownSide, filter, guest.side) && guestMatchesQuery(guest, debouncedQuery))
   const tiles = guestStatCounts(visible)
-  const sideName = viewerSide === 'groom' ? "Groom's side" : "Bride's side"
-  const header = !showSideFilters
-    ? 'Guest list'
-    : filter === 'mutual'
+  const sideName = ownSide === 'groom' ? "Groom's side" : "Bride's side"
+  const header = role === 'friend' || (family && filter === 'all')
+    ? `${sideName} + Mutual guests`
+    : filter === 'both'
       ? 'Mutual guests'
-      : filter === 'side'
-        ? sideName
-        : `${sideName} + Mutual guests`
+      : filter === 'bride'
+        ? "Bride's side"
+        : filter === 'groom'
+          ? "Groom's side"
+          : 'Guest list'
 
   const openAdd = () => {
     setEditGuest(null)
@@ -194,22 +191,16 @@ export function GuestsTab() {
           </button>
         )}
       </div>
-      {showSideFilters && (
-        <div className="count-chips" aria-label="Guest side">
-          {([
-            ['all', 'All'],
-            ['side', sideName],
-            ['mutual', 'Mutual'],
-          ] as const).map(([value, label]) => {
-            const selected = filter === value
-            return (
-              <button key={value} type="button" onClick={() => setFilter(value)} style={{ minHeight: SIZE.chip, padding: '0 16px', borderRadius: 999, border: selected ? 'none' : `1.5px solid ${COLORS.gold}`, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: 'pointer' }}>
-                {label}
-              </button>
-            )
-          })}
-        </div>
-      )}
+      <div className="count-chips" aria-label="Guest side">
+        {sideChips.map((chip) => {
+          const selected = role === 'friend' || filter === chip.value
+          return (
+            <button key={chip.value} type="button" aria-pressed={selected} onClick={() => { if (role !== 'friend') setFilter(chip.value) }} style={{ minHeight: SIZE.chip, padding: '0 16px', borderRadius: 999, border: selected ? 'none' : `1.5px solid ${COLORS.gold}`, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: role === 'friend' ? 'default' : 'pointer', whiteSpace: 'nowrap' }}>
+              {chip.label}
+            </button>
+          )
+        })}
+      </div>
       {Headcount ? <Headcount guests={visible} /> : null}
       {error && !modalOpen && <div style={{ padding: '12px 16px 0' }}><FormError message={error} /></div>}
       <div style={{ padding: '14px 16px' }}>
