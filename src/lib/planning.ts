@@ -1,5 +1,6 @@
 import type { AchievementType } from '../data/content.ts'
 import { ACHIEVEMENTS } from '../data/content.ts'
+import { ACTUAL_COUNTS_DONE_TASKS_ONLY, ODD_RUPEE_SIDE } from '../config/budgetRules.ts'
 import type { BudgetItem, Guest, Payer, SplitDraft, Task, TemplateTask } from '../types.ts'
 
 export function percent(part: number, total: number): number {
@@ -201,57 +202,66 @@ export type FamilySettlement = {
   groomShare: number
   bridePaid: number
   groomPaid: number
+  /** Done task costs and payments with no bride or groom payer. Not a family debt. */
+  unattributed: number
   /** Positive when the groom's family owes the bride's family. */
   groomOwesBride: number
 }
 
-function roundRupee(value: number): number {
+function wholeRupees(value: number): number {
+  if (!Number.isFinite(value)) return 0
   return Math.round(value)
 }
 
-export function familySettlement(items: Pick<BudgetItem, 'currency' | 'estimated' | 'actual' | 'paid' | 'paidBySide' | 'splits' | 'partPayments'>[]): FamilySettlement {
-  let brideShare = 0
-  let groomShare = 0
-  let bridePaid = 0
-  let groomPaid = 0
+/** Fixed 50/50. The odd rupee follows OQ-19. */
+function splitRupees(total: number): { bride: number; groom: number } {
+  const whole = wholeRupees(total)
+  const negative = whole < 0
+  const abs = Math.abs(whole)
+  const bride = Math.floor(abs / 2) + (abs % 2 === 1 && ODD_RUPEE_SIDE === 'bride' ? 1 : 0)
+  const groom = abs - bride
+  return negative ? { bride: -bride, groom: -groom } : { bride, groom }
+}
+
+function countsInActual(task: Pick<Task, 'status' | 'actualCost'>): boolean {
+  if (task.actualCost == null) return false
+  if (!ACTUAL_COUNTS_DONE_TASKS_ONLY) return true
+  return task.status === 'Completed'
+}
+
+export function familySettlement(
+  items: Pick<BudgetItem, 'currency' | 'estimated' | 'actual' | 'paid' | 'paidBySide' | 'splits' | 'partPayments'>[],
+  tasks: readonly Pick<Task, 'status' | 'actualCost'>[] = [],
+): FamilySettlement {
+  let estimated = 0
+  let bridePaidRaw = 0
+  let groomPaidRaw = 0
+  let unattributedRaw = 0
   for (const item of items) {
     if (item.currency !== 'INR') continue
-    const estimated = Number(item.estimated) || 0
-    const splits = item.splits.length > 0 ? item.splits : splitsForPayer(item.paidBySide)
-    for (const split of splits) {
-      const amount = (estimated * (Number(split.pct) || 0)) / 100
-      if (split.side === 'bride') brideShare += amount
-      if (split.side === 'groom') groomShare += amount
-    }
-    if (item.partPayments.length > 0) {
-      for (const payment of item.partPayments) {
-        const amount = Number(payment.amount) || 0
-        if (payment.paidBySide === 'bride') bridePaid += amount
-        if (payment.paidBySide === 'groom') groomPaid += amount
-      }
-    } else if (item.paid || Number(item.actual) > 0) {
-      const amount = Number(item.actual) || 0
-      if (item.paidBySide === 'bride') bridePaid += amount
-      else if (item.paidBySide === 'groom') groomPaid += amount
-      else if (item.paidBySide === 'both') {
-        bridePaid += amount / 2
-        groomPaid += amount / 2
-      }
+    estimated += Number(item.estimated) || 0
+    for (const payment of item.partPayments) {
+      const amount = Number(payment.amount) || 0
+      if (payment.paidBySide === 'bride') bridePaidRaw += amount
+      else if (payment.paidBySide === 'groom') groomPaidRaw += amount
+      else unattributedRaw += amount
     }
   }
-  const shareTotal = brideShare + groomShare
-  const paidTotal = bridePaid + groomPaid
-  let groomOwesBride = 0
-  if (shareTotal > 0 && paidTotal > 0) {
-    const brideShouldPay = (brideShare / shareTotal) * paidTotal
-    groomOwesBride = bridePaid - brideShouldPay
+  for (const task of tasks) {
+    if (!countsInActual(task)) continue
+    unattributedRaw += Number(task.actualCost) || 0
   }
+  const shares = splitRupees(estimated)
+  const bridePaid = wholeRupees(bridePaidRaw)
+  const groomPaid = wholeRupees(groomPaidRaw)
+  const paidShares = splitRupees(bridePaid + groomPaid)
   return {
-    brideShare: roundRupee(brideShare),
-    groomShare: roundRupee(groomShare),
-    bridePaid: roundRupee(bridePaid),
-    groomPaid: roundRupee(groomPaid),
-    groomOwesBride: roundRupee(groomOwesBride),
+    brideShare: shares.bride,
+    groomShare: shares.groom,
+    bridePaid,
+    groomPaid,
+    unattributed: wholeRupees(unattributedRaw),
+    groomOwesBride: bridePaid + groomPaid === 0 ? 0 : bridePaid - paidShares.bride,
   }
 }
 

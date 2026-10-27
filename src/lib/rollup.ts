@@ -140,13 +140,16 @@ export function displaySplit(totalRupees: bigint): { bride: bigint; groom: bigin
   return negative ? { bride: -bride, groom: -groom } : { bride, groom }
 }
 
-/** 50/50 of the card's Budget and Actual. A zero budget is blank (—). The odd rupee stays with the bride. */
+/** 50/50 of the card's Budget and Actual. A zero budget omits the Budget figure. The odd rupee stays with the bride. */
 export function splitShareLabel(budgetRupees: bigint, actualRupees: bigint): string {
-  const budgetBlank = budgetRupees === 0n
   const budget = displaySplit(budgetRupees)
   const actual = displaySplit(actualRupees)
-  const budgetText = (side: 'bride' | 'groom') => (budgetBlank ? '—' : formatInrGrouped(budget[side]))
   const actualText = (side: 'bride' | 'groom') => formatInrGrouped(actual[side])
+  if (budgetRupees === 0n) {
+    if (actual.bride === actual.groom) return `Split 50/50 · Each side: Actual ${actualText('bride')}`
+    return `Split 50/50 · Bride: Actual ${actualText('bride')} · Groom: Actual ${actualText('groom')}`
+  }
+  const budgetText = (side: 'bride' | 'groom') => formatInrGrouped(budget[side])
   const same = budget.bride === budget.groom && actual.bride === actual.groom
   if (same) {
     return `Split 50/50 · Each side: Budget ${budgetText('bride')} · Actual ${actualText('bride')}`

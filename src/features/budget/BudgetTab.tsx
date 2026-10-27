@@ -11,7 +11,7 @@ import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, RADIUS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { cardStyle, inputStyle, primaryButton, sectionLabel, selectStyle } from '../../styles/ui.ts'
 import { headerPadding } from '../../styles/safeArea.ts'
-import type { BudgetDraft, BudgetItem, Payer, PartPaymentDraft, PaymentSide } from '../../types.ts'
+import type { BudgetDraft, BudgetItem, Payer, PartPaymentDraft, PaymentSide, Task } from '../../types.ts'
 import { PAYERS } from '../../types.ts'
 
 const emptyForm = (side: 'bride' | 'groom' | null): BudgetDraft => {
@@ -236,7 +236,7 @@ export function BudgetTab() {
         <p style={{ margin: '0 16px 12px', color: COLORS.muted, fontSize: TYPE.small }}>Totals stay in rupees.</p>
       )}
 
-      <Settlement items={budget} />
+      <Settlement items={budget} tasks={tasks} />
       {error && !modalOpen && !payItemId && <div style={{ padding: '0 16px 8px' }}><FormError message={error} /></div>}
 
       <div style={{ padding: '0 16px' }}>
@@ -435,7 +435,18 @@ function CategoryCardView({
         <div style={{ flex: '1 1 140px', minWidth: 0 }}>
           <div style={{ fontSize: TYPE.small, color: COLORS.muted }}>Budget</div>
           {inline ? (
-            <input style={inputStyle} inputMode="numeric" value={inlineText} onChange={(event) => onInlineText(event.target.value)} onBlur={onSaveInline} />
+            <input
+              style={inputStyle}
+              inputMode="numeric"
+              value={inlineText}
+              onChange={(event) => onInlineText(event.target.value)}
+              onBlur={onSaveInline}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return
+                event.preventDefault()
+                onSaveInline()
+              }}
+            />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <strong style={{ fontSize: 16, color: COLORS.ink }}>{show(card.budgetRupees)}</strong>
@@ -455,7 +466,9 @@ function CategoryCardView({
         <span style={{ fontSize: TYPE.small, color: percent.over ? COLORS.danger : COLORS.muted, fontWeight: percent.over ? 600 : 400 }}>{percent.label}</span>
       </div>
       {!expanded && card.rows.length > 0 && (
-        <div style={{ marginTop: 8, fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>Contributing tasks: {card.rows.length}</div>
+        <button type="button" onClick={onToggle} style={{ marginTop: 8, minHeight: SIZE.tap, width: '100%', border: 'none', background: 'transparent', color: COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+          Contributing tasks: {card.rows.length}
+        </button>
       )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
         <button type="button" onClick={onToggle} style={{ minHeight: SIZE.tap, border: 'none', background: 'transparent', color: COLORS.muted, fontSize: TYPE.small, cursor: 'pointer', padding: 0 }}>
@@ -493,8 +506,8 @@ function CategoryCardView({
   )
 }
 
-function Settlement({ items }: { items: BudgetItem[] }) {
-  const settlement = familySettlement(items)
+function Settlement({ items, tasks }: { items: BudgetItem[]; tasks: Task[] }) {
+  const settlement = familySettlement(items, tasks)
   return (
     <div style={{ margin: '0 16px 12px', background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: RADIUS.card, padding: 16 }}>
       <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.ink, marginBottom: 8 }}>Family settlement</div>
@@ -504,6 +517,9 @@ function Settlement({ items }: { items: BudgetItem[] }) {
         <div>Bride's family paid<br /><strong>{money(settlement.bridePaid, '₹')}</strong></div>
         <div>Groom's family paid<br /><strong>{money(settlement.groomPaid, '₹')}</strong></div>
       </div>
+      {settlement.unattributed > 0 && (
+        <p style={{ margin: '8px 0 0', fontSize: TYPE.small, color: COLORS.muted }}>Unattributed spend {money(settlement.unattributed, '₹')} (no family payer)</p>
+      )}
       <p style={{ margin: '10px 0 0', fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>{settlementSummary(settlement)}</p>
     </div>
   )

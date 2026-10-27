@@ -137,8 +137,9 @@ describe('task rollup', () => {
     expect(formatInrGrouped(40000n)).toBe('₹40,000')
   })
 
-  it('labels each side of budget and actual, and dashes a blank budget', () => {
-    expect(splitShareLabel(0n, 10000n)).toBe('Split 50/50 · Each side: Budget — · Actual ₹5,000')
+  it('labels each side of budget and actual, and omits a blank budget', () => {
+    expect(splitShareLabel(0n, 10000n)).toBe('Split 50/50 · Each side: Actual ₹5,000')
+    expect(splitShareLabel(0n, 10001n)).toBe('Split 50/50 · Bride: Actual ₹5,001 · Groom: Actual ₹5,000')
     expect(splitShareLabel(150000n, 10000n)).toBe('Split 50/50 · Each side: Budget ₹75,000 · Actual ₹5,000')
     expect(splitShareLabel(100001n, 10001n)).toBe(
       'Split 50/50 · Bride: Budget ₹50,001 · Actual ₹5,001 · Groom: Budget ₹50,000 · Actual ₹5,000',
@@ -150,7 +151,7 @@ describe('task rollup', () => {
     const card = rolled.categories[0]
     expect(card?.actualPaise).toBe(toPaise(10000))
     expect(card && splitShareLabel(card.budgetRupees, roundHalfUpRupees(card.actualPaise))).toBe(
-      'Split 50/50 · Each side: Budget — · Actual ₹5,000',
+      'Split 50/50 · Each side: Actual ₹5,000',
     )
   })
 

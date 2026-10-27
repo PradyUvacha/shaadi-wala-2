@@ -87,8 +87,10 @@ describe('budget splits', () => {
         partPayments: [],
       },
     ])
-    expect(settlement.brideShare).toBe(1000)
-    expect(settlement.groomShare).toBe(0)
+    expect(settlement.brideShare).toBe(500)
+    expect(settlement.groomShare).toBe(500)
+    expect(settlement.bridePaid).toBe(0)
+    expect(settlement.unattributed).toBe(0)
     expect(settlementSummary(settlement)).toMatch(/Record a payment/)
   })
 
@@ -129,22 +131,58 @@ describe('budget splits', () => {
 })
 
 describe('family settlement and headcount', () => {
-  it('says which family should settle when one side paid the other side share', () => {
+  it('splits every INR total 50/50 and settles only from payments', () => {
     const settlement = familySettlement([
       {
         currency: 'INR',
-        estimated: 1000,
-        actual: 1000,
+        estimated: 100000,
+        actual: 100000,
         paid: true,
         paidBySide: 'bride',
+        splits: [{ id: 'split-1', name: "Bride's Family", pct: 100, side: 'bride' }],
+        partPayments: [{ id: 'pay-1', amount: 100000, paidBy: 'Bride', paidBySide: 'bride', date: '2026-01-01', notes: '' }],
+      },
+      {
+        currency: 'INR',
+        estimated: 150000,
+        actual: 0,
+        paid: false,
+        paidBySide: 'both',
+        splits: [
+          { id: 'split-2', name: "Bride's Family", pct: 50, side: 'bride' },
+          { id: 'split-3', name: "Groom's Family", pct: 50, side: 'groom' },
+        ],
+        partPayments: [{ id: 'pay-2', amount: 10.5, paidBy: 'Uncle', paidBySide: 'other', date: '', notes: '' }],
+      },
+    ], [
+      { status: 'Completed', actualCost: 40000 },
+      { status: 'Pending', actualCost: 15000 },
+    ])
+    expect(settlement.brideShare).toBe(125000)
+    expect(settlement.groomShare).toBe(125000)
+    expect(settlement.bridePaid).toBe(100000)
+    expect(settlement.groomPaid).toBe(0)
+    expect(settlement.groomOwesBride).toBe(50000)
+    expect(settlement.unattributed).toBe(40011)
+    expect(settlementSummary(settlement)).toMatch(/Groom's family owes/)
+  })
+
+  it('gives the odd rupee of the share to the bride', () => {
+    const settlement = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 1001,
+        actual: 0,
+        paid: false,
+        paidBySide: 'groom',
         splits: [{ id: 'split-1', name: "Groom's Family", pct: 100, side: 'groom' }],
         partPayments: [],
       },
     ])
-    expect(settlement.groomShare).toBe(1000)
-    expect(settlement.bridePaid).toBe(1000)
-    expect(settlement.groomOwesBride).toBe(1000)
-    expect(settlementSummary(settlement)).toMatch(/Groom's family owes/)
+    expect(settlement.brideShare).toBe(501)
+    expect(settlement.groomShare).toBe(500)
+    expect(settlement.bridePaid).toBe(0)
+    expect(settlementSummary(settlement)).toMatch(/Record a payment/)
   })
 
   it('counts confirmed people with plus-ones on each side', () => {

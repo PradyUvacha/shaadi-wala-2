@@ -128,6 +128,10 @@ describe('ritual editor conflicts', () => {
     }))
     expect(stale.container.textContent).toContain('WEDDING DAY')
     expect(stale.container.textContent).toContain('1 task')
+    expect(stale.container.textContent).toContain('24/04/2027')
+    expect(stale.container.textContent).toContain('0 / 1 · 0%')
+    expect(stale.container.textContent).toContain('Community ·')
+    expect(stale.container.textContent).not.toContain('🎯')
     await act(async () => {
       clickButton(stale.container, 'Actions for Book the hall')
     })

@@ -63,12 +63,12 @@ export function TimelineTab() {
 
   return (
     <div>
-      <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: headerPadding }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>Wedding Timeline</div>
-          <Link to="/planning" style={{ color: '#fff', fontSize: 14, fontWeight: 600, minHeight: 48, display: 'inline-flex', alignItems: 'center' }}>Tasks</Link>
+      <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, padding: headerPadding }}>
+        <div role="tablist" aria-label="Planning" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 0, background: COLORS.maroon, borderRadius: 12, padding: 4, marginBottom: 10 }}>
+          <span role="tab" aria-selected={true} style={segmentStyle(true)}>Events</span>
+          <Link to="/planning" role="tab" aria-selected={false} style={segmentStyle(false)}>Tasks</Link>
         </div>
-        <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{sorted.filter((milestone) => milestone.status === 'Completed').length}/{sorted.length} milestones completed</div>
+        <div style={{ fontSize: 14, color: '#fff' }}>{sorted.filter((milestone) => milestone.status === 'Completed').length} / {sorted.length} · milestones</div>
       </div>
       <div style={{ padding: 20 }}>
         {sorted.length === 0 ? (
@@ -132,4 +132,25 @@ export function TimelineTab() {
       </Modal>
     </div>
   )
+}
+
+function segmentStyle(selected: boolean) {
+  return {
+    minHeight: 48,
+    minWidth: 0,
+    height: 'auto' as const,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    textDecoration: 'none',
+    fontSize: 16,
+    fontWeight: 600,
+    padding: '8px 12px',
+    background: selected ? COLORS.gold : 'transparent',
+    color: selected ? COLORS.crimson : '#fff',
+    whiteSpace: 'normal' as const,
+    textAlign: 'center' as const,
+    lineHeight: 1.2,
+  }
 }

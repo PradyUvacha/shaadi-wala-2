@@ -239,6 +239,10 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261027190000_guest_functions.sql`)
   file(`${root}supabase/migrations/20261027200000_mutual_visibility.sql`)
   file(`${root}supabase/migrations/20261027200000_mutual_visibility.sql`)
+  file(`${root}supabase/migrations/20261028120000_wedding_delete_linked_costs.sql`)
+  file(`${root}supabase/migrations/20261028120000_wedding_delete_linked_costs.sql`)
+  file(`${root}supabase/migrations/20261028130000_whole_rupee_writes.sql`)
+  file(`${root}supabase/migrations/20261028130000_whole_rupee_writes.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -434,6 +438,107 @@ describe('approved role permissions', () => {
     expect(psql(`select count(*) from public.weddings where couple_names = 'Slot Wedding';`).trim()).toBe('1')
     expect(psql(`select count(*) from public.wedding_members where role = 'bride' and wedding_id = (select id from public.weddings where couple_names = 'Slot Wedding');`).trim()).toBe('0')
     expect(asUser('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', `select public.create_invite((select id from public.weddings where couple_names = 'Slot Wedding'), 'bride', 'bride');`)).toMatch(/^\d{6}$/)
+  })
+
+  it('deletes the wedding when the last partner leaves even if a task is linked to a category', () => {
+    psql(`
+      insert into auth.users (id, email) values
+        ('b49b49b4-9b49-4b49-8b49-b49b49b49b49', 'bride-linked@example.com'),
+        ('b49b49b4-9b49-4b49-8b49-b49b49b49b4a', 'groom-linked@example.com');
+      select set_config('request.jwt.claim.sub', 'b49b49b4-9b49-4b49-8b49-b49b49b49b49', false);
+      set role authenticated;
+      select public.create_wedding('Linked Delete', '2027-07-01', 'bride', 'Bride Linked', 'Jaipur');
+      reset role;
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, 'b49b49b4-9b49-4b49-8b49-b49b49b49b4a', 'groom', 'groom', 'Groom Linked'
+      from public.weddings where couple_names = 'Linked Delete';
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Linked task', 'Venue', 'Low', 'Pending' from public.weddings where couple_names = 'Linked Delete';
+      insert into public.budget_items (wedding_id, category, currency, estimated, actual, paid_by_side)
+      select id, 'Linked Venue', 'INR', 100000, 0, 'bride' from public.weddings where couple_names = 'Linked Delete';
+      insert into public.task_costs (task_id, wedding_id, actual_cost, budget_category_id)
+      select t.id, t.wedding_id, 40000, b.id
+      from public.tasks t
+      join public.budget_items b on b.wedding_id = t.wedding_id and b.category = 'Linked Venue'
+      where t.title = 'Linked task';
+    `)
+    expect(dbError(`
+      delete from public.budget_items
+      where category = 'Linked Venue'
+        and wedding_id = (select id from public.weddings where couple_names = 'Linked Delete');
+    `)).toMatch(/Move linked/)
+    expect(psql(`select count(*) from public.task_costs where task_id = (select id from public.tasks where title = 'Linked task');`).trim()).toBe('1')
+    psql(`select public.release_account('b49b49b4-9b49-4b49-8b49-b49b49b49b49');`)
+    expect(psql(`select count(*) from public.weddings where couple_names = 'Linked Delete';`).trim()).toBe('1')
+    psql(`select public.release_account('b49b49b4-9b49-4b49-8b49-b49b49b49b4a');`)
+    expect(psql(`select count(*) from public.weddings where couple_names = 'Linked Delete';`).trim()).toBe('0')
+    expect(psql(`select count(*) from public.tasks where title = 'Linked task';`).trim()).toBe('0')
+    expect(psql(`select count(*) from public.task_costs tc join public.tasks t on t.id = tc.task_id where t.title = 'Linked task';`).trim()).toBe('0')
+  })
+
+  it('keeps older paise and rejects a new task cost or payment that is not a whole rupee within ₹10 crore', () => {
+    psql(`
+      alter table public.task_costs disable trigger task_costs_whole_rupees;
+      alter table public.part_payments disable trigger part_payments_whole_rupees;
+    `)
+    try {
+      psql(`
+        insert into public.tasks (wedding_id, title, category, priority, status)
+        select id, 'Paise task', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+        insert into public.budget_items (wedding_id, category, currency, estimated, actual, paid_by_side)
+        select id, 'Paise Probe', 'INR', 100, 0, 'both' from public.weddings where couple_names = 'Role Fixture';
+        insert into public.task_costs (task_id, wedding_id, actual_cost, budget_category_id)
+        select t.id, t.wedding_id, 10.50, b.id
+        from public.tasks t
+        join public.budget_items b on b.wedding_id = t.wedding_id and b.category = 'Paise Probe'
+        where t.title = 'Paise task';
+        insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side, notes)
+        select id, 10.50, 'Earlier', 'bride', 'kept' from public.budget_items where category = 'Paise Probe';
+      `)
+    } finally {
+      psql(`
+        alter table public.task_costs enable trigger task_costs_whole_rupees;
+        alter table public.part_payments enable trigger part_payments_whole_rupees;
+      `)
+    }
+    psql(`update public.task_costs set updated_at = now() where task_id = (select id from public.tasks where title = 'Paise task');`)
+    expect(psql(`select case when actual_cost = 10.50 then 'yes' else 'no' end from public.task_costs where task_id = (select id from public.tasks where title = 'Paise task');`).trim()).toBe('yes')
+    psql(`update public.part_payments set notes = 'still kept' where amount = 10.50 and notes = 'kept';`)
+    expect(psql(`select case when amount = 10.50 then 'yes' else 'no' end from public.part_payments where notes = 'still kept';`).trim()).toBe('yes')
+    expect(dbError(`
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Fraction task', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 10.5 from public.tasks where title = 'Fraction task';
+    `)).toMatch(/whole rupees/)
+    expect(dbError(`
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Huge task', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 100000001 from public.tasks where title = 'Huge task';
+    `)).toMatch(/whole rupees/)
+    expect(dbError(`
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 0, 'Nobody', 'bride' from public.budget_items where category = 'Paise Probe';
+    `)).toMatch(/whole rupees/)
+    expect(dbError(`
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 10.5, 'Nobody', 'bride' from public.budget_items where category = 'Paise Probe';
+    `)).toMatch(/whole rupees/)
+    psql(`
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Zero cost', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 0 from public.tasks where title = 'Zero cost';
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Cap cost', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 100000000 from public.tasks where title = 'Cap cost';
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 100000000, 'Cap', 'groom' from public.budget_items where category = 'Paise Probe';
+    `)
+    expect(psql(`select case when actual_cost = 0 then 'yes' else 'no' end from public.task_costs where task_id = (select id from public.tasks where title = 'Zero cost');`).trim()).toBe('yes')
+    expect(psql(`select case when actual_cost = 100000000 then 'yes' else 'no' end from public.task_costs where task_id = (select id from public.tasks where title = 'Cap cost');`).trim()).toBe('yes')
   })
 
   it('if both bride and groom delete, the wedding and all its data are deleted', () => {

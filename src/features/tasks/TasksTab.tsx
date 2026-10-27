@@ -57,29 +57,29 @@ export function TasksTab() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [appliedEdit, setAppliedEdit] = useState<string | null>(null)
-  const [menuTaskId, setMenuTaskId] = useState<string | null>(null)
-  const [menuPlace, setMenuPlace] = useState<{ top: number; left: number } | null>(null)
+  const [menuKey, setMenuKey] = useState<string | null>(null)
+  const [menuPlace, setMenuPlace] = useState<{ top: number; left: number; width: number } | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const stopCelebration = useCallback(() => setCelebrate(false), [])
   useEffect(() => {
-    if (!menuTaskId) return
+    if (!menuKey) return
     const onPointer = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Node)) return
       if (menuRef.current?.contains(target)) return
       if (target instanceof Element && target.closest('[aria-haspopup="menu"]')) return
-      setMenuTaskId(null)
+      setMenuKey(null)
       setMenuPlace(null)
     }
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
-        setMenuTaskId(null)
+        setMenuKey(null)
         setMenuPlace(null)
       }
     }
     const scroller = document.querySelector('.app-shell-scroll')
     const onScroll = () => {
-      setMenuTaskId(null)
+      setMenuKey(null)
       setMenuPlace(null)
     }
     document.addEventListener('pointerdown', onPointer)
@@ -90,25 +90,38 @@ export function TasksTab() {
       document.removeEventListener('keydown', onKey)
       scroller?.removeEventListener('scroll', onScroll)
     }
-  }, [menuTaskId])
-  const closeTaskMenu = () => {
-    setMenuTaskId(null)
+  }, [menuKey])
+  const closeMenu = () => {
+    setMenuKey(null)
     setMenuPlace(null)
   }
+  const placeMenu = (anchor: HTMLButtonElement, count: number) => {
+    const menuWidth = Math.min(280, window.innerWidth - 16)
+    const menuHeight = count * 64 + 16
+    const rect = anchor.getBoundingClientRect()
+    const below = rect.bottom + 4
+    const top = below + menuHeight > window.innerHeight - 8 ? Math.max(8, rect.top - 4 - menuHeight) : below
+    const left = Math.min(Math.max(8, rect.right - menuWidth), Math.max(8, window.innerWidth - menuWidth - 8))
+    setMenuPlace({ top, left, width: menuWidth })
+  }
   const openTaskMenu = (task: Task, siblings: number, anchor: HTMLButtonElement) => {
-    if (menuTaskId === task.id) {
-      closeTaskMenu()
+    const key = `task:${task.id}`
+    if (menuKey === key) {
+      closeMenu()
       return
     }
     const count = (canStructure && siblings > 1 ? 2 : 0) + (canEdit ? 2 : 0)
-    const rect = anchor.getBoundingClientRect()
-    const menuHeight = count * 48 + 8
-    const menuWidth = 220
-    const below = rect.bottom + 4
-    const top = below + menuHeight > window.innerHeight - 8 ? Math.max(8, rect.top - 4 - menuHeight) : below
-    const left = Math.min(Math.max(8, rect.right - menuWidth), window.innerWidth - menuWidth - 8)
-    setMenuPlace({ top, left })
-    setMenuTaskId(task.id)
+    placeMenu(anchor, count)
+    setMenuKey(key)
+  }
+  const openFunctionMenu = (fnId: string, anchor: HTMLButtonElement) => {
+    const key = `fn:${fnId}`
+    if (menuKey === key) {
+      closeMenu()
+      return
+    }
+    placeMenu(anchor, functions.length > 1 ? 4 : 2)
+    setMenuKey(key)
   }
   const editParam = params.get('edit')
 
@@ -396,24 +409,24 @@ export function TasksTab() {
               type="button"
               aria-label={`Actions for ${task.title}`}
               aria-haspopup="menu"
-              aria-expanded={menuTaskId === task.id}
+              aria-expanded={menuKey === `task:${task.id}`}
               onClick={(event) => openTaskMenu(task, siblings, event.currentTarget)}
               style={iconButton}
             >
               ⋯
             </button>
-            {menuTaskId === task.id && menuPlace && createPortal(
-              <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menuPlace.top, left: menuPlace.left, zIndex: 400, width: 220, background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 12, boxShadow: '0 8px 24px rgba(26,5,5,0.12)', padding: 4 }}>
+            {menuKey === `task:${task.id}` && menuPlace && createPortal(
+              <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menuPlace.top, left: menuPlace.left, zIndex: 400, width: menuPlace.width, background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 12, boxShadow: '0 8px 24px rgba(26,5,5,0.12)', padding: 4 }}>
                 {canStructure && siblings > 1 && (
                   <>
-                    <button type="button" role="menuitem" aria-label={`Move ${task.title} up`} onClick={() => { closeTaskMenu(); void moveTask(task.id, -1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move up</button>
-                    <button type="button" role="menuitem" aria-label={`Move ${task.title} down`} onClick={() => { closeTaskMenu(); void moveTask(task.id, 1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move down</button>
+                    <button type="button" role="menuitem" aria-label={`Move ${task.title} up`} onClick={() => { closeMenu(); void moveTask(task.id, -1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move up</button>
+                    <button type="button" role="menuitem" aria-label={`Move ${task.title} down`} onClick={() => { closeMenu(); void moveTask(task.id, 1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move down</button>
                   </>
                 )}
                 {canEdit && (
                   <>
-                    <button type="button" role="menuitem" aria-label="Edit task" onClick={() => { closeTaskMenu(); openEdit(task) }} style={menuItem}>Edit</button>
-                    <button type="button" role="menuitem" aria-label="Delete task" onClick={() => { closeTaskMenu(); setError(null); setPendingRitual(task) }} style={{ ...menuItem, color: COLORS.danger }}>Delete</button>
+                    <button type="button" role="menuitem" aria-label="Edit task" onClick={() => { closeMenu(); openEdit(task) }} style={menuItem}>Edit</button>
+                    <button type="button" role="menuitem" aria-label="Delete task" onClick={() => { closeMenu(); setError(null); setPendingRitual(task) }} style={{ ...menuItem, color: COLORS.danger }}>Delete</button>
                   </>
                 )}
               </div>,
@@ -425,19 +438,21 @@ export function TasksTab() {
     </div>
   )
 
+  const weddingDate = headerDate(bundle?.wedding.weddingDate)
   return (
-    <div>
+    <div className="planning-page">
       <Celebration active={celebrate} onDone={stopCelebration} />
-      <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.crimson})`, padding: headerPadding }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 6 }}>Task Manager</div>
-          <Link to="/timeline" style={{ color: COLORS.gold, fontSize: TYPE.small, fontWeight: 600, minHeight: SIZE.tap, display: 'inline-flex', alignItems: 'center' }}>Events</Link>
+      <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, padding: headerPadding }}>
+        <div role="tablist" aria-label="Planning" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 0, background: COLORS.maroon, borderRadius: 12, padding: 4, marginBottom: 10 }}>
+          <Link to="/timeline" role="tab" aria-selected={false} style={segmentStyle(false)}>Events</Link>
+          <span role="tab" aria-selected={true} style={segmentStyle(true)}>Tasks</span>
         </div>
+        {weddingDate ? <div style={{ fontSize: 14, color: '#fff', marginBottom: 8 }}>{weddingDate}</div> : null}
         <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.9)', marginBottom: 10 }}>Community · {community}</div>
-        <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, height: 8, overflow: 'hidden', marginBottom: 6 }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: '#fff', borderRadius: 99, transition: 'width 0.8s ease' }} />
+        <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 6 }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: COLORS.goldTint, borderRadius: 99 }} />
         </div>
-        <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.9)' }}>🎯 {completedCount}/{tasks.length} Tasks Done — {pct}%</div>
+        <div style={{ fontSize: 14, color: '#fff' }}>{completedCount} / {tasks.length} · {pct}%</div>
       </div>
 
       {canStructure && (
@@ -492,14 +507,20 @@ export function TasksTab() {
                   {fn.phase ? <span className="event-phase-label">{PHASE_HEADERS[fn.phase]}</span> : null}
                   {canStructure && (
                     <div className="event-group-actions">
-                      {functions.length > 1 && (
-                        <>
-                          <button type="button" aria-label={`Move ${fn.name} up`} onClick={() => void moveFunction(fn.id, -1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↑</button>
-                          <button type="button" aria-label={`Move ${fn.name} down`} onClick={() => void moveFunction(fn.id, 1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↓</button>
-                        </>
+                      <button type="button" aria-label={`Actions for function ${fn.name}`} aria-haspopup="menu" aria-expanded={menuKey === `fn:${fn.id}`} onClick={(event) => openFunctionMenu(fn.id, event.currentTarget)} style={iconButton}>⋯</button>
+                      {menuKey === `fn:${fn.id}` && menuPlace && createPortal(
+                        <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menuPlace.top, left: menuPlace.left, zIndex: 400, width: menuPlace.width, background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 12, boxShadow: '0 8px 24px rgba(26,5,5,0.12)', padding: 4 }}>
+                          {functions.length > 1 && (
+                            <>
+                              <button type="button" role="menuitem" aria-label={`Move ${fn.name} up`} onClick={() => { closeMenu(); void moveFunction(fn.id, -1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move up</button>
+                              <button type="button" role="menuitem" aria-label={`Move ${fn.name} down`} onClick={() => { closeMenu(); void moveFunction(fn.id, 1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move down</button>
+                            </>
+                          )}
+                          <button type="button" role="menuitem" aria-label={`Rename ${fn.name}`} onClick={() => { closeMenu(); setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt, phase: fn.phase }) }} style={menuItem}>Edit</button>
+                          <button type="button" role="menuitem" aria-label={`Delete ${fn.name}`} onClick={() => { closeMenu(); setError(null); setPendingDelete(fn) }} style={{ ...menuItem, color: COLORS.danger }}>Delete</button>
+                        </div>,
+                        document.body,
                       )}
-                      <button type="button" aria-label={`Rename ${fn.name}`} onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt, phase: fn.phase }) }} style={iconButton}>Edit</button>
-                      <button type="button" aria-label={`Delete ${fn.name}`} onClick={() => { setError(null); setPendingDelete(fn) }} style={{ ...iconButton, color: COLORS.danger }}>Delete</button>
                     </div>
                   )}
                 </div>
@@ -741,13 +762,43 @@ const menuItem = {
   alignItems: 'center',
   width: '100%',
   minHeight: 48,
+  height: 'auto',
   minWidth: 48,
-  padding: '0 16px',
+  padding: '12px 16px',
   border: 'none',
   background: 'transparent',
   color: COLORS.ink,
   fontSize: 16,
+  lineHeight: 1.3,
+  whiteSpace: 'normal' as const,
   textAlign: 'left' as const,
   cursor: 'pointer',
   borderRadius: 8,
+}
+
+function segmentStyle(selected: boolean) {
+  return {
+    minHeight: 48,
+    minWidth: 0,
+    height: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    textDecoration: 'none',
+    fontSize: 16,
+    fontWeight: 600,
+    padding: '8px 12px',
+    background: selected ? COLORS.gold : 'transparent',
+    color: selected ? COLORS.crimson : '#fff',
+    whiteSpace: 'normal' as const,
+    textAlign: 'center' as const,
+    lineHeight: 1.2,
+  }
+}
+
+function headerDate(iso: string | undefined): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '')
+  if (!match) return ''
+  return `${match[3]}/${match[2]}/${match[1]}`
 }
