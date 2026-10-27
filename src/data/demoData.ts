@@ -161,12 +161,12 @@ export const DEMO_BUDGET: BudgetDraft[] = [
 ]
 
 export const DEMO_GUESTS: GuestDraft[] = [
-  { name: 'Mr. & Mrs. Sharma', email: 'sharma@email.com', phone: '9876543210', status: 'Confirmed', meal: 'Vegetarian', plusOnes: 2, side: 'bride' },
-  { name: 'Anita Mehta', email: 'anita@email.com', phone: '9876543211', status: 'Confirmed', meal: 'Non-Vegetarian', plusOnes: 1, side: 'groom' },
-  { name: 'Rajesh Kapoor', email: 'rajesh@email.com', phone: '', status: 'Pending', meal: 'Vegetarian', plusOnes: 0, side: '' },
-  { name: 'Sunita Verma', email: 'sunita@email.com', phone: '9876543212', status: 'Declined', meal: '', plusOnes: 0, side: '' },
-  { name: 'Vikram Singh', email: '', phone: '9876543213', status: 'Confirmed', meal: 'Jain', plusOnes: 3, side: 'groom' },
-  { name: 'Pooja & Amit Joshi', email: 'pooja@email.com', phone: '9876543214', status: 'Pending', meal: 'Vegetarian', plusOnes: 2, side: 'bride' },
+  { name: 'Mr. & Mrs. Sharma', email: 'sharma@email.com', phone: '9876543210', status: 'Confirmed', meal: 'Vegetarian', plusOnes: 2, side: 'bride', functionIds: [] },
+  { name: 'Anita Mehta', email: 'anita@email.com', phone: '9876543211', status: 'Confirmed', meal: 'Non-Vegetarian', plusOnes: 1, side: 'groom', functionIds: [] },
+  { name: 'Rajesh Kapoor', email: 'rajesh@email.com', phone: '', status: 'Pending', meal: 'Vegetarian', plusOnes: 0, side: '', functionIds: [] },
+  { name: 'Sunita Verma', email: 'sunita@email.com', phone: '9876543212', status: 'Declined', meal: '', plusOnes: 0, side: '', functionIds: [] },
+  { name: 'Vikram Singh', email: '', phone: '9876543213', status: 'Confirmed', meal: 'Jain', plusOnes: 3, side: 'groom', functionIds: [] },
+  { name: 'Pooja & Amit Joshi', email: 'pooja@email.com', phone: '9876543214', status: 'Pending', meal: 'Vegetarian', plusOnes: 2, side: 'bride', functionIds: [] },
 ]
 
 export const DEMO_MILESTONES: MilestoneDraft[] = [

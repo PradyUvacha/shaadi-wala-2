@@ -1,5 +1,5 @@
 import { DEFAULT_BUDGET_CATEGORIES } from '../config/budgetRules.ts'
-import { defaultPhaseForFunction, type FunctionPhase } from '../config/phases.ts'
+import { asFunctionPhase, defaultPhaseForFunction, type FunctionPhase } from '../config/phases.ts'
 import { DEMO_CITY, DEMO_COUPLE_NAMES, DEMO_GUESTS, demoWeddingDate, placeDemoContent } from '../data/demoData.ts'
 import type {
   BudgetDraft,
@@ -150,25 +150,25 @@ function nextTaskPosition(bundle: WeddingBundle, functionId: string): number {
     .reduce((max, task) => Math.max(max, task.position), 0) + 1
 }
 
-export function addFunction(bundle: WeddingBundle, name: string, phase?: FunctionPhase): WeddingBundle {
+export function addFunction(bundle: WeddingBundle, name: string, phase?: FunctionPhase | null): WeddingBundle {
   const trimmed = name.trim()
   if (!trimmed) return bundle
   if (bundle.functions.some((fn) => sameFunctionName(fn.name, trimmed))) {
     throw new Error(DUPLICATE_FUNCTION_MESSAGE)
   }
   const next = ensureFunction(bundle, trimmed)
-  if (!phase) return next.bundle
+  if (phase === undefined) return next.bundle
   return {
     ...next.bundle,
     functions: next.bundle.functions.map((fn) => (fn.id === next.fn.id ? { ...fn, phase } : fn)),
   }
 }
 
-export function renameFunction(bundle: WeddingBundle, id: string, name: string, phase?: FunctionPhase): WeddingBundle {
+export function renameFunction(bundle: WeddingBundle, id: string, name: string, phase?: FunctionPhase | null): WeddingBundle {
   const trimmed = name.trim()
   const current = bundle.functions.find((fn) => fn.id === id)
   if (!trimmed || !current) return bundle
-  const nextPhase = phase ?? current.phase
+  const nextPhase = phase === undefined ? current.phase : phase
   if (current.name === trimmed && current.phase === nextPhase) return bundle
   if (bundle.functions.some((fn) => fn.id !== id && sameFunctionName(fn.name, trimmed))) {
     throw new Error(DUPLICATE_FUNCTION_MESSAGE)
@@ -421,7 +421,7 @@ export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
   let functions = Array.isArray(bundle.functions)
     ? bundle.functions.map((fn) => ({
         ...fn,
-        phase: fn.phase ?? defaultPhaseForFunction(fn.name),
+        phase: fn.phase === undefined ? defaultPhaseForFunction(fn.name) : asFunctionPhase(fn.phase),
         updatedAt: fn.updatedAt ?? '',
       }))
     : []
@@ -445,7 +445,11 @@ export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
         side: bundle.membership.side,
         displayName: bundle.membership.displayName,
       }]
-  return { ...bundle, wedding: { ...bundle.wedding, community }, members, functions, tasks }
+  const guests = (bundle.guests ?? []).map((guest) => ({
+    ...guest,
+    functionIds: Array.isArray(guest.functionIds) ? guest.functionIds : [],
+  }))
+  return { ...bundle, wedding: { ...bundle.wedding, community }, members, functions, tasks, guests }
 }
 
 export function updateBundleSettings(bundle: WeddingBundle, settings: WeddingSettings): WeddingBundle {
@@ -496,6 +500,7 @@ function normalizeGuest(draft: GuestDraft): GuestDraft {
     meal: draft.meal,
     plusOnes: Math.max(0, Number(draft.plusOnes || 0)),
     side: draft.side,
+    functionIds: [...new Set((draft.functionIds ?? []).filter(Boolean))],
   }
 }
 

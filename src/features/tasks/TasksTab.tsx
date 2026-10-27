@@ -47,7 +47,7 @@ export function TasksTab() {
   const [form, setForm] = useState<TaskDraft>(emptyForm())
   const [newFunction, setNewFunction] = useState(false)
   const [functionName, setFunctionName] = useState('')
-  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string; updatedAt: string; phase: FunctionPhase } | null>(null)
+  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string; updatedAt: string; phase: FunctionPhase | null } | null>(null)
   const [loadedTaskAt, setLoadedTaskAt] = useState('')
   const [taskConflict, setTaskConflict] = useState(false)
   const [functionConflict, setFunctionConflict] = useState(false)
@@ -411,15 +411,17 @@ export function TasksTab() {
                 {group.tasks.map((task) => ritualCard(task, group.tasks.length))}
               </section>
             ))}
-            {FUNCTION_PHASES.flatMap((phase) => visibleGroups.filter((group) => group.fn.phase === phase)).map(({ fn, rituals }) => (
+            {visibleGroups.map(({ fn, rituals }) => (
               <section key={fn.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', minHeight: SIZE.tap, flexWrap: 'wrap' }}>
-                  <span aria-hidden="true" style={{ color: COLORS.muted, display: 'inline-flex' }}><CalendarIcon /></span>
-                  <h2 style={{ fontSize: TYPE.small, fontWeight: 500, color: COLORS.muted, margin: 0, flex: '1 1 120px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fn.name}</h2>
-                  <span style={{ fontSize: TYPE.small, fontWeight: 600, color: COLORS.muted, letterSpacing: '0.08em' }}>{PHASE_HEADERS[fn.phase]}</span>
-                  <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600, whiteSpace: 'nowrap' }}>{rituals.length} {rituals.length === 1 ? 'task' : 'tasks'}</span>
+                <div className="event-group-header">
+                  <span className="event-group-name">
+                    <span aria-hidden="true" style={{ color: COLORS.muted, display: 'inline-flex', flex: '0 0 auto' }}><CalendarIcon /></span>
+                    <h2>{fn.name}</h2>
+                  </span>
+                  {fn.phase ? <span className="event-phase-label">{PHASE_HEADERS[fn.phase]}</span> : null}
+                  <span className="event-count-pill">{rituals.length} {rituals.length === 1 ? 'task' : 'tasks'}</span>
                   {canStructure && (
-                    <div style={{ display: 'flex', gap: 4 }}>
+                    <div style={{ display: 'flex', gap: 4, flex: '0 0 auto' }}>
                       {functions.length > 1 && (
                         <>
                           <button type="button" aria-label={`Move ${fn.name} up`} onClick={() => void moveFunction(fn.id, -1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↑</button>
@@ -436,9 +438,11 @@ export function TasksTab() {
             ))}
             {loose.length > 0 && (
               <section>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', minHeight: SIZE.tap }}>
-                  <h2 style={{ fontSize: TYPE.small, fontWeight: 500, color: COLORS.muted, margin: 0, flex: 1 }}>Other tasks</h2>
-                  <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600 }}>{loose.length} {loose.length === 1 ? 'task' : 'tasks'}</span>
+                <div className="event-group-header">
+                  <span className="event-group-name">
+                    <h2>Other tasks</h2>
+                  </span>
+                  <span className="event-count-pill">{loose.length} {loose.length === 1 ? 'task' : 'tasks'}</span>
                 </div>
                 {loose.map((task) => ritualCard(task, loose.length))}
               </section>
@@ -455,7 +459,8 @@ export function TasksTab() {
           <input style={inputStyle} value={functionEditor?.name ?? ''} onChange={(event) => setFunctionEditor((current) => current ? { ...current, name: event.target.value } : current)} placeholder="Tilak" />
         </Field>
         <Field label="Phase">
-          <select style={selectStyle} value={functionEditor?.phase ?? 'pre_wedding'} onChange={(event) => setFunctionEditor((current) => current ? { ...current, phase: event.target.value as FunctionPhase } : current)}>
+          <select style={selectStyle} value={functionEditor?.phase ?? ''} onChange={(event) => setFunctionEditor((current) => current ? { ...current, phase: event.target.value === '' ? null : event.target.value as FunctionPhase } : current)}>
+            <option value="">No phase</option>
             {FUNCTION_PHASES.map((phase) => <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>)}
           </select>
         </Field>

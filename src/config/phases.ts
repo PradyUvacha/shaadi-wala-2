@@ -22,7 +22,11 @@ const PHASE_BY_NAME: Record<string, FunctionPhase> = {
   sangeet: 'pre_wedding',
   wedding: 'wedding_day',
   vidaai: 'wedding_day',
+  kanyadaan: 'wedding_day',
+  'saat phere': 'wedding_day',
+  mangalsutra: 'wedding_day',
   reception: 'post_wedding',
+  'griha pravesh': 'post_wedding',
 }
 
 /** Known ceremonies land in their phase. Any other name, including a custom function, starts in pre-wedding. */
@@ -30,7 +34,8 @@ export function defaultPhaseForFunction(name: string): FunctionPhase {
   return PHASE_BY_NAME[name.trim().toLowerCase()] ?? 'pre_wedding'
 }
 
-export function asFunctionPhase(value: unknown, name = ''): FunctionPhase {
+/** A stored phase. Null and anything else stay null so a cleared phase is not invented from the name. */
+export function asFunctionPhase(value: unknown): FunctionPhase | null {
   if (value === 'pre_wedding' || value === 'wedding_day' || value === 'post_wedding') return value
-  return defaultPhaseForFunction(name)
+  return null
 }

@@ -1,4 +1,4 @@
-/** Guest counts for the four tiles. Maybe sits in Pending, so the three status tiles add up to Total. Attending is confirmed people, including plus-ones. */
+/** Guest counts for the four tiles. Maybe counts in Total only. Attending is confirmed people, including plus-ones. */
 export type GuestStats = {
   total: number
   confirmed: number
@@ -18,10 +18,10 @@ export function guestStatCounts(guests: readonly { status: string; plusOnes: num
     if (guest.status === 'Confirmed') {
       totals.confirmed += 1
       totals.attending += heads(guest.plusOnes)
+    } else if (guest.status === 'Pending') {
+      totals.pending += 1
     } else if (guest.status === 'Declined') {
       totals.declined += 1
-    } else {
-      totals.pending += 1
     }
   }
   return totals
@@ -32,9 +32,29 @@ export function guestMatchesQuery(guest: { name: string; phone: string; email: s
   if (!text) return true
   if (guest.name.toLowerCase().includes(text)) return true
   if (guest.email.toLowerCase().includes(text)) return true
-  if (guest.phone.toLowerCase().includes(text)) return true
   const digits = text.replace(/\D/g, '')
   return digits.length > 0 && guest.phone.replace(/\D/g, '').includes(digits)
+}
+
+export function guestNameProblem(name: string): string | null {
+  const trimmed = name.trim()
+  if (trimmed.length < 1 || trimmed.length > 100) return 'Add the guest name.'
+  return null
+}
+
+export function guestPhoneProblem(phone: string): string | null {
+  const trimmed = phone.trim()
+  if (!trimmed) return null
+  const digits = trimmed.replace(/\D/g, '')
+  if (!/^[0-9 +]+$/.test(trimmed) || digits.length < 7 || digits.length > 15) return 'Check the phone number.'
+  return null
+}
+
+export function guestEmailProblem(email: string): string | null {
+  const trimmed = email.trim()
+  if (!trimmed) return null
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) return 'Check the email address.'
+  return null
 }
 
 const AVATAR_COLORS = ['#7A0A0A', '#5A0606', '#9A3E0E', '#24643F', '#6B3FA0', '#5C2E2E'] as const
@@ -59,6 +79,18 @@ export function mealPillLabel(meal: string): string | null {
   if (/non/i.test(text)) return 'Non-veg'
   if (/^veg/i.test(text)) return 'Veg'
   return text
+}
+
+export function mealUsesLeaf(meal: string): boolean {
+  const label = mealPillLabel(meal)
+  return label === 'Veg' || label === 'Jain' || label === 'Vegan'
+}
+
+/** Up to two function names, then +N for the rest. Empty when the guest has no functions. */
+export function guestFunctionLine(names: readonly string[]): string {
+  if (names.length === 0) return ''
+  if (names.length <= 2) return names.join(', ')
+  return `${names[0]}, ${names[1]} +${names.length - 2}`
 }
 
 export function compareGuestNames(left: string, right: string): number {

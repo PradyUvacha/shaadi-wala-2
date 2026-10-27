@@ -233,6 +233,10 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261027160000_task_event_phase.sql`)
   file(`${root}supabase/migrations/20261027170000_mutual_side.sql`)
   file(`${root}supabase/migrations/20261027170000_mutual_side.sql`)
+  file(`${root}supabase/migrations/20261027180000_nullable_function_phase.sql`)
+  file(`${root}supabase/migrations/20261027180000_nullable_function_phase.sql`)
+  file(`${root}supabase/migrations/20261027190000_guest_functions.sql`)
+  file(`${root}supabase/migrations/20261027190000_guest_functions.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -520,6 +524,55 @@ describe('approved role permissions', () => {
     expect(asUser(bride, `update public.wedding_functions set phase = 'wedding_day' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
     expect(errorOf(friend, `update public.tasks set function_id = (select id from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding}) where title = 'Friend task';`)).toMatch(/complete tasks assigned/i)
     expect(psql(`select function_id is null from public.tasks where title = 'Friend task';`).trim()).toBe('t')
+  })
+
+  it('lets a phase be empty and links guests to functions with the same visibility as the guest', () => {
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    expect(psql(`select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'wedding_functions' and column_name = 'phase';`).trim()).toBe('YES')
+    expect(psql(`select public.default_function_phase('Kanyadaan');`).trim()).toBe('wedding_day')
+    expect(psql(`select public.default_function_phase('Griha Pravesh');`).trim()).toBe('post_wedding')
+    expect(psql(`select pg_get_expr(polqual, polrelid) from pg_policy where polname = 'guests_select_by_permission';`)).toMatch(/both/)
+    expect(asUser(bride, `
+      update public.wedding_functions set phase = null where name = 'Haldi' and wedding_id = ${wedding};
+      select coalesce(phase, 'none') from public.wedding_functions where name = 'Haldi' and wedding_id = ${wedding};
+    `)).toBe('none')
+    expect(errorOf(bride, `update public.wedding_functions set phase = 'nope' where name = 'Haldi' and wedding_id = ${wedding};`)).toMatch(/check|phase/i)
+    expect(asUser(bride, `
+      update public.wedding_functions set phase = 'pre_wedding' where name = 'Haldi' and wedding_id = ${wedding};
+      select phase from public.wedding_functions where name = 'Haldi' and wedding_id = ${wedding};
+    `)).toBe('pre_wedding')
+    expect(asUser(bride, `
+      insert into public.guests (wedding_id, name, rsvp_status, side)
+      select id, 'Maybe Guest', 'Maybe', 'bride' from public.weddings where couple_names = 'Role Fixture';
+      select rsvp_status from public.guests where name = 'Maybe Guest';
+    `)).toBe('Maybe')
+    expect(asUser(bride, `
+      insert into public.guest_functions (guest_id, function_id, wedding_id)
+      select g.id, f.id, g.wedding_id
+      from public.guests g
+      join public.wedding_functions f on f.wedding_id = g.wedding_id and f.name = 'Mehendi'
+      where g.name = 'Bride Guest';
+      select count(*) from public.guest_functions gf
+      join public.guests g on g.id = gf.guest_id
+      where g.name = 'Bride Guest';
+    `)).toBe('1')
+    expect(asUser(family, `select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('1')
+    expect(asUser(friend, `select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('1')
+    expect(asUser(familyGroom, `select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('0')
+    const groomGuest = psql(`select id from public.guests where name = 'Groom Guest';`).trim()
+    const mehendi = psql(`select f.id from public.wedding_functions f join public.weddings w on w.id = f.wedding_id where w.couple_names = 'Role Fixture' and f.name = 'Mehendi';`).trim()
+    const weddingId = psql(`select id from public.weddings where couple_names = 'Role Fixture';`).trim()
+    expect(errorOf(family, `insert into public.guest_functions (guest_id, function_id, wedding_id) values ('${groomGuest}', '${mehendi}', '${weddingId}');`)).toMatch(/row-level security/i)
+    expect(errorOf(friend, `
+      insert into public.guest_functions (guest_id, function_id, wedding_id)
+      select g.id, f.id, g.wedding_id
+      from public.guests g
+      join public.wedding_functions f on f.wedding_id = g.wedding_id and f.name = 'Mehendi'
+      where g.name = 'Bride Guest';
+    `)).toMatch(/row-level security/i)
+    expect(asUser(friend, `delete from public.guest_functions where guest_id in (select id from public.guests where name = 'Bride Guest'); select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('1')
+    expect(asUser(family, `delete from public.guest_functions where guest_id in (select id from public.guests where name = 'Bride Guest'); select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('0')
+    expect(asUser(bride, `delete from public.guests where name = 'Maybe Guest'; select count(*) from public.guests where name = 'Maybe Guest';`)).toBe('0')
   })
 
   it('copies the hindu checklist and lets only the couple or planner edit that wedding', () => {

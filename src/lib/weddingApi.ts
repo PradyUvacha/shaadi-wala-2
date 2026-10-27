@@ -264,7 +264,22 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
           assertNoError(result.error)
           return result.data
         })
-    return mapGuest(asRecord(saved))
+    const guest = mapGuest(asRecord(saved))
+    const functionIds = [...new Set((draft.functionIds ?? []).filter(Boolean))]
+    await replaceGuestFunctions(weddingId, guest.id, functionIds)
+    return { ...guest, functionIds }
+  }
+
+  async function replaceGuestFunctions(weddingId: string, guestId: string, functionIds: string[]) {
+    const removed = await client.from('guest_functions').delete().eq('guest_id', guestId)
+    assertNoError(removed.error)
+    if (functionIds.length === 0) return
+    const inserted = await client.from('guest_functions').insert(functionIds.map((functionId) => ({
+      guest_id: guestId,
+      function_id: functionId,
+      wedding_id: weddingId,
+    })))
+    assertNoError(inserted.error)
   }
 
   async function deleteGuest(id: string): Promise<void> {
@@ -299,7 +314,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return loadTasks(weddingId)
   }
 
-  async function addFunction(weddingId: string, name: string, phase?: FunctionPhase): Promise<WeddingFunction> {
+  async function addFunction(weddingId: string, name: string, phase?: FunctionPhase | null): Promise<WeddingFunction> {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name the function.')
     const existing = await findFunctionByName(weddingId, trimmed)
@@ -307,7 +322,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return insertFunction(weddingId, trimmed, phase)
   }
 
-  async function renameFunction(id: string, name: string, guard?: RowGuard, phase?: FunctionPhase): Promise<void> {
+  async function renameFunction(id: string, name: string, guard?: RowGuard, phase?: FunctionPhase | null): Promise<void> {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name the function.')
     const current = await client.from('wedding_functions').select('id, wedding_id, name').eq('id', id).maybeSingle()
@@ -318,7 +333,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const existing = await findFunctionByName(weddingId, trimmed)
     if (existing && existing.id !== id) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
     await requireUpdatedRow(
-      withGuard(client.from('wedding_functions').update(phase ? { name: trimmed, phase } : { name: trimmed }).eq('id', id), guard).select('id').maybeSingle(),
+      withGuard(client.from('wedding_functions').update(phase === undefined ? { name: trimmed } : { name: trimmed, phase }).eq('id', id), guard).select('id').maybeSingle(),
       () => client.from('wedding_functions').select('id').eq('id', id).maybeSingle(),
     )
   }
@@ -455,7 +470,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return functions.find((fn) => fn.name.trim().toLowerCase() === key) ?? null
   }
 
-  async function insertFunction(weddingId: string, name: string, phase?: FunctionPhase): Promise<WeddingFunction> {
+  async function insertFunction(weddingId: string, name: string, phase?: FunctionPhase | null): Promise<WeddingFunction> {
     const top = await client
       .from('wedding_functions')
       .select('position')
@@ -470,7 +485,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
         wedding_id: weddingId,
         name,
         position: Number(top.data?.position ?? 0) + 1,
-        phase: phase ?? defaultPhaseForFunction(name),
+        phase: phase === undefined ? defaultPhaseForFunction(name) : phase,
       })
       .select('id, name, position, phase, updated_at')
       .single()
@@ -629,7 +644,22 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function loadGuests(weddingId: string) {
     const { data, error } = await client.from('guests').select('*').eq('wedding_id', weddingId).order('created_at')
     assertNoError(error)
-    return (data ?? []).map((row) => mapGuest(asRecord(row)))
+    const links = await client.from('guest_functions').select('guest_id, function_id').eq('wedding_id', weddingId)
+    assertNoError(links.error)
+    const byGuest = new Map<string, string[]>()
+    for (const row of links.data ?? []) {
+      const record = asRecord(row)
+      const guestId = String(record.guest_id ?? '')
+      const functionId = String(record.function_id ?? '')
+      if (!guestId || !functionId) continue
+      const current = byGuest.get(guestId) ?? []
+      current.push(functionId)
+      byGuest.set(guestId, current)
+    }
+    return (data ?? []).map((row) => {
+      const guest = mapGuest(asRecord(row))
+      return { ...guest, functionIds: byGuest.get(guest.id) ?? [] }
+    })
   }
 
   async function loadMilestones(weddingId: string) {

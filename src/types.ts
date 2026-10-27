@@ -75,7 +75,7 @@ export type WeddingFunction = {
   id: string
   name: string
   position: number
-  phase: FunctionPhase
+  phase: FunctionPhase | null
   updatedAt: string
 }
 
@@ -138,6 +138,7 @@ export type GuestDraft = {
   meal: string
   plusOnes: number
   side: GuestSide
+  functionIds: string[]
 }
 
 export type Guest = GuestDraft & { id: string }

@@ -35,7 +35,7 @@ export function mapFunction(row: Record<string, unknown>): WeddingFunction {
     id: String(row.id),
     name: String(row.name ?? ''),
     position: Number(row.position ?? 0),
-    phase: asFunctionPhase(row.phase, String(row.name ?? '')),
+    phase: asFunctionPhase(row.phase),
     updatedAt: row.updated_at ? String(row.updated_at) : '',
   }
 }
@@ -70,6 +70,7 @@ export function mapGuest(row: Record<string, unknown>): Guest {
     meal: String(row.meal ?? ''),
     plusOnes: Number(row.plus_ones ?? 0),
     side: side === 'bride' || side === 'groom' || side === 'both' ? side : '',
+    functionIds: [],
   }
 }
 
