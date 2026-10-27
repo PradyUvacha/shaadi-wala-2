@@ -80,13 +80,13 @@ export function ProfileScreen() {
     <div style={{ paddingBottom: screenBottom }}>
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},${COLORS.crimson})`, padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, color: '#fff', fontWeight: 700 }}>Profile</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 4 }}>
+        <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)', marginTop: 4 }}>
           {mode === 'preview' ? 'Preview on this device' : bundle ? roleLabel(bundle.membership.role, bundle.membership.side) : 'Signed in'}
         </div>
       </div>
       <div style={{ padding: 16 }}>
         <FormError message={error} />
-        {saved && <p style={{ color: COLORS.green, fontSize: 13 }}>Saved.</p>}
+        {saved && <p style={{ color: COLORS.green, fontSize: 14 }}>Saved.</p>}
         {bundle ? (
           <>
             <Field label="Your name" value={displayName} onChange={setDisplayName} disabled={!canEdit} />
@@ -115,8 +115,8 @@ export function ProfileScreen() {
               return (
                 <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', borderBottom: '1px solid #E8D4B0' }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#2A0A0A' }}>{member.displayName}{mine ? ' (you)' : ''}</div>
-                    <div style={{ fontSize: 12, color: '#7A5050' }}>{roleLabel(member.role, member.side)}</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: COLORS.ink }}>{member.displayName}{mine ? ' (you)' : ''}</div>
+                    <div style={{ fontSize: 14, color: COLORS.muted }}>{roleLabel(member.role, member.side)}</div>
                   </div>
                   {canRemove && !mine && (
                     <button type="button" aria-label={`Remove ${member.displayName}`} onClick={() => { setError(null); setPendingRemove(member) }} style={{ background: 'transparent', border: '1px solid #E7C1C1', color: '#CC4444', borderRadius: 10, padding: '8px 10px', fontWeight: 700, cursor: 'pointer' }}>
@@ -131,13 +131,13 @@ export function ProfileScreen() {
                 Leave wedding
               </button>
             ) : (
-              <p style={{ fontSize: 13, color: '#5A2020', lineHeight: 1.5, marginTop: 14 }}>
+              <p style={{ fontSize: 14, color: COLORS.ink, lineHeight: 1.5, marginTop: 14 }}>
                 The last bride or groom cannot leave. Delete the account instead.
               </p>
             )}
           </>
         ) : (
-          <p style={{ color: '#5A2020', fontSize: 14, lineHeight: 1.5 }}>Finish setting up your wedding, or open Settings to manage this account.</p>
+          <p style={{ color: COLORS.ink, fontSize: 14, lineHeight: 1.5 }}>Finish setting up your wedding, or open Settings to manage this account.</p>
         )}
         <button type="button" onClick={() => navigate('/profile/feedback')} style={secondaryButton}>
           Send feedback
@@ -148,7 +148,7 @@ export function ProfileScreen() {
       </div>
       <Modal open={pendingLeave} onClose={() => setPendingLeave(false)} title="Leave wedding">
         <FormError message={error} />
-        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 14, color: COLORS.ink, marginBottom: 16, lineHeight: 1.6 }}>
           Leave this wedding? Tasks assigned to you will be unassigned.
         </p>
         <button type="button" disabled={busy} onClick={() => void leave()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
@@ -157,7 +157,7 @@ export function ProfileScreen() {
       </Modal>
       <Modal open={pendingRemove !== null} onClose={() => setPendingRemove(null)} title="Remove member">
         <FormError message={error} />
-        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+        <p style={{ fontSize: 14, color: COLORS.ink, marginBottom: 16, lineHeight: 1.6 }}>
           Remove {pendingRemove?.displayName}? Their assigned tasks become unassigned and stay on their side.
         </p>
         <button type="button" disabled={busy} onClick={() => void remove()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
@@ -177,5 +177,5 @@ function Field({ label, value, onChange, disabled }: { label: string; value: str
   )
 }
 
-const caption = { display: 'block', fontSize: 11, fontWeight: 600, color: COLORS.crimson, marginBottom: 5, textTransform: 'uppercase' as const, letterSpacing: '0.5px' }
+const caption = { display: 'block', fontSize: 14, fontWeight: 600, color: COLORS.crimson, marginBottom: 5, textTransform: 'uppercase' as const, letterSpacing: '0.5px' }
 const secondaryButton = { ...primaryButton('transparent'), color: COLORS.crimson, border: `1px solid ${COLORS.gold}`, marginTop: 10 }

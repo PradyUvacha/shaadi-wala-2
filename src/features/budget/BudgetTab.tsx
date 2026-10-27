@@ -353,7 +353,7 @@ export function BudgetTab() {
           </div>
         </div>
         <Field label="Notes">
-          <textarea style={{ ...inputStyle, minHeight: 72, resize: 'vertical' }} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
+          <textarea style={{ ...inputStyle, height: 'auto', maxHeight: 'none', minHeight: 72, resize: 'vertical' }} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
         </Field>
         <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton()}>
           {busy ? 'Saving…' : editItem ? 'Save changes' : 'Add category'}

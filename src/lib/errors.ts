@@ -73,7 +73,27 @@ export function toErrorMessage(error: unknown): string {
   return 'Something went wrong. Please try again.'
 }
 
-export function assertNoError(error: { message: string; code?: string; details?: string | null } | null): void {
+type DbError = { message: string; code?: string; details?: string | null; hint?: string | null }
+
+/**
+ * Tables and columns added after 20261026270000. A hosted project that has not
+ * applied those migrations yet must keep working: costs stay empty, guest
+ * function links stay empty, and ceremony phase falls back to the name.
+ */
+export function isOptionalSchemaMiss(error: DbError | null | undefined): boolean {
+  if (!error?.message) return false
+  const text = `${error.message} ${error.details ?? ''} ${error.hint ?? ''}`
+  const missing =
+    error.code === '42P01' ||
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    error.code === 'PGRST205' ||
+    /does not exist|schema cache/i.test(text)
+  if (!missing) return false
+  return /task_costs|guest_functions|wedding_functions\.phase|\bphase\b/i.test(text)
+}
+
+export function assertNoError(error: DbError | null): void {
   if (!error) return
   if (isZeroRowError(error)) throw new DeletedItemError()
   const constraint = `${error.message} ${error.details ?? ''}`
@@ -83,6 +103,7 @@ export function assertNoError(error: { message: string; code?: string; details?:
   if (error.code === '23505' && /wedding_functions_name_ci/i.test(constraint)) {
     throw new Error(DUPLICATE_FUNCTION_MESSAGE)
   }
+  if (isOptionalSchemaMiss(error)) throw new Error(error.message)
   const missingSchema =
     error.code === 'PGRST202' ||
     error.code === '42P01' ||

@@ -313,11 +313,11 @@ export function TasksTab() {
     <div key={task.id} style={{ background: COLORS.cardBg, border: `1px solid ${task.status === 'Completed' ? '#4CAF5040' : '#E8D4B0'}`, borderRadius: 14, padding: 14, marginBottom: 10, animation: 'fadeIn 0.3s ease', opacity: task.status === 'Completed' ? 0.75 : 1 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
         <button type="button" disabled={!canComplete} aria-label={task.status === 'Completed' ? 'Mark pending' : 'Mark completed'} onClick={() => void toggle(task)} style={{ width: SIZE.tap, height: SIZE.tap, borderRadius: '50%', border: `2px solid ${task.status === 'Completed' ? COLORS.green : COLORS.crimson}`, background: task.status === 'Completed' ? COLORS.green : 'transparent', cursor: canComplete ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {task.status === 'Completed' && <span style={{ color: '#fff', fontSize: 12 }}>✓</span>}
+          {task.status === 'Completed' && <span style={{ color: '#fff', fontSize: TYPE.body }}>✓</span>}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#2A0A0A', textDecoration: task.status === 'Completed' ? 'line-through' : 'none', marginBottom: 4 }}>{task.title}</div>
-          {task.description && <div style={{ fontSize: 12, color: '#7A5050', marginBottom: 6 }}>{task.description}</div>}
+          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.ink, textDecoration: task.status === 'Completed' ? 'line-through' : 'none', marginBottom: 4 }}>{task.title}</div>
+          {task.description && <div style={{ fontSize: TYPE.small, color: COLORS.muted, marginBottom: 6 }}>{task.description}</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
             <Badge color={CATEGORY_COLORS[task.category] || '#666'} small>{task.category}</Badge>
             <Badge color={PRIORITY_COLORS[task.priority] || COLORS.gold} small>{task.priority}</Badge>
@@ -331,7 +331,7 @@ export function TasksTab() {
             )}
             {task.dueDate && <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.dueDate}</span>}
             {task.assignedTo && (
-              <span style={{ fontSize: 10, color: '#8B5050' }}>
+              <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>
                 Assigned to {members.find((member) => member.userId === task.assignedTo)?.displayName ?? 'a member'}
               </span>
             )}
@@ -369,12 +369,12 @@ export function TasksTab() {
         <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, height: 8, overflow: 'hidden', marginBottom: 6 }}>
           <div style={{ height: '100%', width: `${pct}%`, background: '#fff', borderRadius: 99, transition: 'width 0.8s ease' }} />
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>🎯 {completedCount}/{tasks.length} Tasks Done — {pct}%</div>
+        <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.9)' }}>🎯 {completedCount}/{tasks.length} Tasks Done — {pct}%</div>
       </div>
 
       {canStructure && (
         <div style={{ margin: '12px 16px 0' }}>
-          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '', phase: 'pre_wedding' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.goldText}`, background: 'transparent', color: COLORS.crimson, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '', phase: 'pre_wedding' }) }} style={{ width: '100%', height: SIZE.button, minHeight: SIZE.button, maxHeight: SIZE.button, boxSizing: 'border-box', padding: '0 16px', borderRadius: 12, border: `1.5px dashed ${COLORS.goldText}`, background: 'transparent', color: COLORS.crimson, fontSize: 16, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
             Add function
           </button>
         </div>
@@ -474,7 +474,7 @@ export function TasksTab() {
 
       <Modal open={pendingDelete !== null} onClose={() => setPendingDelete(null)} title="Remove function">
         <FormError message={error} />
-        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+        <p style={{ fontSize: TYPE.small, color: COLORS.ink, marginBottom: 16, lineHeight: 1.6 }}>
           {deleteCopy}
         </p>
         <button type="button" disabled={busy} onClick={() => void removeFunctionNow()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
@@ -484,7 +484,7 @@ export function TasksTab() {
 
       <Modal open={pendingRitual !== null} onClose={() => setPendingRitual(null)} title="Remove ritual">
         <FormError message={error} />
-        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+        <p style={{ fontSize: TYPE.small, color: COLORS.ink, marginBottom: 16, lineHeight: 1.6 }}>
           Remove {pendingRitual?.title}?
         </p>
         <button type="button" disabled={busy} onClick={() => void removeRitualNow()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
@@ -498,7 +498,7 @@ export function TasksTab() {
           <input style={inputStyle} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Task title" />
         </Field>
         <Field label="Description">
-          <textarea style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Details..." />
+          <textarea style={{ ...inputStyle, height: 'auto', maxHeight: 'none', minHeight: 70, resize: 'vertical' }} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Details..." />
         </Field>
         <Field label="Function">
           <select
@@ -614,7 +614,7 @@ export function TasksTab() {
 function ConflictChoices({ busy, onReload, onOverwrite }: { busy: boolean; onReload: () => void; onOverwrite: () => void }) {
   return (
     <div>
-      <p style={{ color: '#8B0000', fontSize: 13, margin: '8px 0' }}>{STALE_WRITE_MESSAGE}</p>
+      <p style={{ color: COLORS.danger, fontSize: TYPE.small, margin: '8px 0' }}>{STALE_WRITE_MESSAGE}</p>
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" disabled={busy} onClick={onReload} style={{ ...primaryButton('transparent'), color: COLORS.crimson, border: `1px solid ${COLORS.gold}`, flex: 1 }}>
           Reload

@@ -61,7 +61,7 @@ export function CreateWeddingScreen() {
           <Field label="Couple names" value={coupleNames} onChange={setCoupleNames} placeholder="Priya & Rahul" />
           <Field label="Wedding date" value={weddingDate} onChange={setWeddingDate} type="date" />
           <Field label="City" value={city} onChange={setCity} placeholder="Mumbai" />
-          <span style={{ display: 'block', color: COLORS.gold, fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>YOU ARE</span>
+          <span style={{ display: 'block', color: COLORS.gold, fontSize: 14, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>YOU ARE</span>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             {(['bride', 'groom'] as const).map((item) => (
               <button key={item} type="button" onClick={() => setSide(item)} style={choice(side === item)}>
@@ -69,7 +69,7 @@ export function CreateWeddingScreen() {
               </button>
             ))}
           </div>
-          {error && <p style={{ color: '#FFE0E0', fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: '#FFE0E0', fontSize: 14 }}>{error}</p>}
           <button type="button" disabled={busy} onClick={() => void create('template')} style={{ ...choice(true), width: '100%' }}>
             {busy ? 'Creating…' : 'Create wedding'}
           </button>
@@ -85,7 +85,7 @@ export function CreateWeddingScreen() {
 function Field({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
   return (
     <label style={{ display: 'block', marginBottom: 12 }}>
-      <span style={{ display: 'block', color: COLORS.gold, fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>{label.toUpperCase()}</span>
+      <span style={{ display: 'block', color: COLORS.gold, fontSize: 14, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>{label.toUpperCase()}</span>
       <input className="auth-input" type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.12)', color: '#fff', fontSize: 16 }} />
     </label>
   )

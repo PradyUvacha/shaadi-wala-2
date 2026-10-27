@@ -21,7 +21,7 @@ import type { FunctionPhase } from '../config/phases.ts'
 import { defaultPhaseForFunction } from '../config/phases.ts'
 import { rosterDisplayName } from './access.ts'
 import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
-import { assertNoError, DeletedItemError, throwIfWriteMissed, type RowGuard } from './errors.ts'
+import { assertNoError, DeletedItemError, isOptionalSchemaMiss, throwIfWriteMissed, type RowGuard } from './errors.ts'
 import { splitsForSave } from './planning.ts'
 import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
 import {
@@ -272,6 +272,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
 
   async function replaceGuestFunctions(weddingId: string, guestId: string, functionIds: string[]) {
     const removed = await client.from('guest_functions').delete().eq('guest_id', guestId)
+    if (isOptionalSchemaMiss(removed.error)) return
     assertNoError(removed.error)
     if (functionIds.length === 0) return
     const inserted = await client.from('guest_functions').insert(functionIds.map((functionId) => ({
@@ -279,6 +280,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       function_id: functionId,
       wedding_id: weddingId,
     })))
+    if (isOptionalSchemaMiss(inserted.error)) return
     assertNoError(inserted.error)
   }
 
@@ -332,10 +334,20 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const weddingId = String(record.wedding_id)
     const existing = await findFunctionByName(weddingId, trimmed)
     if (existing && existing.id !== id) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
-    await requireUpdatedRow(
-      withGuard(client.from('wedding_functions').update(phase === undefined ? { name: trimmed } : { name: trimmed, phase }).eq('id', id), guard).select('id').maybeSingle(),
-      () => client.from('wedding_functions').select('id').eq('id', id).maybeSingle(),
-    )
+    const payload = phase === undefined ? { name: trimmed } : { name: trimmed, phase }
+    const updated = await withGuard(client.from('wedding_functions').update(payload).eq('id', id), guard).select('id').maybeSingle()
+    if (phase !== undefined && isOptionalSchemaMiss(updated.error)) {
+      await requireUpdatedRow(
+        withGuard(client.from('wedding_functions').update({ name: trimmed }).eq('id', id), guard).select('id').maybeSingle(),
+        () => client.from('wedding_functions').select('id').eq('id', id).maybeSingle(),
+      )
+      return
+    }
+    assertNoError(updated.error)
+    if (updated.data) return
+    const still = await client.from('wedding_functions').select('id').eq('id', id).maybeSingle()
+    assertNoError(still.error)
+    throwIfWriteMissed(updated.data, Boolean(still.data))
   }
 
   async function deleteFunction(id: string): Promise<void> {
@@ -454,13 +466,25 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   }
 
   async function loadFunctions(weddingId: string): Promise<WeddingFunction[]> {
-    const { data, error } = await client
+    const selected = await client
       .from('wedding_functions')
       .select('id, name, position, phase, updated_at')
       .eq('wedding_id', weddingId)
       .order('position')
-    assertNoError(error)
-    return (data ?? []).map((row) => mapFunction(asRecord(row)))
+    if (isOptionalSchemaMiss(selected.error)) {
+      const plain = await client
+        .from('wedding_functions')
+        .select('id, name, position, updated_at')
+        .eq('wedding_id', weddingId)
+        .order('position')
+      assertNoError(plain.error)
+      return (plain.data ?? []).map((row) => {
+        const fn = mapFunction(asRecord(row))
+        return { ...fn, phase: defaultPhaseForFunction(fn.name) }
+      })
+    }
+    assertNoError(selected.error)
+    return (selected.data ?? []).map((row) => mapFunction(asRecord(row)))
   }
 
   async function findFunctionByName(weddingId: string, name: string): Promise<WeddingFunction | null> {
@@ -479,16 +503,27 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       .limit(1)
       .maybeSingle()
     assertNoError(top.error)
+    const phaseValue = phase === undefined ? defaultPhaseForFunction(name) : phase
+    const position = Number(top.data?.position ?? 0) + 1
     const inserted = await client
       .from('wedding_functions')
       .insert({
         wedding_id: weddingId,
         name,
-        position: Number(top.data?.position ?? 0) + 1,
-        phase: phase === undefined ? defaultPhaseForFunction(name) : phase,
+        position,
+        phase: phaseValue,
       })
       .select('id, name, position, phase, updated_at')
       .single()
+    if (isOptionalSchemaMiss(inserted.error)) {
+      const plain = await client
+        .from('wedding_functions')
+        .insert({ wedding_id: weddingId, name, position })
+        .select('id, name, position, updated_at')
+        .single()
+      assertNoError(plain.error)
+      return { ...mapFunction(asRecord(plain.data)), phase: phaseValue }
+    }
     assertNoError(inserted.error)
     return mapFunction(asRecord(inserted.data))
   }
@@ -590,6 +625,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       .from('task_costs')
       .select('task_id, actual_cost, budget_category_id, updated_at')
       .eq('wedding_id', weddingId)
+    if (isOptionalSchemaMiss(error)) return new Map<string, Pick<Task, 'actualCost' | 'budgetCategoryId' | 'costUpdatedAt'>>()
     assertNoError(error)
     const costs = new Map<string, Pick<Task, 'actualCost' | 'budgetCategoryId' | 'costUpdatedAt'>>()
     for (const row of data ?? []) {
@@ -617,6 +653,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       budget_category_id: draft.budgetCategoryId || null,
     }
     const existing = await client.from('task_costs').select('task_id, updated_at').eq('task_id', taskId).maybeSingle()
+    if (isOptionalSchemaMiss(existing.error)) return
     assertNoError(existing.error)
     if (!existing.data) {
       const inserted = await client.from('task_costs').insert({ task_id: taskId, wedding_id: weddingId, ...payload }).select('task_id').maybeSingle()
@@ -645,6 +682,9 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const { data, error } = await client.from('guests').select('*').eq('wedding_id', weddingId).order('created_at')
     assertNoError(error)
     const links = await client.from('guest_functions').select('guest_id, function_id').eq('wedding_id', weddingId)
+    if (isOptionalSchemaMiss(links.error)) {
+      return (data ?? []).map((row) => mapGuest(asRecord(row)))
+    }
     assertNoError(links.error)
     const byGuest = new Map<string, string[]>()
     for (const row of links.data ?? []) {

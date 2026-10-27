@@ -58,4 +58,4 @@ export function SettingsScreen() {
 }
 
 const backButton = { background: 'transparent', border: 'none', color: COLORS.gold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer', fontSize: 16 }
-const linkRow = { display: 'flex', alignItems: 'center', minHeight: 44, padding: '14px 0', borderBottom: '1px solid #E8D4B0', color: COLORS.crimson, fontWeight: 600, textDecoration: 'none', fontSize: 16 }
+const linkRow = { display: 'flex', alignItems: 'center', minHeight: 48, padding: '14px 0', borderBottom: '1px solid #E8D4B0', color: COLORS.crimson, fontWeight: 600, textDecoration: 'none', fontSize: 16 }

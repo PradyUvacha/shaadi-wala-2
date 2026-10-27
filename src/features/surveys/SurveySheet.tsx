@@ -106,14 +106,14 @@ export function SurveySheet({
           <div id="survey-title" style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: COLORS.crimson, fontWeight: 700 }}>
             {prompt === 'price' ? 'A question about price' : 'A quick question'}
           </div>
-          <button type="button" onClick={close} disabled={busy} style={{ background: 'transparent', border: 'none', color: '#8B5050', fontWeight: 700, cursor: 'pointer', minHeight: 44 }}>
+          <button type="button" onClick={close} disabled={busy} style={{ background: 'transparent', border: 'none', color: COLORS.muted, fontWeight: 700, cursor: 'pointer', minHeight: 48 }}>
             Not now
           </button>
         </div>
         {prompt === 'price' ? (
           step === 'open' ? (
             <>
-              <p style={{ color: '#3C1515', fontSize: 15, lineHeight: 1.45 }}>{PRICE_OPEN_QUESTION}</p>
+              <p style={{ color: COLORS.ink, fontSize: 16, lineHeight: 1.45 }}>{PRICE_OPEN_QUESTION}</p>
               <input
                 style={inputStyle}
                 type="text"
@@ -133,7 +133,7 @@ export function SurveySheet({
             </>
           ) : (
             <>
-              <p style={{ color: '#3C1515', fontSize: 15, lineHeight: 1.45 }}>{PRICE_CLOSED_QUESTION}</p>
+              <p style={{ color: COLORS.ink, fontSize: 16, lineHeight: 1.45 }}>{PRICE_CLOSED_QUESTION}</p>
               <div style={{ display: 'flex', gap: 8 }} role="group" aria-label={PRICE_CLOSED_QUESTION}>
                 {(['yes', 'no'] as const).map((value) => (
                   <button key={value} type="button" aria-pressed={choice === value} onClick={() => setChoice(value)} style={choiceButton(choice === value)}>
@@ -147,21 +147,21 @@ export function SurveySheet({
           )
         ) : (
           <>
-            <p style={{ color: '#3C1515', fontSize: 15, lineHeight: 1.45 }}>{NPS_QUESTION}</p>
+            <p style={{ color: COLORS.ink, fontSize: 16, lineHeight: 1.45 }}>{NPS_QUESTION}</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} role="group" aria-label="Score from 0 to 10">
               {Array.from({ length: 11 }, (_, value) => (
-                <button key={value} type="button" aria-pressed={score === value} onClick={() => setScore(value)} style={{ width: 44, height: 44, borderRadius: 10, border: `1px solid ${score === value ? COLORS.crimson : '#E0CABB'}`, background: score === value ? COLORS.crimson : '#fff', color: score === value ? '#fff' : COLORS.crimson, fontWeight: 700, cursor: 'pointer' }}>
+                <button key={value} type="button" aria-pressed={score === value} onClick={() => setScore(value)} style={{ width: 48, height: 48, borderRadius: 10, border: `1px solid ${score === value ? COLORS.crimson : '#E0CABB'}`, background: score === value ? COLORS.crimson : '#fff', color: score === value ? '#fff' : COLORS.crimson, fontWeight: 700, cursor: 'pointer' }}>
                   {value}
                 </button>
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#8B5050', marginTop: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: COLORS.muted, marginTop: 4 }}>
               <span>Not likely</span>
               <span>Very likely</span>
             </div>
-            <label style={{ display: 'block', marginTop: 14, fontSize: 12, fontWeight: 700, color: COLORS.crimson }}>
+            <label style={{ display: 'block', marginTop: 14, fontSize: 14, fontWeight: 700, color: COLORS.crimson }}>
               Comment (optional)
-              <textarea style={{ ...inputStyle, minHeight: 72, resize: 'vertical', marginTop: 6 }} value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} aria-label="Comment (optional)" />
+              <textarea style={{ ...inputStyle, height: 'auto', maxHeight: 'none', minHeight: 72, resize: 'vertical', marginTop: 6 }} value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} aria-label="Comment (optional)" />
             </label>
             <FormError message={error} />
             <button type="button" disabled={busy} onClick={submitNps} style={{ ...primaryButton(COLORS.crimson), marginTop: 8 }}>{busy ? 'Saving…' : 'Send score'}</button>

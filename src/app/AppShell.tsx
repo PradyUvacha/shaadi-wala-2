@@ -27,8 +27,8 @@ export function AppShell() {
     <div className="app-shell" style={{ background: COLORS.ivory, paddingLeft: 'var(--safe-area-inset-left, env(safe-area-inset-left, 0px))', paddingRight: 'var(--safe-area-inset-right, env(safe-area-inset-right, 0px))' }}>
       <div ref={scroller} className="app-shell-scroll">
         {mode === 'preview' && (
-          <button type="button" onClick={() => navigate('/auth')} style={{ width: '100%', border: 'none', background: COLORS.gold, color: '#3C1515', fontSize: 16, fontWeight: 700, padding: '8px 12px', cursor: 'pointer' }}>
-            Preview on this device only. Sign in to save your wedding.
+          <button type="button" className="demo-banner" onClick={() => navigate('/auth')} style={{ background: COLORS.gold, color: COLORS.ink, fontWeight: 700, cursor: 'pointer' }}>
+            Demo only. Sign in to save.
           </button>
         )}
         <Outlet />

@@ -4,9 +4,9 @@ import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../
 import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
 import { compareGuestNames, guestAvatarColor, guestEmailProblem, guestFunctionLine, guestInitials, guestMatchesQuery, guestNameProblem, guestPhoneProblem, guestStatCounts, mealPillLabel, mealUsesLeaf } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
-import { COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
+import { COLORS, FONT, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton } from '../../styles/ui.ts'
-import { listAboveFab, safeBottom } from '../../styles/safeArea.ts'
+import { headerPadding, listAboveFab, safeBottom } from '../../styles/safeArea.ts'
 import type { Guest, GuestDraft, GuestSide, RsvpStatus } from '../../types.ts'
 import { rsvpBySideEnabled } from '../onboarding/flag.ts'
 
@@ -254,8 +254,11 @@ export function GuestsTab() {
 
   return (
     <div style={{ paddingBottom: listAboveFab }}>
+      <header style={{ background: `linear-gradient(160deg,${COLORS.appBar} 0%,${COLORS.maroon} 100%)`, padding: headerPadding }}>
+        <h1 style={{ fontFamily: FONT.display, fontSize: TYPE.title, fontWeight: 700, color: '#fff', margin: 0 }}>Guests</h1>
+        {limited && <p style={{ margin: '8px 0 0', fontSize: TYPE.body, fontWeight: 600, color: COLORS.gold }}>{sideHeading}</p>}
+      </header>
       <section style={{ margin: 16, background: COLORS.cardBg, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 12, boxShadow: '0 1px 3px rgba(26,5,5,0.06)' }}>
-        {limited && <div style={{ fontSize: TYPE.body, fontWeight: 600, color: COLORS.ink, marginBottom: 8 }}>{sideHeading}</div>}
         <div className="guest-stats">
           {([
             ['INVITED', tiles.invited, COLORS.ink],
@@ -286,6 +289,7 @@ export function GuestsTab() {
           </button>
         )}
       </div>
+      <div className="guest-filter-row">
       <div className="guest-filters" aria-label="Guest filters">
         {sideChips.map((chip) => {
           const selected = filter === chip.value
@@ -304,6 +308,7 @@ export function GuestsTab() {
             </button>
           )
         })}
+      </div>
       </div>
       {Headcount ? <Headcount guests={visible} /> : null}
       {error && !modalOpen && <div style={{ padding: '12px 16px 0' }}><FormError message={error} /></div>}

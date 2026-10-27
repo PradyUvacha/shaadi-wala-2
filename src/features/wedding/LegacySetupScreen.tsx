@@ -79,7 +79,7 @@ export function LegacySetupScreen() {
       <MehendiPattern />
       <div style={{ position: 'relative', zIndex: 1, width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 18 }}>
-          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12 }}>{step + 1} / {ONBOARDING_STEPS.length}</div>
+          <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 14 }}>{step + 1} / {ONBOARDING_STEPS.length}</div>
         </div>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", color: '#fff', fontSize: 32, margin: '0 0 8px' }}>Shaadi Wala</h1>
         <p style={{ color: 'rgba(255,255,255,0.85)', marginTop: 0 }}>{current?.title}</p>
@@ -103,7 +103,7 @@ export function LegacySetupScreen() {
           )}
           {step === 4 && (
             <>
-              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 0 }}>{chosenCount} rituals from the Hindu checklist. You can edit or delete any of them later.</p>
+              <p style={{ color: 'rgba(255,255,255,0.85)', fontSize: 14, marginTop: 0 }}>{chosenCount} rituals from the Hindu checklist. You can edit or delete any of them later.</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {PARKED_CEREMONIES.map((ceremony) => (
                   <button key={ceremony} type="button" onClick={() => toggleCeremony(ceremony)} style={choice(ceremonies.includes(ceremony))}>
@@ -113,7 +113,7 @@ export function LegacySetupScreen() {
               </div>
             </>
           )}
-          {error && <p style={{ color: '#FFE0E0', fontSize: 13 }}>{error}</p>}
+          {error && <p style={{ color: '#FFE0E0', fontSize: 14 }}>{error}</p>}
           <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
             {step > 0 && (
               <button type="button" onClick={() => { setError(null); setStep((value) => value - 1) }} style={{ ...choice(false), flex: 1 }}>Back</button>
@@ -140,7 +140,7 @@ export function LegacySetupScreen() {
 function LightField({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
   return (
     <label style={{ display: 'block', marginBottom: 12 }}>
-      <span style={{ display: 'block', color: COLORS.gold, fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>{label.toUpperCase()}</span>
+      <span style={{ display: 'block', color: COLORS.gold, fontSize: 14, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>{label.toUpperCase()}</span>
       <input className="auth-input" type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.12)', color: '#fff', fontSize: 16 }} />
     </label>
   )

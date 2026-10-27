@@ -3,8 +3,11 @@ import { COLORS, FONT, RADIUS, SIZE, TRACKING, TYPE, WEIGHT } from './tokens.ts'
 
 export const inputStyle: CSSProperties = {
   width: '100%',
+  height: SIZE.input,
   minHeight: SIZE.input,
-  padding: '12px 14px',
+  maxHeight: SIZE.input,
+  boxSizing: 'border-box',
+  padding: '0 14px',
   borderRadius: RADIUS.input,
   border: `1px solid ${COLORS.border}`,
   background: COLORS.cardBg,
@@ -46,8 +49,11 @@ export const cardStyle: CSSProperties = {
 export function primaryButton(background?: string): CSSProperties {
   return {
     width: '100%',
+    height: SIZE.button,
     minHeight: SIZE.button,
-    padding: '13px 16px',
+    maxHeight: SIZE.button,
+    boxSizing: 'border-box',
+    padding: '0 16px',
     borderRadius: RADIUS.input,
     background: background ?? `linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`,
     border: 'none',
@@ -55,6 +61,10 @@ export function primaryButton(background?: string): CSSProperties {
     fontSize: TYPE.body,
     fontWeight: WEIGHT.semibold,
     cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    whiteSpace: 'nowrap',
   }
 }
 
