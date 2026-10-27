@@ -39,7 +39,7 @@ export function canEditGuests(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner' || role === 'family'
 }
 
-/** Family may insert and update their own side and Mutual. Couple and planner may write any side. */
+/** Family may insert and update their own side and Mutual. They cannot change an existing Mutual guest's side. */
 export function canEditGuestRow(
   role: MemberRole | null | undefined,
   viewerSide: Side | null,

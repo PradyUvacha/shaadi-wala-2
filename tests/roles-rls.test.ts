@@ -243,6 +243,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261028120000_wedding_delete_linked_costs.sql`)
   file(`${root}supabase/migrations/20261028130000_whole_rupee_writes.sql`)
   file(`${root}supabase/migrations/20261028130000_whole_rupee_writes.sql`)
+  file(`${root}supabase/migrations/20261028140000_mutual_side_lock.sql`)
+  file(`${root}supabase/migrations/20261028140000_mutual_side_lock.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -356,7 +358,7 @@ describe('approved role permissions', () => {
     expect(asUser(family, `update public.guests set meal = 'Jain' where name = 'Mutual From Groom'; select meal from public.guests where name = 'Mutual From Groom';`)).toBe('Jain')
     expect(errorOf(family, `insert into public.guests (wedding_id, name, side) select id, 'Sneaky Groom', 'groom' from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/row-level security/i)
     expect(errorOf(familyGroom, `insert into public.guests (wedding_id, name, side) select id, 'Sneaky Bride', 'bride' from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/row-level security/i)
-    expect(errorOf(family, `update public.guests set side = 'groom' where name = 'Mutual From Bride';`)).toMatch(/row-level security/i)
+    expect(errorOf(family, `update public.guests set side = 'groom' where name = 'Mutual From Bride';`)).toMatch(/only the couple or planner|row-level security/i)
     expect(psql(`select side from public.guests where name = 'Mutual From Bride';`).trim()).toBe('both')
     expect(asUser(family, `select count(*) from public.guests where name = 'Groom Guest';`)).toBe('0')
     expect(asUser(familyGroom, `select count(*) from public.guests where name = 'Bride Guest';`)).toBe('0')
@@ -370,6 +372,17 @@ describe('approved role permissions', () => {
     expect(asUser(friend, `delete from public.guests where name = 'Mutual From Bride'; select count(*) from public.guests where name = 'Mutual From Bride';`)).toBe('1')
     expect(asUser(bride, `delete from public.guests where name = 'Mutual From Bride'; select count(*) from public.guests where name = 'Mutual From Bride';`)).toBe('0')
     expect(asUser(planner, `delete from public.guests where name = 'Mutual From Groom'; select count(*) from public.guests where name = 'Mutual From Groom';`)).toBe('0')
+  })
+
+  it('keeps Mutual when family updates a guest, and lets the couple or planner change that side', () => {
+    expect(asUser(family, `insert into public.guests (wedding_id, name, side) select id, 'Locked Mutual', 'both' from public.weddings where couple_names = 'Role Fixture'; select side from public.guests where name = 'Locked Mutual';`)).toBe('both')
+    expect(asUser(family, `update public.guests set phone = '777' where name = 'Locked Mutual'; select side || ':' || phone from public.guests where name = 'Locked Mutual';`)).toBe('both:777')
+    expect(errorOf(family, `update public.guests set side = 'bride' where name = 'Locked Mutual';`)).toMatch(/only the couple or planner/i)
+    expect(errorOf(familyGroom, `update public.guests set side = 'groom' where name = 'Locked Mutual';`)).toMatch(/only the couple or planner/i)
+    expect(psql(`select side from public.guests where name = 'Locked Mutual';`).trim()).toBe('both')
+    expect(asUser(family, `insert into public.guests (wedding_id, name, side) select id, 'Family Own Side', 'bride' from public.weddings where couple_names = 'Role Fixture'; update public.guests set side = 'both' where name = 'Family Own Side'; select side from public.guests where name = 'Family Own Side';`)).toBe('both')
+    expect(asUser(bride, `update public.guests set side = 'groom' where name = 'Locked Mutual'; select side from public.guests where name = 'Locked Mutual';`)).toBe('groom')
+    expect(asUser(planner, `update public.guests set side = 'both' where name = 'Locked Mutual'; select side from public.guests where name = 'Locked Mutual';`)).toBe('both')
   })
 
   it('planner can edit all guests and the timeline', () => {

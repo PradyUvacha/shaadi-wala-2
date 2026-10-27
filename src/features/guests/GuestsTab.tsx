@@ -179,6 +179,7 @@ export function GuestsTab() {
   const sideHeading = ownSide === 'groom' ? "Groom's side + Mutual guests" : "Bride's side + Mutual guests"
   const plusMax = Math.max(20, editGuest?.plusOnes ?? 0)
   const sideOptions = SIDE_OPTIONS.filter((option) => sideChoices.includes(option.value))
+  const mutualSideLocked = family && editGuest?.side === 'both'
 
   const openAdd = () => {
     setEditGuest(null)
@@ -225,13 +226,13 @@ export function GuestsTab() {
     if (emailError) nextErrors.email = emailError
     const sideMissing = form.side !== 'bride' && form.side !== 'groom' && form.side !== 'both'
     if (!editGuest && sideMissing) nextErrors.side = 'Pick a side.'
-    if (family && form.side !== ownSide && form.side !== 'both') nextErrors.side = 'Pick a side.'
+    if (family && !mutualSideLocked && form.side !== ownSide && form.side !== 'both') nextErrors.side = 'Pick a side.'
     setFieldErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
     setBusy(true)
     setError(null)
     try {
-      await saveGuest(form, editGuest?.id)
+      await saveGuest(mutualSideLocked ? { ...form, side: 'both' } : form, editGuest?.id)
       closeSheet()
     } catch (caught) {
       const failure = saveErrorPresentation(caught)
@@ -412,16 +413,23 @@ export function GuestsTab() {
               </label>
               <div>
                 <div style={groupLabel}>SIDE</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', minWidth: 0 }}>
-                  {sideOptions.map((option) => {
-                    const selected = form.side === option.value
-                    return (
-                      <button key={option.value} type="button" aria-pressed={selected} onClick={() => setForm((current) => ({ ...current, side: option.value }))} style={choiceChip(selected)}>
-                        {option.label}
-                      </button>
-                    )
-                  })}
-                </div>
+                {mutualSideLocked ? (
+                  <>
+                    <p style={{ margin: 0, fontSize: TYPE.body, fontWeight: 600, color: COLORS.ink }}>Mutual</p>
+                    <p style={{ margin: '6px 0 0', fontSize: TYPE.small, color: COLORS.muted }}>Only the couple or planner can change this.</p>
+                  </>
+                ) : (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', minWidth: 0 }}>
+                    {sideOptions.map((option) => {
+                      const selected = form.side === option.value
+                      return (
+                        <button key={option.value} type="button" aria-pressed={selected} onClick={() => setForm((current) => ({ ...current, side: option.value }))} style={choiceChip(selected)}>
+                          {option.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
                 {fieldErrors.side && <div style={{ color: COLORS.danger, fontSize: TYPE.small, marginTop: 6 }}>{fieldErrors.side}</div>}
               </div>
               <div>
