@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
-import { FUNCTION_PHASES, PHASE_LABELS, type FunctionPhase } from '../../config/phases.ts'
+import { FUNCTION_PHASES, PHASE_HEADERS, PHASE_LABELS, type FunctionPhase } from '../../config/phases.ts'
 import { assignableMembers, canEditChecklist, canEditTaskCost, canManageTasks, canSeeBudget, unassignedSideGroups } from '../../lib/access.ts'
 import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
 import { DELETED_ITEM_MESSAGE, STALE_WRITE_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
@@ -400,9 +400,8 @@ export function TasksTab() {
       <div style={{ padding: '0 16px' }}>
         {sideGroups.length === 0 && visibleGroups.length === 0 && loose.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>
-            <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}>✓</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>No tasks yet</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>Add your first task to get started!</div>
+            <div style={{ fontSize: TYPE.small, marginTop: 4 }}>Add your first task to get started.</div>
           </div>
         ) : (
           <>
@@ -412,16 +411,13 @@ export function TasksTab() {
                 {group.tasks.map((task) => ritualCard(task, group.tasks.length))}
               </section>
             ))}
-            {FUNCTION_PHASES.map((phase) => {
-              const groups = visibleGroups.filter((group) => group.fn.phase === phase)
-              if (groups.length === 0) return null
-              return (
-                <section key={phase}>
-                  <h2 style={sectionLabel}>{PHASE_LABELS[phase]}</h2>
-                  {groups.map(({ fn, rituals }) => (
+            {FUNCTION_PHASES.flatMap((phase) => visibleGroups.filter((group) => group.fn.phase === phase)).map(({ fn, rituals }) => (
               <section key={fn.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px' }}>
-                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, color: COLORS.crimson, margin: 0, flex: 1 }}>{fn.name}</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', minHeight: SIZE.tap, flexWrap: 'wrap' }}>
+                  <span aria-hidden="true" style={{ color: COLORS.muted, display: 'inline-flex' }}><CalendarIcon /></span>
+                  <h2 style={{ fontSize: TYPE.small, fontWeight: 500, color: COLORS.muted, margin: 0, flex: '1 1 120px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fn.name}</h2>
+                  <span style={{ fontSize: TYPE.small, fontWeight: 600, color: COLORS.muted, letterSpacing: '0.08em' }}>{PHASE_HEADERS[fn.phase]}</span>
+                  <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600, whiteSpace: 'nowrap' }}>{rituals.length} {rituals.length === 1 ? 'task' : 'tasks'}</span>
                   {canStructure && (
                     <div style={{ display: 'flex', gap: 4 }}>
                       {functions.length > 1 && (
@@ -431,19 +427,19 @@ export function TasksTab() {
                         </>
                       )}
                       <button type="button" aria-label={`Rename ${fn.name}`} onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt, phase: fn.phase }) }} style={iconButton}>Edit</button>
-                      <button type="button" aria-label={`Delete ${fn.name}`} onClick={() => { setError(null); setPendingDelete(fn) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
+                      <button type="button" aria-label={`Delete ${fn.name}`} onClick={() => { setError(null); setPendingDelete(fn) }} style={{ ...iconButton, color: COLORS.danger }}>Delete</button>
                     </div>
                   )}
                 </div>
                 {rituals.map((task) => ritualCard(task, rituals.length))}
               </section>
-                  ))}
-                </section>
-              )
-            })}
+            ))}
             {loose.length > 0 && (
               <section>
-                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, color: COLORS.crimson, margin: '14px 0 8px' }}>Other</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px', minHeight: SIZE.tap }}>
+                  <h2 style={{ fontSize: TYPE.small, fontWeight: 500, color: COLORS.muted, margin: 0, flex: 1 }}>Other tasks</h2>
+                  <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600 }}>{loose.length} {loose.length === 1 ? 'task' : 'tasks'}</span>
+                </div>
                 {loose.map((task) => ritualCard(task, loose.length))}
               </section>
             )}
@@ -639,6 +635,15 @@ function assigneeChoices(
   return current ? [current, ...allowed] : allowed
 }
 
+function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  )
+}
+
 const iconButton = {
   background: 'none',
   border: 'none',
@@ -646,5 +651,5 @@ const iconButton = {
   fontSize: 16,
   color: COLORS.crimson,
   minHeight: 48,
-  minWidth: 44,
+  minWidth: 48,
 } as const

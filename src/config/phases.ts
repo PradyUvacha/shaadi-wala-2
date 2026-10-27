@@ -7,6 +7,13 @@ export const PHASE_LABELS: Record<FunctionPhase, string> = {
   post_wedding: 'Post-wedding',
 }
 
+/** Group headers on Planning. Uppercase, as on the event row. */
+export const PHASE_HEADERS: Record<FunctionPhase, string> = {
+  pre_wedding: 'PRE-WEDDING',
+  wedding_day: 'WEDDING DAY',
+  post_wedding: 'POST-WEDDING',
+}
+
 const PHASE_BY_NAME: Record<string, FunctionPhase> = {
   roka: 'pre_wedding',
   sagai: 'pre_wedding',

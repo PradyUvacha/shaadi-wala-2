@@ -125,6 +125,8 @@ describe('ritual editor conflicts', () => {
         return bundle
       },
     }))
+    expect(stale.container.textContent).toContain('WEDDING DAY')
+    expect(stale.container.textContent).toContain('1 task')
     await act(async () => {
       clickButton(stale.container, 'Edit task')
     })

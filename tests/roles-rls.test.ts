@@ -229,6 +229,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261027140000_mutual_guests.sql`)
   file(`${root}supabase/migrations/20261027150000_function_phases.sql`)
   file(`${root}supabase/migrations/20261027150000_function_phases.sql`)
+  file(`${root}supabase/migrations/20261027160000_task_event_phase.sql`)
+  file(`${root}supabase/migrations/20261027160000_task_event_phase.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -505,6 +507,17 @@ describe('approved role permissions', () => {
       psql(`update public.role_permissions set scope = 'none' where role = 'friend' and action = 'budget.view';`)
     }
     expect(asUser(friend, `select count(*) from public.budget_items where notes = 'hall';`)).toBe('0')
+  })
+
+  it('lets every member read an event phase and only the couple or planner change it', () => {
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    expect(asUser(friend, `select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(asUser(friend, `update public.wedding_functions set phase = 'post_wedding' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(asUser(family, `update public.wedding_functions set phase = 'post_wedding' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(asUser(planner, `update public.wedding_functions set phase = 'post_wedding' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('post_wedding')
+    expect(asUser(bride, `update public.wedding_functions set phase = 'wedding_day' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(errorOf(friend, `update public.tasks set function_id = (select id from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding}) where title = 'Friend task';`)).toMatch(/complete tasks assigned/i)
+    expect(psql(`select function_id is null from public.tasks where title = 'Friend task';`).trim()).toBe('t')
   })
 
   it('copies the hindu checklist and lets only the couple or planner edit that wedding', () => {
