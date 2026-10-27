@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestSideChoices } from '../../lib/access.ts'
-import { compareGuestNames, guestStatCounts } from '../../lib/guestTiles.ts'
+import { compareGuestNames, guestMatchesQuery, guestStatCounts } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
@@ -26,6 +26,15 @@ const statusColors: Record<string, string> = {
   Pending: COLORS.orangeText,
   Maybe: COLORS.goldText,
   Declined: COLORS.danger,
+}
+
+function SearchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
+  )
 }
 
 function UsersIcon() {
@@ -55,12 +64,19 @@ export function GuestsTab() {
   const defaultSide: GuestSide = planner ? 'both' : family && ownSide ? ownSide : ''
   const guests = [...(bundle?.guests ?? [])].sort((left, right) => compareGuestNames(left.name, right.name))
   const [filter, setFilter] = useState<GuestFilter>('all')
+  const [query, setQuery] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editGuest, setEditGuest] = useState<Guest | null>(null)
   const [form, setForm] = useState<GuestDraft>(() => emptyForm(defaultSide))
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [rsvp, setRsvp] = useState<RsvpModule | null>(null)
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query), 150)
+    return () => window.clearTimeout(timer)
+  }, [query])
 
   useEffect(() => {
     if (!rsvpBySideEnabled) return
@@ -74,9 +90,8 @@ export function GuestsTab() {
   }, [])
 
   const visible = guests.filter((guest) => {
-    if (!showSideFilters || filter === 'all') return true
-    if (filter === 'mutual') return guest.side === 'both'
-    return guest.side === viewerSide
+    const sideOk = !showSideFilters || filter === 'all' || (filter === 'mutual' ? guest.side === 'both' : guest.side === viewerSide)
+    return sideOk && guestMatchesQuery(guest, debouncedQuery)
   })
   const tiles = guestStatCounts(visible)
   const sideName = viewerSide === 'groom' ? "Groom's side" : "Bride's side"
@@ -163,6 +178,22 @@ export function GuestsTab() {
           <span>{tiles.attending} attending (incl. plus-ones)</span>
         </div>
       </section>
+      <div style={{ padding: '0 16px 12px', position: 'relative' }}>
+        <span aria-hidden="true" style={{ position: 'absolute', left: 28, top: 18, color: COLORS.muted, display: 'inline-flex' }}><SearchIcon /></span>
+        <input
+          className="guest-search"
+          aria-label="Search guests"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search by name, phone, email…"
+          style={{ ...inputStyle, borderRadius: 16, paddingLeft: 40, paddingRight: query ? 48 : 14 }}
+        />
+        {query && (
+          <button type="button" aria-label="Clear search" onClick={() => setQuery('')} style={{ position: 'absolute', right: 20, top: 2, minWidth: 48, minHeight: 48, border: 'none', background: 'transparent', color: COLORS.muted, fontSize: 18, cursor: 'pointer' }}>
+            ×
+          </button>
+        )}
+      </div>
       {showSideFilters && (
         <div className="count-chips" aria-label="Guest side">
           {([

@@ -27,6 +27,16 @@ export function guestStatCounts(guests: readonly { status: string; plusOnes: num
   return totals
 }
 
+export function guestMatchesQuery(guest: { name: string; phone: string; email: string }, query: string): boolean {
+  const text = query.trim().toLowerCase()
+  if (!text) return true
+  if (guest.name.toLowerCase().includes(text)) return true
+  if (guest.email.toLowerCase().includes(text)) return true
+  if (guest.phone.toLowerCase().includes(text)) return true
+  const digits = text.replace(/\D/g, '')
+  return digits.length > 0 && guest.phone.replace(/\D/g, '').includes(digits)
+}
+
 export function compareGuestNames(left: string, right: string): number {
   return left.localeCompare(right, undefined, { sensitivity: 'base' })
 }

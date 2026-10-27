@@ -85,6 +85,10 @@ textarea { min-height: 72px; }
 .count-chips > * {
   flex: 0 0 auto;
 }
+.guest-search::placeholder {
+  color: #8E5050;
+  opacity: 1;
+}
 .page-fill {
   width: 100%;
   min-height: 100%;
