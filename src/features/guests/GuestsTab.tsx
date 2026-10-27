@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestSideChoices } from '../../lib/access.ts'
-import { compareGuestNames, guestTileCounts } from '../../lib/guestTiles.ts'
+import { compareGuestNames, guestStatCounts } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
@@ -26,6 +26,17 @@ const statusColors: Record<string, string> = {
   Pending: COLORS.orangeText,
   Maybe: COLORS.goldText,
   Declined: COLORS.danger,
+}
+
+function UsersIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 19c.6-3 2.8-4.5 6-4.5S14.4 16 15 19" />
+      <circle cx="17" cy="9" r="2.2" />
+      <path d="M17 14.5c2.2.3 3.6 1.5 4.2 3.5" />
+    </svg>
+  )
 }
 
 type RsvpModule = typeof import('./RsvpBySide.tsx')
@@ -67,7 +78,7 @@ export function GuestsTab() {
     if (filter === 'mutual') return guest.side === 'both'
     return guest.side === viewerSide
   })
-  const tiles = guestTileCounts(visible)
+  const tiles = guestStatCounts(visible)
   const sideName = viewerSide === 'groom' ? "Groom's side" : "Bride's side"
   const header = !showSideFilters
     ? 'Guest list'
@@ -128,21 +139,30 @@ export function GuestsTab() {
   return (
     <div style={{ paddingBottom: listAboveFab }}>
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},${COLORS.crimson})`, padding: headerPadding }}>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: '#fff', fontWeight: 700, marginBottom: 8 }}>{header}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: '#fff', fontWeight: 700 }}>{header}</div>
+      </div>
+      <section style={{ margin: 16, background: COLORS.cardBg, border: `1px solid ${COLORS.border}`, borderRadius: 16, overflow: 'hidden', boxShadow: '0 1px 3px rgba(26,5,5,0.06)' }}>
+        <div aria-hidden="true" style={{ height: 96, background: `linear-gradient(120deg,${COLORS.maroon} 0%,${COLORS.crimson} 55%,${COLORS.appBar} 100%)`, position: 'relative' }}>
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(circle at 20% 40%, rgba(200,164,90,0.35) 0 2px, transparent 3px), radial-gradient(circle at 70% 60%, rgba(255,255,255,0.18) 0 2px, transparent 3px)', backgroundSize: '28px 28px' }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, padding: 12 }}>
           {([
-            ['Invited', tiles.invited],
-            ['Confirmed', tiles.confirmed],
-            ['Pending', tiles.pending],
-            ['Declined', tiles.declined],
-          ] as const).map(([label, value]) => (
-            <div key={label} style={{ textAlign: 'center', background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '10px 4px' }}>
-              <div style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>{value}</div>
-              <div style={{ fontSize: TYPE.small, color: COLORS.gold, fontWeight: 600 }}>{label}</div>
+            ['Total', tiles.total, COLORS.ink],
+            ['Confirmed', tiles.confirmed, COLORS.green],
+            ['Pending', tiles.pending, COLORS.goldText],
+            ['Declined', tiles.declined, COLORS.danger],
+          ] as const).map(([label, value, color]) => (
+            <div key={label} style={{ textAlign: 'center', background: '#FBF8F2', borderRadius: 12, padding: '10px 4px', minWidth: 0 }}>
+              <div style={{ fontSize: TYPE.number, fontWeight: 700, color, lineHeight: 1.1 }}>{value}</div>
+              <div style={{ fontSize: TYPE.small, color: COLORS.muted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
             </div>
           ))}
         </div>
-      </div>
+        <div style={{ minHeight: SIZE.tap, display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', background: COLORS.roseTint, color: COLORS.crimson, fontSize: TYPE.small, fontWeight: 600 }}>
+          <UsersIcon />
+          <span>{tiles.attending} attending (incl. plus-ones)</span>
+        </div>
+      </section>
       {showSideFilters && (
         <div className="count-chips" aria-label="Guest side">
           {([
