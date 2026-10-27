@@ -95,17 +95,6 @@ function SearchIcon() {
   )
 }
 
-function UsersIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-      <circle cx="9" cy="8" r="3" />
-      <path d="M3 19c.6-3 2.8-4.5 6-4.5S14.4 16 15 19" />
-      <circle cx="17" cy="9" r="2.2" />
-      <path d="M17 14.5c2.2.3 3.6 1.5 4.2 3.5" />
-    </svg>
-  )
-}
-
 function rsvpStyle(status: string): CSSProperties {
   if (status === 'Confirmed') return { background: COLORS.greenTint, color: COLORS.greenText, border: '1px solid transparent' }
   if (status === 'Declined') return { background: COLORS.dangerTint, color: COLORS.danger, border: '1px solid transparent' }
@@ -127,7 +116,7 @@ export function GuestsTab() {
   const ownSide = viewerSide === 'bride' || viewerSide === 'groom' ? viewerSide : null
   const sideChoices = guestSideChoices(role, ownSide)
   const sideChips = guestListFilters(role, ownSide)
-  const defaultSide: GuestSide = family || !planner ? (ownSide ?? '') : ''
+  const defaultSide: GuestSide = planner ? 'both' : (ownSide ?? '')
   const functions = [...(bundle?.functions ?? [])].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
   const guests = [...(bundle?.guests ?? [])].sort((left, right) => compareGuestNames(left.name, right.name))
   const [filter, setFilter] = useState<GuestListFilter>('all')
@@ -167,7 +156,7 @@ export function GuestsTab() {
     return guestMatchesQuery(guest, debouncedQuery)
   })
   const filtersActive = debouncedQuery.trim() !== '' || filter !== 'all' || statusFilter !== null
-  const sideHeading = ownSide === 'groom' ? "Groom's side guests" : "Bride's side guests"
+  const sideHeading = ownSide === 'groom' ? "Groom's side + Mutual guests" : "Bride's side + Mutual guests"
   const plusMax = Math.max(20, editGuest?.plusOnes ?? 0)
   const sideOptions = SIDE_OPTIONS.filter((option) => sideChoices.includes(option.value))
 
@@ -180,7 +169,6 @@ export function GuestsTab() {
     setModalOpen(true)
   }
   const openEdit = (guest: Guest) => {
-    const side = family && ownSide ? ownSide : guest.side
     setEditGuest(guest)
     setForm({
       name: guest.name,
@@ -189,7 +177,7 @@ export function GuestsTab() {
       status: guest.status,
       meal: guest.meal,
       plusOnes: guest.plusOnes,
-      side,
+      side: guest.side,
       functionIds: [...(guest.functionIds ?? [])],
     })
     setFieldErrors({})
@@ -217,13 +205,13 @@ export function GuestsTab() {
     if (emailError) nextErrors.email = emailError
     const sideMissing = form.side !== 'bride' && form.side !== 'groom' && form.side !== 'both'
     if (!editGuest && sideMissing) nextErrors.side = 'Pick a side.'
-    if (family && ownSide && form.side !== ownSide) nextErrors.side = 'Pick a side.'
+    if (family && form.side !== ownSide && form.side !== 'both') nextErrors.side = 'Pick a side.'
     setFieldErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
     setBusy(true)
     setError(null)
     try {
-      await saveGuest({ ...form, side: family && ownSide ? ownSide : form.side }, editGuest?.id)
+      await saveGuest(form, editGuest?.id)
       closeSheet()
     } catch (caught) {
       const failure = saveErrorPresentation(caught)
@@ -270,7 +258,7 @@ export function GuestsTab() {
         {limited && <div style={{ fontSize: TYPE.body, fontWeight: 600, color: COLORS.ink, marginBottom: 8 }}>{sideHeading}</div>}
         <div className="guest-stats">
           {([
-            ['TOTAL', tiles.total, COLORS.ink],
+            ['INVITED', tiles.invited, COLORS.ink],
             ['CONFIRMED', tiles.confirmed, COLORS.green],
             ['PENDING', tiles.pending, COLORS.goldText],
             ['DECLINED', tiles.declined, COLORS.danger],
@@ -280,10 +268,6 @@ export function GuestsTab() {
               <div style={{ fontSize: TYPE.small, color: COLORS.muted, fontWeight: 600, letterSpacing: '0.04em' }}>{label}</div>
             </div>
           ))}
-        </div>
-        <div style={{ minHeight: SIZE.tap, display: 'flex', alignItems: 'center', gap: 8, margin: '12px -12px -12px', padding: '0 12px', background: COLORS.roseTint, color: COLORS.crimson, fontSize: TYPE.small, fontWeight: 600, borderRadius: '0 0 16px 16px' }}>
-          <UsersIcon />
-          <span>{tiles.attending} attending (incl. plus-ones)</span>
         </div>
       </section>
       <div style={{ padding: '0 16px 12px', position: 'relative' }}>
@@ -407,7 +391,7 @@ export function GuestsTab() {
                   {sideOptions.map((option) => {
                     const selected = form.side === option.value
                     return (
-                      <button key={option.value} type="button" aria-pressed={selected} disabled={family} onClick={() => { if (!family) setForm((current) => ({ ...current, side: option.value })) }} style={choiceChip(selected, family)}>
+                      <button key={option.value} type="button" aria-pressed={selected} onClick={() => setForm((current) => ({ ...current, side: option.value }))} style={choiceChip(selected)}>
                         {option.label}
                       </button>
                     )

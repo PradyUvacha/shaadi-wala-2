@@ -1,10 +1,9 @@
-/** Guest counts for the four tiles. Maybe counts in Total only. Attending is confirmed people, including plus-ones. */
+/** Headcounts including plus-ones. Maybe sits in Pending, so Confirmed + Pending + Declined = Invited. */
 export type GuestStats = {
-  total: number
+  invited: number
   confirmed: number
   pending: number
   declined: number
-  attending: number
 }
 
 function heads(plusOnes: number): number {
@@ -12,17 +11,13 @@ function heads(plusOnes: number): number {
 }
 
 export function guestStatCounts(guests: readonly { status: string; plusOnes: number }[]): GuestStats {
-  const totals: GuestStats = { total: 0, confirmed: 0, pending: 0, declined: 0, attending: 0 }
+  const totals: GuestStats = { invited: 0, confirmed: 0, pending: 0, declined: 0 }
   for (const guest of guests) {
-    totals.total += 1
-    if (guest.status === 'Confirmed') {
-      totals.confirmed += 1
-      totals.attending += heads(guest.plusOnes)
-    } else if (guest.status === 'Pending') {
-      totals.pending += 1
-    } else if (guest.status === 'Declined') {
-      totals.declined += 1
-    }
+    const people = heads(guest.plusOnes)
+    totals.invited += people
+    if (guest.status === 'Confirmed') totals.confirmed += people
+    else if (guest.status === 'Declined') totals.declined += people
+    else totals.pending += people
   }
   return totals
 }

@@ -237,6 +237,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261027180000_nullable_function_phase.sql`)
   file(`${root}supabase/migrations/20261027190000_guest_functions.sql`)
   file(`${root}supabase/migrations/20261027190000_guest_functions.sql`)
+  file(`${root}supabase/migrations/20261027200000_mutual_visibility.sql`)
+  file(`${root}supabase/migrations/20261027200000_mutual_visibility.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -529,8 +531,11 @@ describe('approved role permissions', () => {
   it('lets a phase be empty and links guests to functions with the same visibility as the guest', () => {
     const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
     expect(psql(`select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'wedding_functions' and column_name = 'phase';`).trim()).toBe('YES')
-    expect(psql(`select public.default_function_phase('Kanyadaan');`).trim()).toBe('wedding_day')
-    expect(psql(`select public.default_function_phase('Griha Pravesh');`).trim()).toBe('post_wedding')
+    expect(psql(`select public.default_function_phase('Sangeet');`).trim()).toBe('pre_wedding')
+    expect(psql(`select public.default_function_phase('Vidaai');`).trim()).toBe('wedding_day')
+    expect(psql(`select public.default_function_phase('Reception');`).trim()).toBe('post_wedding')
+    expect(psql(`select public.default_function_phase('Tilak');`).trim()).toBe('pre_wedding')
+    expect(psql(`select pg_get_expr(polqual, polrelid) from pg_policy where polname = 'guests_delete_by_permission';`)).not.toMatch(/both/)
     expect(psql(`select pg_get_expr(polqual, polrelid) from pg_policy where polname = 'guests_select_by_permission';`)).toMatch(/both/)
     expect(asUser(bride, `
       update public.wedding_functions set phase = null where name = 'Haldi' and wedding_id = ${wedding};

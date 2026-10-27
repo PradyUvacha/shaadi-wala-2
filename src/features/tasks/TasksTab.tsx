@@ -259,7 +259,7 @@ export function TasksTab() {
         name,
         functionEditor?.id ?? undefined,
         functionEditor?.id ? { updatedAt: functionEditor.updatedAt, overwrite } : undefined,
-        functionEditor?.phase,
+        functionEditor?.phase ?? 'pre_wedding',
       )
       setFunctionConflict(false)
       setFunctionEditor(null)
@@ -459,8 +459,7 @@ export function TasksTab() {
           <input style={inputStyle} value={functionEditor?.name ?? ''} onChange={(event) => setFunctionEditor((current) => current ? { ...current, name: event.target.value } : current)} placeholder="Tilak" />
         </Field>
         <Field label="Phase">
-          <select style={selectStyle} value={functionEditor?.phase ?? ''} onChange={(event) => setFunctionEditor((current) => current ? { ...current, phase: event.target.value === '' ? null : event.target.value as FunctionPhase } : current)}>
-            <option value="">No phase</option>
+          <select style={selectStyle} value={functionEditor?.phase ?? 'pre_wedding'} onChange={(event) => setFunctionEditor((current) => current ? { ...current, phase: event.target.value as FunctionPhase } : current)}>
             {FUNCTION_PHASES.map((phase) => <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>)}
           </select>
         </Field>

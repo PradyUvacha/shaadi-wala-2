@@ -63,13 +63,20 @@ export function canDeleteGuestRow(
 
 export type GuestListFilter = 'all' | Side | 'both'
 
-/** Couple and planner filter every side. Family and friends get no side chips; their list is already their own side. */
+/** Couple and planner filter every side. Family and friends get All, their own side, and Mutual. */
 export function guestListFilters(
   role: MemberRole | null | undefined,
   viewerSide: Side | null,
 ): { value: GuestListFilter; label: string }[] {
-  void viewerSide
-  if (role === 'friend' || role === 'family') return []
+  const own = viewerSide === 'groom' ? 'groom' : 'bride'
+  const ownLabel = own === 'groom' ? "Groom's" : "Bride's"
+  if (role === 'friend' || role === 'family') {
+    return [
+      { value: 'all', label: 'All' },
+      { value: own, label: ownLabel },
+      { value: 'both', label: 'Mutual' },
+    ]
+  }
   return [
     { value: 'all', label: 'All sides' },
     { value: 'bride', label: "Bride's" },
@@ -78,7 +85,7 @@ export function guestListFilters(
   ]
 }
 
-/** Friends and family never match the opposite side. A Mutual row already in the bundle stays visible. Side chips do not apply to them. */
+/** Friends and family never match the opposite side. All is their own side plus Mutual. */
 export function guestIncluded(
   role: MemberRole | null | undefined,
   viewerSide: Side | null,
@@ -86,15 +93,21 @@ export function guestIncluded(
   guestSide: GuestSide,
 ): boolean {
   const own = viewerSide === 'bride' || viewerSide === 'groom' ? viewerSide : null
-  if (role === 'friend' || role === 'family') return guestSide === own || guestSide === 'both' || guestSide === ''
+  if (role === 'friend' || role === 'family') {
+    const onTheirList = guestSide === own || guestSide === 'both'
+    if (!onTheirList) return false
+    if (filter === 'both') return guestSide === 'both'
+    if (filter === 'bride' || filter === 'groom') return guestSide === filter
+    return true
+  }
   if (filter === 'all') return true
   return guestSide === filter
 }
 
-/** Sides a member may choose. Family is locked to their own side. Planner must pick one, including Mutual. */
+/** Sides a member may choose. Family: own side or Mutual. Planner starts on Mutual and must keep a side. */
 export function guestSideChoices(role: MemberRole | null | undefined, viewerSide: Side | null): GuestSide[] {
   if (role === 'planner') return ['both', 'bride', 'groom']
-  if (role === 'family') return viewerSide ? [viewerSide] : []
+  if (role === 'family') return viewerSide ? [viewerSide, 'both'] : ['both']
   return ['', 'bride', 'groom', 'both']
 }
 

@@ -22,11 +22,7 @@ const PHASE_BY_NAME: Record<string, FunctionPhase> = {
   sangeet: 'pre_wedding',
   wedding: 'wedding_day',
   vidaai: 'wedding_day',
-  kanyadaan: 'wedding_day',
-  'saat phere': 'wedding_day',
-  mangalsutra: 'wedding_day',
   reception: 'post_wedding',
-  'griha pravesh': 'post_wedding',
 }
 
 /** Known ceremonies land in their phase. Any other name, including a custom function, starts in pre-wedding. */
