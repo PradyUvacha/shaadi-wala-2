@@ -53,6 +53,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     addTasks,
     listFunctions,
     listTasks,
+    listGuests,
     addFunction,
     renameFunction,
     deleteFunction,
@@ -314,6 +315,10 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
 
   async function listTasks(weddingId: string): Promise<Task[]> {
     return loadTasks(weddingId)
+  }
+
+  async function listGuests(weddingId: string) {
+    return loadGuests(weddingId)
   }
 
   async function addFunction(weddingId: string, name: string, phase?: FunctionPhase | null): Promise<WeddingFunction> {

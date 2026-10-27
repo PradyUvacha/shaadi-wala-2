@@ -112,6 +112,26 @@ describe('task rollup', () => {
     expect(card?.rows.map((row) => row.amount)).toEqual([40000, 10000, null])
   })
 
+  it('keeps two categories with the same name as separate cards', () => {
+    const seeded = item({ id: 'venue-seed', category: 'Venue', estimated: 1000, actual: 0 })
+    const extra = item({
+      id: 'venue-extra',
+      category: 'Venue',
+      estimated: 500,
+      actual: 200,
+      partPayments: [{ id: 'pay', amount: 200, paidBy: 'Bride', paidBySide: 'bride', date: '2026-01-01', notes: '' }],
+    })
+    const rolled = rollupWedding(
+      [seeded, extra],
+      [task({ id: 'done', status: 'Completed', actualCost: 40, budgetCategoryId: 'venue-extra', title: 'Hall' })],
+    )
+    expect(rolled.categories.map((card) => card.key)).toEqual(['venue-seed', 'venue-extra'])
+    expect(rolled.categories.map((card) => card.primaryItemId)).toEqual(['venue-seed', 'venue-extra'])
+    expect(rolled.categories[0]?.actualPaise).toBe(0n)
+    expect(rolled.categories[1]?.actualPaise).toBe(toPaise(240))
+    expect(rolled.categories[1]?.rows.map((row) => row.taskId)).toEqual(['done'])
+  })
+
   it('puts a cost with no category on Uncategorised, not on a named card', () => {
     const rolled = rollupWedding(
       [venue],

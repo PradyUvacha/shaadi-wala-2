@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { DeletedItemError, StaleWriteError } from '../../lib/errors.ts'
 import { WeddingContext, type WeddingContextValue } from '../../state/wedding-context.ts'
 import type { Task, WeddingBundle } from '../../types.ts'
+import { statusChipRowFits } from './statusChips.ts'
 import { TasksTab } from './TasksTab.tsx'
 
 const ritual: Task = {
@@ -137,6 +138,13 @@ describe('ritual editor conflicts', () => {
     expect(banner?.getAttribute('alt')).toBe('Wedding planning banner')
     expect(banner?.getAttribute('src')).toBe('/planning-strip.webp')
     expect(stale.container.textContent).not.toContain('🎯')
+    const chipRow = stale.container.querySelector('.count-chips')
+    const chipLabels = [...(chipRow?.querySelectorAll('button') ?? [])].map((button) => button.textContent?.trim())
+    expect(chipLabels).toEqual(['All · 1', 'Pending · 1', 'Done · 0'])
+    expect(statusChipRowFits(['All · 0', 'Pending · 0', 'Done · 0'], 304)).toBe(true)
+    expect(statusChipRowFits(chipLabels.filter((label): label is string => Boolean(label)), 304)).toBe(true)
+    expect((chipRow as HTMLElement).style.padding).toBe('12px 8px 16px')
+    expect((chipRow as HTMLElement).style.gap).toBe('6px')
     await act(async () => {
       clickButton(stale.container, 'Actions for Book the hall')
     })

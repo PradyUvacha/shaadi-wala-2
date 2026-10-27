@@ -12,6 +12,7 @@ import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, FONT, PRIORITY_COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
 import { headerPadding } from '../../styles/safeArea.ts'
+import { STATUS_CHIP_GAP, STATUS_CHIP_PAD_X, STATUS_CHIP_ROW_PAD_X } from './statusChips.ts'
 import type { Category, MemberRole, Priority, Side, Task, TaskDraft, TaskStatus, WeddingFunction, WeddingMember } from '../../types.ts'
 import { CATEGORIES, PRIORITIES, TASK_STATUSES } from '../../types.ts'
 
@@ -465,7 +466,7 @@ export function TasksTab() {
         </div>
       )}
 
-      <div className="count-chips" aria-label="Task status">
+      <div className="count-chips" aria-label="Task status" style={{ gap: STATUS_CHIP_GAP, padding: `12px ${STATUS_CHIP_ROW_PAD_X}px 16px` }}>
         {([
           ['All', tasks.length],
           ['Pending', pendingCount],
@@ -473,7 +474,7 @@ export function TasksTab() {
         ] as const).map(([item, count]) => {
           const selected = filter === item
           return (
-            <button key={item} type="button" onClick={() => setFilter(item)} style={{ minHeight: SIZE.chip, padding: '0 16px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: TYPE.small, fontWeight: 600, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, border: selected ? 'none' : `1.5px solid ${COLORS.gold}` }}>
+            <button key={item} type="button" onClick={() => setFilter(item)} style={{ minHeight: SIZE.chip, padding: `0 ${STATUS_CHIP_PAD_X}px`, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: TYPE.small, fontWeight: 600, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, border: selected ? 'none' : `1.5px solid ${COLORS.gold}` }}>
               {item} · {count}
             </button>
           )

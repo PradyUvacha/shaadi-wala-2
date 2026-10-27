@@ -217,38 +217,31 @@ function foreignNote(item: BudgetItem): string | null {
 }
 
 export function rollupWedding(budget: readonly BudgetItem[], tasks: readonly Task[]): WeddingRollup {
-  const byName = new Map<string, BudgetItem[]>()
-  for (const item of budget) {
-    const name = item.category.trim() || 'Other'
-    const list = byName.get(name) ?? []
-    list.push(item)
-    byName.set(name, list)
-  }
   const itemIds = new Set(budget.map((item) => item.id))
-  const categories: CategoryCard[] = []
-  for (const [name, items] of byName) {
-    const ids = new Set(items.map((item) => item.id))
-    const linked = tasks.filter((task) => task.budgetCategoryId != null && ids.has(task.budgetCategoryId))
-    const inr = items.filter((item) => item.currency === 'INR')
-    const budgetPaise = inr.reduce((sum, item) => sum + toPaise(item.estimated), 0n)
-    const logged = inr.reduce((sum, item) => sum + loggedPaise(item), 0n)
+  const categories: CategoryCard[] = budget.map((item) => {
+    const name = item.category.trim() || 'Other'
+    const linked = tasks.filter((task) => task.budgetCategoryId === item.id)
+    const inr = item.currency === 'INR' ? [item] : []
+    const budgetPaise = inr.reduce((sum, entry) => sum + toPaise(entry.estimated), 0n)
+    const logged = inr.reduce((sum, entry) => sum + loggedPaise(entry), 0n)
     const taskActual = sumTaskPaise(linked, true)
     const committed = sumTaskPaise(linked, false)
-    categories.push({
-      key: name,
+    const note = foreignNote(item)
+    return {
+      key: item.id,
       name,
-      itemIds: items.map((item) => item.id),
-      primaryItemId: items[0]?.id ?? null,
-      auto: linked.length > 0 || tasks.some((task) => task.budgetCategoryId != null && ids.has(task.budgetCategoryId)),
+      itemIds: [item.id],
+      primaryItemId: item.id,
+      auto: linked.length > 0,
       budgetRupees: roundHalfUpRupees(budgetPaise),
       loggedPaise: logged,
       taskActualPaise: taskActual,
       actualPaise: logged + taskActual,
       committedPaise: committed,
       rows: taskRows(linked),
-      foreignNotes: items.map(foreignNote).filter((note): note is string => Boolean(note)),
-    })
-  }
+      foreignNotes: note ? [note] : [],
+    }
+  })
   categories.sort((left, right) => left.name.localeCompare(right.name))
 
   const loose = tasks.filter((task) => task.actualCost !== null && (task.budgetCategoryId == null || !itemIds.has(task.budgetCategoryId)))

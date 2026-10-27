@@ -247,6 +247,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261028140000_mutual_side_lock.sql`)
   file(`${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`)
   file(`${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`)
+  file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
+  file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -1099,6 +1101,31 @@ describe('approved role permissions', () => {
       where category = 'Photography' and wedding_id = ${wedding};
     `)).toMatch(/whole rupees/)
     psql(`delete from public.weddings where couple_names = 'Gap Backfill';`)
+  })
+
+  it('publishes guests and guest function links with a full replica identity', () => {
+    const guestFile = `${root}supabase/migrations/20261028160000_guest_realtime.sql`
+    file(guestFile)
+    const identity = psql(`
+      select c.relname || ':' || c.relreplident::text
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname in ('guests', 'guest_functions')
+      order by c.relname;
+    `).trim().split('\n')
+    expect(identity).toEqual(['guest_functions:f', 'guests:f'])
+    const published = psql(`
+      select tablename
+      from pg_publication_tables
+      where pubname = 'supabase_realtime' and tablename in ('guests', 'guest_functions')
+      order by tablename;
+    `).trim().split('\n')
+    expect(published).toEqual(['guest_functions', 'guests'])
+    file(guestFile)
+    expect(psql(`
+      select count(*) from pg_publication_tables
+      where pubname = 'supabase_realtime' and tablename in ('guests', 'guest_functions');
+    `).trim()).toBe('2')
   })
 })
 
