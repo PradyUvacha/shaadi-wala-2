@@ -6,11 +6,11 @@ import { canEditBudget, canLogPayment, canSeeBudget } from '../../lib/access.ts'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { money } from '../../lib/format.ts'
 import { budgetHeadline, canAddSplit, defaultPayerForSide, familySettlement, MAX_BUDGET_AMOUNT, otherCurrencyTotals, payerLabel, settlementSummary, sideLabel, SPLIT_REQUIRED, splitsForPayer, splitsForSave } from '../../lib/planning.ts'
-import { displaySplit, formatInrGrouped, formatInrShort, percentOf, remainingLabel, rollupWedding, roundHalfUpRupees, toPaise, wholeRupeeProblem, type CategoryCard } from '../../lib/rollup.ts'
+import { formatInrGrouped, formatInrShort, percentOf, remainingLabel, rollupWedding, roundHalfUpRupees, splitShareLabel, toPaise, wholeRupeeProblem, type CategoryCard } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, RADIUS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { cardStyle, inputStyle, primaryButton, sectionLabel, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
+import { headerPadding } from '../../styles/safeArea.ts'
 import type { BudgetDraft, BudgetItem, Payer, PartPaymentDraft, PaymentSide } from '../../types.ts'
 import { PAYERS } from '../../types.ts'
 
@@ -215,16 +215,16 @@ export function BudgetTab() {
   const cards = rolled.uncategorised ? [...rolled.categories, rolled.uncategorised] : rolled.categories
 
   return (
-    <div style={{ paddingBottom: listAboveFab }}>
+    <div>
       <div style={{ background: COLORS.appBar, padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: '#fff', fontWeight: 700 }}>Budget</div>
         <p style={{ margin: '6px 0 0', color: COLORS.gold, fontSize: TYPE.small }}>{headline.currency} totals</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, margin: '16px' }}>
-        <Tile label="Budget" value={moneyText(rolled.budgetRupees)} tint={COLORS.roseTint} labelColor={COLORS.crimson} icon="₹" />
-        <Tile label="Actual" value={moneyText(rolled.actualRupees)} tint={COLORS.goldTint} labelColor={COLORS.goldText} icon="₹" hint={rolled.categories.some((card) => card.auto) || rolled.uncategorised ? 'auto-calc' : undefined} />
-        <Tile label="Remaining" value={remaining.over ? remaining.text : moneyText(rolled.remainingRupees)} tint={remaining.over ? COLORS.dangerTint : COLORS.greenTint} labelColor={remaining.over ? COLORS.danger : COLORS.greenText} icon="₹" />
+        <Tile label="Budget" value={moneyText(rolled.budgetRupees)} tint={COLORS.roseTint} labelColor={COLORS.crimson} icon="budget" />
+        <Tile label="Actual" value={moneyText(rolled.actualRupees)} tint={COLORS.goldTint} labelColor={COLORS.goldText} icon="actual" hint={rolled.categories.some((card) => card.auto) || rolled.uncategorised ? 'auto-calc' : undefined} />
+        <Tile label="Remaining" value={remaining.over ? remaining.text : moneyText(rolled.remainingRupees)} tint={remaining.over ? COLORS.dangerTint : COLORS.greenTint} labelColor={remaining.over ? COLORS.danger : COLORS.greenText} icon="remaining" />
       </div>
       {rolled.committedRupees > 0n && (
         <p style={{ margin: '-8px 16px 12px', color: COLORS.muted, fontSize: TYPE.small }}>Committed (pending) {formatInrGrouped(rolled.committedRupees)}</p>
@@ -363,14 +363,42 @@ export function BudgetTab() {
   )
 }
 
-function Tile({ label, value, tint, labelColor, hint }: { label: string; value: string; tint: string; labelColor: string; icon?: string; hint?: string }) {
+function Tile({ label, value, tint, labelColor, icon, hint }: { label: string; value: string; tint: string; labelColor: string; icon: 'budget' | 'actual' | 'remaining'; hint?: string }) {
   return (
     <div style={{ background: tint, borderRadius: RADIUS.card, padding: 12, minWidth: 0 }}>
-      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fff', marginBottom: 8 }} />
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fff', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: labelColor }}>
+        <TileIcon name={icon} />
+      </div>
       <div style={{ fontSize: TYPE.small, color: labelColor, fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.ink, overflowWrap: 'anywhere' }}>{value}</div>
       {hint && <div style={{ fontSize: TYPE.small, color: hint === 'Over by' ? COLORS.danger : COLORS.muted }}>{hint}</div>}
     </div>
+  )
+}
+
+function TileIcon({ name }: { name: 'budget' | 'actual' | 'remaining' }) {
+  const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const }
+  if (name === 'budget') {
+    return (
+      <svg {...common}>
+        <path d="M4.5 11.5c.4-3.2 3.2-5.5 6.6-5.5 2.4 0 4.4 1.2 5.6 3.1.5-.2 1-.3 1.6-.3 1.8 0 3.2 1.2 3.2 2.8 0 .7-.3 1.4-.7 1.9.4.6.7 1.3.7 2.1 0 2.2-1.8 4.4-5.2 4.4H8.4c-3 0-5.2-1.6-5.2-4 0-1 .4-1.9.9-2.6-.6-.6-1-1.4-1-2.3 0-.2 0-.4.1-.6z" />
+        <path d="M19.2 12.2h2.3M8.2 10.2h.01" />
+      </svg>
+    )
+  }
+  if (name === 'actual') {
+    return (
+      <svg {...common}>
+        <path d="M7 3h10v18l-2-1.4-2 1.4-2-1.4L9 21l-2-1.4L5 21V5a2 2 0 0 1 2-2z" />
+        <path d="M9 8h6M9 12h6M9 16h4" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <path d="M4 16l5-5 3.5 3.5L20 7" />
+      <path d="M14 7h6v6" />
+    </svg>
   )
 }
 
@@ -395,8 +423,6 @@ function CategoryCardView({
 }) {
   const actualRupees = roundHalfUpRupees(card.actualPaise)
   const percent = percentOf(actualRupees, card.budgetRupees)
-  const budgetSplit = displaySplit(card.budgetRupees)
-  const actualSplit = displaySplit(actualRupees)
   const show = (rupees: bigint) => (narrow ? formatInrShort(rupees) : formatInrGrouped(rupees))
   return (
     <article style={{ ...cardStyle, marginBottom: 12 }}>
@@ -428,12 +454,15 @@ function CategoryCardView({
         </div>
         <span style={{ fontSize: TYPE.small, color: percent.over ? COLORS.danger : COLORS.muted, fontWeight: percent.over ? 600 : 400 }}>{percent.label}</span>
       </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+      {!expanded && card.rows.length > 0 && (
+        <div style={{ marginTop: 8, fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>Contributing tasks: {card.rows.length}</div>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
         <button type="button" onClick={onToggle} style={{ minHeight: SIZE.tap, border: 'none', background: 'transparent', color: COLORS.muted, fontSize: TYPE.small, cursor: 'pointer', padding: 0 }}>
           {expanded ? 'Hide breakdown' : 'Tap to expand'}
         </button>
-        <span style={{ color: COLORS.goldText, fontSize: TYPE.small, display: 'inline-flex', alignItems: 'center', minHeight: SIZE.tap }}>
-          Split 50/50 · bride {show(budgetSplit.bride)} / {show(actualSplit.bride)}
+        <span style={{ color: COLORS.goldText, fontSize: TYPE.small, display: 'block', flex: '1 1 160px', minWidth: 0, lineHeight: 1.4, paddingTop: 12 }}>
+          {splitShareLabel(card.budgetRupees, actualRupees)}
         </span>
       </div>
       {card.foreignNotes.map((note) => <p key={note} style={{ color: COLORS.muted, fontSize: TYPE.small }}>{note}</p>)}

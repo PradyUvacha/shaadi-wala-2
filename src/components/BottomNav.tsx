@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { canSeeBudget } from '../lib/access.ts'
 import { useWedding } from '../state/wedding-context.ts'
@@ -24,22 +24,42 @@ export function BottomNav() {
   const { pathname } = useLocation()
   const { bundle, mode } = useWedding()
   const navRef = useRef<HTMLElement>(null)
+  const probeRef = useRef<HTMLDivElement>(null)
+  const [iconsOnly, setIconsOnly] = useState(false)
   const visible = tabs.filter((tab) => tab.to !== '/budget' || mode === 'preview' || canSeeBudget(bundle?.membership.role))
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const bar = navRef.current
-    if (!bar) return
-    const apply = () => {
+    const probe = probeRef.current
+    if (!bar || !probe) return
+    const measure = () => {
       document.documentElement.style.setProperty('--bottom-nav-height', `${Math.ceil(bar.getBoundingClientRect().height)}px`)
+      const buttons = [...bar.querySelectorAll('button')]
+      const samples = [...probe.querySelectorAll('span')]
+      const overflow = samples.some((sample, index) => {
+        const button = buttons[index]
+        if (!button) return false
+        const style = getComputedStyle(button)
+        const available = button.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)
+        return sample.getBoundingClientRect().width > available + 1
+      })
+      setIconsOnly(overflow)
     }
-    apply()
-    const observer = new ResizeObserver(apply)
+    measure()
+    const observer = new ResizeObserver(measure)
     observer.observe(bar)
+    observer.observe(probe)
+    for (const sample of probe.querySelectorAll('span')) observer.observe(sample)
     return () => observer.disconnect()
-  }, [visible.length])
+  }, [visible.length, pathname])
 
   return (
-    <nav ref={navRef} className="bottom-nav" aria-label="Primary" style={{ background: '#fff', borderTop: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'stretch', height: 'auto', minHeight: `calc(${SIZE.nav}px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))`, padding: '0 var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) var(--safe-area-inset-left, env(safe-area-inset-left, 0px))' }}>
+    <nav ref={navRef} className={iconsOnly ? 'bottom-nav icons-only' : 'bottom-nav'} aria-label="Primary" style={{ background: '#fff', borderTop: `1px solid ${COLORS.border}`, display: 'flex', alignItems: 'stretch', height: 'auto', minHeight: `calc(${SIZE.nav}px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))`, padding: '0 var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)) var(--safe-area-inset-left, env(safe-area-inset-left, 0px))' }}>
+      <div ref={probeRef} aria-hidden="true" style={{ position: 'fixed', left: -10000, top: 0, visibility: 'hidden', pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+        {visible.map((tab) => (
+          <span key={tab.to} style={{ display: 'inline-block', fontSize: TYPE.small, fontWeight: WEIGHT.semibold, fontFamily: 'Poppins, sans-serif' }}>{tab.label}</span>
+        ))}
+      </div>
       {visible.map((tab) => {
         const active = isTabActive(pathname, tab.to)
         const color = active ? COLORS.crimson : COLORS.muted

@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { FUNCTION_PHASES, PHASE_HEADERS, PHASE_LABELS, type FunctionPhase } from '../../config/phases.ts'
@@ -9,8 +10,8 @@ import { percent } from '../../lib/planning.ts'
 import { chipRupees, formatInrGrouped, roundHalfUpRupees, toPaise, wholeRupeeProblem } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
-import { inputStyle, primaryButton, sectionLabel, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
+import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
+import { headerPadding } from '../../styles/safeArea.ts'
 import type { Category, MemberRole, Priority, Side, Task, TaskDraft, TaskStatus, WeddingFunction, WeddingMember } from '../../types.ts'
 import { CATEGORIES, PRIORITIES, TASK_STATUSES } from '../../types.ts'
 
@@ -56,7 +57,59 @@ export function TasksTab() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [appliedEdit, setAppliedEdit] = useState<string | null>(null)
+  const [menuTaskId, setMenuTaskId] = useState<string | null>(null)
+  const [menuPlace, setMenuPlace] = useState<{ top: number; left: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const stopCelebration = useCallback(() => setCelebrate(false), [])
+  useEffect(() => {
+    if (!menuTaskId) return
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (menuRef.current?.contains(target)) return
+      if (target instanceof Element && target.closest('[aria-haspopup="menu"]')) return
+      setMenuTaskId(null)
+      setMenuPlace(null)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuTaskId(null)
+        setMenuPlace(null)
+      }
+    }
+    const scroller = document.querySelector('.app-shell-scroll')
+    const onScroll = () => {
+      setMenuTaskId(null)
+      setMenuPlace(null)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    scroller?.addEventListener('scroll', onScroll)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+      scroller?.removeEventListener('scroll', onScroll)
+    }
+  }, [menuTaskId])
+  const closeTaskMenu = () => {
+    setMenuTaskId(null)
+    setMenuPlace(null)
+  }
+  const openTaskMenu = (task: Task, siblings: number, anchor: HTMLButtonElement) => {
+    if (menuTaskId === task.id) {
+      closeTaskMenu()
+      return
+    }
+    const count = (canStructure && siblings > 1 ? 2 : 0) + (canEdit ? 2 : 0)
+    const rect = anchor.getBoundingClientRect()
+    const menuHeight = count * 48 + 8
+    const menuWidth = 220
+    const below = rect.bottom + 4
+    const top = below + menuHeight > window.innerHeight - 8 ? Math.max(8, rect.top - 4 - menuHeight) : below
+    const left = Math.min(Math.max(8, rect.right - menuWidth), window.innerWidth - menuWidth - 8)
+    setMenuPlace({ top, left })
+    setMenuTaskId(task.id)
+  }
   const editParam = params.get('edit')
 
   const filtered = filter === 'All' ? tasks : tasks.filter((task) => (filter === 'Done' ? task.status === 'Completed' : task.status !== 'Completed'))
@@ -338,18 +391,33 @@ export function TasksTab() {
           </div>
         </div>
         {(canEdit || canStructure) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {canStructure && siblings > 1 && (
-              <>
-                <button type="button" aria-label={`Move ${task.title} up`} onClick={() => void moveTask(task.id, -1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↑</button>
-                <button type="button" aria-label={`Move ${task.title} down`} onClick={() => void moveTask(task.id, 1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↓</button>
-              </>
-            )}
-            {canEdit && (
-              <>
-                <button type="button" aria-label="Edit task" onClick={() => openEdit(task)} style={{ ...iconButton, color: COLORS.crimson }}>Edit</button>
-                <button type="button" aria-label="Delete task" onClick={() => { setError(null); setPendingRitual(task) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
-              </>
+          <div style={{ position: 'relative', flex: '0 0 auto' }}>
+            <button
+              type="button"
+              aria-label={`Actions for ${task.title}`}
+              aria-haspopup="menu"
+              aria-expanded={menuTaskId === task.id}
+              onClick={(event) => openTaskMenu(task, siblings, event.currentTarget)}
+              style={iconButton}
+            >
+              ⋯
+            </button>
+            {menuTaskId === task.id && menuPlace && createPortal(
+              <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menuPlace.top, left: menuPlace.left, zIndex: 400, width: 220, background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 12, boxShadow: '0 8px 24px rgba(26,5,5,0.12)', padding: 4 }}>
+                {canStructure && siblings > 1 && (
+                  <>
+                    <button type="button" role="menuitem" aria-label={`Move ${task.title} up`} onClick={() => { closeTaskMenu(); void moveTask(task.id, -1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move up</button>
+                    <button type="button" role="menuitem" aria-label={`Move ${task.title} down`} onClick={() => { closeTaskMenu(); void moveTask(task.id, 1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move down</button>
+                  </>
+                )}
+                {canEdit && (
+                  <>
+                    <button type="button" role="menuitem" aria-label="Edit task" onClick={() => { closeTaskMenu(); openEdit(task) }} style={menuItem}>Edit</button>
+                    <button type="button" role="menuitem" aria-label="Delete task" onClick={() => { closeTaskMenu(); setError(null); setPendingRitual(task) }} style={{ ...menuItem, color: COLORS.danger }}>Delete</button>
+                  </>
+                )}
+              </div>,
+              document.body,
             )}
           </div>
         )}
@@ -358,7 +426,7 @@ export function TasksTab() {
   )
 
   return (
-    <div style={{ paddingBottom: listAboveFab }}>
+    <div>
       <Celebration active={celebrate} onDone={stopCelebration} />
       <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.crimson})`, padding: headerPadding }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
@@ -414,14 +482,16 @@ export function TasksTab() {
             {visibleGroups.map(({ fn, rituals }) => (
               <section key={fn.id}>
                 <div className="event-group-header">
-                  <span className="event-group-name">
-                    <span aria-hidden="true" style={{ color: COLORS.muted, display: 'inline-flex', flex: '0 0 auto' }}><CalendarIcon /></span>
-                    <h2>{fn.name}</h2>
-                  </span>
+                  <div className="event-group-title">
+                    <span className="event-group-name">
+                      <span aria-hidden="true" style={{ color: COLORS.muted, display: 'inline-flex', flex: '0 0 auto' }}><CalendarIcon /></span>
+                      <h2>{fn.name}</h2>
+                    </span>
+                    <span className="event-count-pill">{rituals.length} {rituals.length === 1 ? 'task' : 'tasks'}</span>
+                  </div>
                   {fn.phase ? <span className="event-phase-label">{PHASE_HEADERS[fn.phase]}</span> : null}
-                  <span className="event-count-pill">{rituals.length} {rituals.length === 1 ? 'task' : 'tasks'}</span>
                   {canStructure && (
-                    <div style={{ display: 'flex', gap: 4, flex: '0 0 auto' }}>
+                    <div className="event-group-actions">
                       {functions.length > 1 && (
                         <>
                           <button type="button" aria-label={`Move ${fn.name} up`} onClick={() => void moveFunction(fn.id, -1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↑</button>
@@ -439,10 +509,12 @@ export function TasksTab() {
             {loose.length > 0 && (
               <section>
                 <div className="event-group-header">
-                  <span className="event-group-name">
-                    <h2>Other tasks</h2>
-                  </span>
-                  <span className="event-count-pill">{loose.length} {loose.length === 1 ? 'task' : 'tasks'}</span>
+                  <div className="event-group-title">
+                    <span className="event-group-name">
+                      <h2>Other tasks</h2>
+                    </span>
+                    <span className="event-count-pill">{loose.length} {loose.length === 1 ? 'task' : 'tasks'}</span>
+                  </div>
                 </div>
                 {loose.map((task) => ritualCard(task, loose.length))}
               </section>
@@ -574,26 +646,26 @@ export function TasksTab() {
               />
               {costDirty && wholeRupeeProblem(costText, true) && <p style={{ color: COLORS.danger, fontSize: TYPE.small, margin: '6px 0 0' }}>{wholeRupeeProblem(costText, true)}</p>}
             </Field>
-            <div style={{ marginBottom: 14 }}>
-              <div style={sectionLabel}>Budget category</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <label style={{ display: 'block', marginBottom: 14 }}>
+              <span style={{ display: 'block', fontSize: TYPE.body, fontWeight: 600, color: COLORS.ink, marginBottom: 6 }}>Budget category</span>
+              <select
+                aria-label="Budget category"
+                style={selectStyle}
+                disabled={!costEditable}
+                value={costCategoryId ?? ''}
+                onChange={(event) => setCostCategoryId(event.target.value || null)}
+              >
+                <option value="">Choose category</option>
                 {(bundle?.budget ?? []).map((item) => {
-                  const selected = costCategoryId === item.id
                   const duplicate = (bundle?.budget ?? []).filter((other) => other.category === item.category).length > 1
                   return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      disabled={!costEditable}
-                      onClick={() => setCostCategoryId((current) => (current === item.id ? null : item.id))}
-                      style={{ minHeight: SIZE.chip, padding: '0 16px', borderRadius: 999, border: selected ? 'none' : `1.5px solid ${COLORS.gold}`, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: costEditable ? 'pointer' : 'default' }}
-                    >
+                    <option key={item.id} value={item.id}>
                       {duplicate && item.notes ? `${item.category} · ${item.notes}` : item.category}
-                    </button>
+                    </option>
                   )
                 })}
-              </div>
-            </div>
+              </select>
+            </label>
           </>
         )}
         <Field label="Due Date">
@@ -654,6 +726,28 @@ const iconButton = {
   cursor: 'pointer',
   fontSize: 16,
   color: COLORS.crimson,
+  height: 48,
+  width: 48,
   minHeight: 48,
   minWidth: 48,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
 } as const
+
+const menuItem = {
+  display: 'flex',
+  alignItems: 'center',
+  width: '100%',
+  minHeight: 48,
+  minWidth: 48,
+  padding: '0 16px',
+  border: 'none',
+  background: 'transparent',
+  color: COLORS.ink,
+  fontSize: 16,
+  textAlign: 'left' as const,
+  cursor: 'pointer',
+  borderRadius: 8,
+}

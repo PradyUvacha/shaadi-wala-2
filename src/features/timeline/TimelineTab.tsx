@@ -7,7 +7,7 @@ import { formatDate } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
+import { headerPadding } from '../../styles/safeArea.ts'
 import type { Milestone, MilestoneDraft, MilestoneStatus } from '../../types.ts'
 import { MILESTONE_STATUSES } from '../../types.ts'
 
@@ -62,7 +62,7 @@ export function TimelineTab() {
   }
 
   return (
-    <div style={{ paddingBottom: listAboveFab }}>
+    <div>
       <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: headerPadding }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>Wedding Timeline</div>

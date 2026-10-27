@@ -6,6 +6,7 @@ import {
   chipRupees,
   displaySplit,
   formatInrGrouped,
+  splitShareLabel,
   loggedPaise,
   percentOf,
   remainingLabel,
@@ -134,6 +135,23 @@ describe('task rollup', () => {
     expect(displaySplit(100n)).toEqual({ bride: 50n, groom: 50n })
     expect(remainingLabel(-25000n).text).toBe('Over by ₹25,000')
     expect(formatInrGrouped(40000n)).toBe('₹40,000')
+  })
+
+  it('labels each side of budget and actual, and dashes a blank budget', () => {
+    expect(splitShareLabel(0n, 10000n)).toBe('Split 50/50 · Each side: Budget — · Actual ₹5,000')
+    expect(splitShareLabel(150000n, 10000n)).toBe('Split 50/50 · Each side: Budget ₹75,000 · Actual ₹5,000')
+    expect(splitShareLabel(100001n, 10001n)).toBe(
+      'Split 50/50 · Bride: Budget ₹50,001 · Actual ₹5,001 · Groom: Budget ₹50,000 · Actual ₹5,000',
+    )
+    const rolled = rollupWedding(
+      [item({ id: 'decor', category: 'Decor', estimated: 0, actual: 0 })],
+      [task({ id: 'done', status: 'Completed', actualCost: 10000, budgetCategoryId: 'decor', title: 'Stage' })],
+    )
+    const card = rolled.categories[0]
+    expect(card?.actualPaise).toBe(toPaise(10000))
+    expect(card && splitShareLabel(card.budgetRupees, roundHalfUpRupees(card.actualPaise))).toBe(
+      'Split 50/50 · Each side: Budget — · Actual ₹5,000',
+    )
   })
 
   it('keeps paise exact in bigint sums past ₹10 crore and rounds half-up for display', () => {

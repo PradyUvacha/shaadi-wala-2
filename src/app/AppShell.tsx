@@ -4,7 +4,7 @@ import { BottomNav } from '../components/BottomNav.tsx'
 import { SurveyGate } from '../features/surveys/SurveyGate.tsx'
 import { COLORS } from '../styles/tokens.ts'
 import { useWedding } from '../state/wedding-context.ts'
-import { showBottomNav } from './shellNav.ts'
+import { listHasFab, showBottomNav } from './shellNav.ts'
 
 export function AppShell() {
   const { mode, bundle, notice } = useWedding()
@@ -25,7 +25,7 @@ export function AppShell() {
 
   return (
     <div className="app-shell" style={{ background: COLORS.ivory, paddingLeft: 'var(--safe-area-inset-left, env(safe-area-inset-left, 0px))', paddingRight: 'var(--safe-area-inset-right, env(safe-area-inset-right, 0px))' }}>
-      <div ref={scroller} className="app-shell-scroll">
+      <div ref={scroller} className={listHasFab(location.pathname) ? 'app-shell-scroll has-fab-clearance' : 'app-shell-scroll'}>
         {mode === 'preview' && (
           <button type="button" className="demo-banner" onClick={() => navigate('/auth')} style={{ background: COLORS.gold, color: COLORS.ink, fontWeight: 700, cursor: 'pointer' }}>
             Demo only. Sign in to save.

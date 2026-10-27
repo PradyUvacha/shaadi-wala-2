@@ -122,12 +122,29 @@ export function createDemoBundle(input: { side: Side; displayName: string }, tod
   })
   const otherSide: Side = input.side === 'bride' ? 'groom' : 'bride'
   return {
-    ...bundle,
+    ...withDemoTaskCosts(bundle),
     members: [
       ...bundle.members,
       { id: uid(), userId: uid(), role: 'family', side: input.side, displayName: 'Meera Sharma' },
       { id: uid(), userId: uid(), role: 'family', side: otherSide, displayName: 'Anil Patil' },
     ],
+  }
+}
+
+const DEMO_TASK_COSTS: Record<string, { actualCost: number; category: string }> = {
+  'Book Wedding Venue': { actualCost: 40000, category: 'Venue' },
+  'Mehendi Ceremony Setup': { actualCost: 15000, category: 'Decor' },
+}
+
+function withDemoTaskCosts(bundle: WeddingBundle): WeddingBundle {
+  const categoryId = (name: string) => bundle.budget.find((item) => item.category === name)?.id ?? null
+  return {
+    ...bundle,
+    tasks: bundle.tasks.map((task) => {
+      const link = DEMO_TASK_COSTS[task.title]
+      if (!link) return task
+      return { ...task, actualCost: link.actualCost, budgetCategoryId: categoryId(link.category) }
+    }),
   }
 }
 

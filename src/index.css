@@ -65,6 +65,10 @@ textarea { min-height: 72px; }
   overflow-x: hidden;
   overflow-y: auto;
 }
+.app-shell-scroll.has-fab-clearance {
+  padding-bottom: calc(56px + 16px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  margin-bottom: calc(56px + 16px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+}
 .chip-row {
   display: flex;
   flex-wrap: wrap;
@@ -147,40 +151,53 @@ textarea { min-height: 72px; }
 }
 .event-group-header {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  min-width: 0;
+  margin: 0 0 16px;
+}
+.event-group-title {
+  display: flex;
   flex-wrap: wrap;
   align-items: center;
-  column-gap: 8px;
-  row-gap: 4px;
-  min-height: 40px;
-  margin: 0 0 24px;
+  gap: 8px;
+  min-width: 0;
 }
 .event-group-name {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: min(100%, 8rem);
   max-width: 100%;
 }
 .event-group-name h2 {
   margin: 0;
+  flex: 1 1 auto;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 14px;
+  overflow: visible;
+  white-space: normal;
+  overflow-wrap: break-word;
+  font-size: 16px;
   font-weight: 600;
-  color: #8E5050;
+  color: #1A0505;
   font-family: 'Poppins', sans-serif;
 }
 .event-phase-label {
-  flex: 0 0 auto;
-  white-space: nowrap;
+  display: block;
+  width: 100%;
+  white-space: normal;
   overflow: visible;
   font-size: 14px;
   font-weight: 600;
   color: #8E5050;
   letter-spacing: 0.08em;
+}
+.event-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 .event-count-pill {
   flex: 0 0 auto;
@@ -202,15 +219,14 @@ textarea { min-height: 72px; }
   min-height: 100dvh;
 }
 .bottom-nav {
-  position: fixed;
+  position: relative;
   z-index: 200;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: auto;
+  flex: 0 0 auto;
+  width: 100%;
   height: auto;
   margin-inline: auto;
   align-items: stretch;
+  overflow: hidden;
 }
 .bottom-nav a,
 .bottom-nav button {
@@ -229,16 +245,22 @@ textarea { min-height: 72px; }
   flex: 0 0 24px;
 }
 .nav-label {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
+  display: block;
   max-width: 100%;
   text-align: center;
   line-height: 1.15;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.bottom-nav.icons-only .nav-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
 .demo-banner {
   width: 100%;
@@ -256,7 +278,13 @@ textarea { min-height: 72px; }
 .sheet-panel,
 .desktop-column {
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
   margin-inline: auto;
+}
+.guest-sheet,
+.guest-sheet * {
+  max-width: 100%;
 }
 .fab {
   position: fixed;

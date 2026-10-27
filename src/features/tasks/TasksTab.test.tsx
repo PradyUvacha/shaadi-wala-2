@@ -106,7 +106,8 @@ async function renderTab(value: WeddingContextValue) {
 }
 
 function clickButton(container: HTMLElement, label: string) {
-  const button = [...container.querySelectorAll('button')].find((item) => item.getAttribute('aria-label') === label || item.textContent?.trim() === label)
+  const scopes = [container, document.body]
+  const button = scopes.flatMap((scope) => [...scope.querySelectorAll('button')]).find((item) => item.getAttribute('aria-label') === label || item.textContent?.trim() === label)
   if (!button) throw new Error(`missing ${label}`)
   button.click()
 }
@@ -127,6 +128,9 @@ describe('ritual editor conflicts', () => {
     }))
     expect(stale.container.textContent).toContain('WEDDING DAY')
     expect(stale.container.textContent).toContain('1 task')
+    await act(async () => {
+      clickButton(stale.container, 'Actions for Book the hall')
+    })
     await act(async () => {
       clickButton(stale.container, 'Edit task')
     })
@@ -151,6 +155,9 @@ describe('ritual editor conflicts', () => {
         return { ...bundle, tasks: [] }
       },
     }))
+    await act(async () => {
+      clickButton(deleted.container, 'Actions for Book the hall')
+    })
     await act(async () => {
       clickButton(deleted.container, 'Edit task')
     })

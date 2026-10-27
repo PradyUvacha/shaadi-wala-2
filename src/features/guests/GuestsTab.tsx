@@ -6,7 +6,7 @@ import { compareGuestNames, guestAvatarColor, guestEmailProblem, guestFunctionLi
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, FONT, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton } from '../../styles/ui.ts'
-import { headerPadding, listAboveFab, safeBottom } from '../../styles/safeArea.ts'
+import { headerPadding, safeBottom } from '../../styles/safeArea.ts'
 import type { Guest, GuestDraft, GuestSide, RsvpStatus } from '../../types.ts'
 import { rsvpBySideEnabled } from '../onboarding/flag.ts'
 
@@ -59,6 +59,26 @@ function choiceChip(selected: boolean, disabled = false): CSSProperties {
     cursor: disabled ? 'default' : 'pointer',
     whiteSpace: 'nowrap',
   }
+}
+
+const deleteGuestButton: CSSProperties = {
+  height: 52,
+  minHeight: 52,
+  maxHeight: 52,
+  width: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
+  border: 'none',
+  borderRadius: 12,
+  background: 'transparent',
+  color: COLORS.danger,
+  fontSize: TYPE.body,
+  fontWeight: 600,
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0 12px',
 }
 
 function stepButton(disabled: boolean): CSSProperties {
@@ -253,7 +273,7 @@ export function GuestsTab() {
   }
 
   return (
-    <div style={{ paddingBottom: listAboveFab }}>
+    <div>
       <header style={{ background: `linear-gradient(160deg,${COLORS.appBar} 0%,${COLORS.maroon} 100%)`, padding: headerPadding }}>
         <h1 style={{ fontFamily: FONT.display, fontSize: TYPE.title, fontWeight: 700, color: '#fff', margin: 0 }}>Guests</h1>
         {limited && <p style={{ margin: '8px 0 0', fontSize: TYPE.body, fontWeight: 600, color: COLORS.gold }}>{sideHeading}</p>}
@@ -362,15 +382,15 @@ export function GuestsTab() {
       {modalOpen && (
         <div
           role="presentation"
-          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.6)' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'flex-end', background: 'rgba(0,0,0,0.6)', overflow: 'hidden' }}
           onClick={(event) => { if (event.target === event.currentTarget) closeSheet() }}
         >
-          <div role="dialog" aria-modal="true" aria-labelledby="guest-sheet-title" className="sheet-panel" style={{ width: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: COLORS.ivory, borderRadius: '24px 24px 0 0', overflow: 'hidden' }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="guest-sheet-title" className="sheet-panel guest-sheet" style={{ width: '100%', maxWidth: '100%', minWidth: 0, maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: COLORS.ivory, borderRadius: '24px 24px 0 0', overflow: 'hidden', boxSizing: 'border-box' }}>
             <div style={{ position: 'relative', height: 56, flex: '0 0 56px', background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, display: 'flex', alignItems: 'center', padding: '0 16px' }}>
               <span aria-hidden="true" style={{ position: 'absolute', top: 8, left: '50%', width: 42, height: 4, marginLeft: -21, borderRadius: 999, background: 'rgba(255,255,255,0.55)' }} />
               <h2 id="guest-sheet-title" style={{ margin: 0, fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, fontWeight: 700, color: '#fff' }}>{editGuest ? 'Edit Guest' : 'Add Guest'}</h2>
             </div>
-            <div style={{ overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0, maxWidth: '100%', boxSizing: 'border-box' }}>
               {error && <FormError message={error} />}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
@@ -392,7 +412,7 @@ export function GuestsTab() {
               </label>
               <div>
                 <div style={groupLabel}>SIDE</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', minWidth: 0 }}>
                   {sideOptions.map((option) => {
                     const selected = form.side === option.value
                     return (
@@ -406,7 +426,7 @@ export function GuestsTab() {
               </div>
               <div>
                 <div style={groupLabel}>RSVP STATUS</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', minWidth: 0 }}>
                   {RSVP_OPTIONS.map((status) => {
                     const selected = form.status === status
                     return (
@@ -419,7 +439,7 @@ export function GuestsTab() {
               </div>
               <div>
                 <div style={groupLabel}>MEAL PREFERENCE</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', minWidth: 0 }}>
                   {MEAL_OPTIONS.map((meal) => {
                     const selected = form.meal === meal.value
                     return (
@@ -441,7 +461,7 @@ export function GuestsTab() {
               {functions.length > 0 && (
                 <div>
                   <div style={groupLabel}>INVITED TO FUNCTIONS</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, maxWidth: '100%', minWidth: 0 }}>
                     {functions.map((fn) => {
                       const selected = (form.functionIds ?? []).includes(fn.id)
                       return (
@@ -457,13 +477,13 @@ export function GuestsTab() {
                 confirmDelete ? (
                   <div>
                     <div style={{ fontSize: TYPE.body, color: COLORS.ink, marginBottom: 8 }}>Delete this guest?</div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" disabled={busy} onClick={() => setConfirmDelete(false)} style={{ ...choiceChip(false), flex: 1 }}>Keep guest</button>
-                      <button type="button" disabled={busy} onClick={() => void remove()} style={{ minHeight: 48, flex: 1, border: 'none', borderRadius: 999, background: 'transparent', color: COLORS.danger, fontSize: TYPE.body, fontWeight: 600, cursor: 'pointer' }}>Delete guest</button>
+                    <div style={{ display: 'flex', gap: 8, maxWidth: '100%', minWidth: 0 }}>
+                      <button type="button" disabled={busy} onClick={() => setConfirmDelete(false)} style={{ ...choiceChip(false), flex: 1, minWidth: 0, height: 52, minHeight: 52, maxHeight: 52, boxSizing: 'border-box' }}>Keep guest</button>
+                      <button type="button" disabled={busy} onClick={() => void remove()} style={{ ...deleteGuestButton, flex: '1 1 0', width: 'auto' }}>Delete guest</button>
                     </div>
                   </div>
                 ) : (
-                  <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)} style={{ minHeight: 48, border: 'none', background: 'transparent', color: COLORS.danger, fontSize: TYPE.body, fontWeight: 600, cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+                  <button type="button" disabled={busy} onClick={() => setConfirmDelete(true)} style={{ ...deleteGuestButton, width: '100%' }}>
                     Delete guest
                   </button>
                 )
