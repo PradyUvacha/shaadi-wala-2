@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compareGuestNames, guestMatchesQuery, guestStatCounts } from './guestTiles.ts'
+import { compareGuestNames, guestAvatarColor, guestInitials, guestMatchesQuery, guestStatCounts, mealPillLabel } from './guestTiles.ts'
 
 describe('guest tiles', () => {
   it('counts guests on the tiles and plus-ones only in attending', () => {
@@ -20,6 +20,17 @@ describe('guest tiles', () => {
     expect(guestMatchesQuery(guest, '987654')).toBe(true)
     expect(guestMatchesQuery(guest, '000')).toBe(false)
     expect(guestMatchesQuery(guest, '   ')).toBe(true)
+  })
+
+  it('builds initials and a stable avatar colour from the name', () => {
+    expect(guestInitials('Anita Mehta')).toBe('AM')
+    expect(guestInitials('Mr. & Mrs. Sharma')).toBe('MS')
+    expect(guestInitials('Vikram')).toBe('VI')
+    expect(guestAvatarColor('Anita Mehta')).toBe(guestAvatarColor('Anita Mehta'))
+    expect(mealPillLabel('Vegetarian')).toBe('Veg')
+    expect(mealPillLabel('Non-Vegetarian')).toBe('Non-veg')
+    expect(mealPillLabel('Jain')).toBe('Jain')
+    expect(mealPillLabel('')).toBeNull()
   })
 
   it('sorts names without caring about case', () => {

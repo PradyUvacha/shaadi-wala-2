@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
+import { FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
-import { compareGuestNames, guestMatchesQuery, guestStatCounts } from '../../lib/guestTiles.ts'
+import { compareGuestNames, guestAvatarColor, guestInitials, guestMatchesQuery, guestStatCounts, mealPillLabel } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
@@ -21,11 +21,20 @@ const emptyForm = (side: GuestSide): GuestDraft => ({
   side,
 })
 
-const statusColors: Record<string, string> = {
-  Confirmed: COLORS.green,
-  Pending: COLORS.orangeText,
-  Maybe: COLORS.goldText,
-  Declined: COLORS.danger,
+const rsvpPill: Record<string, { background: string; color: string }> = {
+  Confirmed: { background: COLORS.greenTint, color: COLORS.greenText },
+  Pending: { background: COLORS.goldTint, color: COLORS.goldText },
+  Maybe: { background: COLORS.goldTint, color: COLORS.goldText },
+  Declined: { background: COLORS.dangerTint, color: COLORS.danger },
+}
+
+function LeafIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <path d="M5 19C14 19 19 14 19 5c-9 0-14 5-14 14z" />
+      <path d="M8 16c2-2 4-5 7-8" />
+    </svg>
+  )
 }
 
 function SearchIcon() {
@@ -209,38 +218,34 @@ export function GuestsTab() {
             <div style={{ fontSize: 16, fontWeight: 600 }}>No guests yet</div>
           </div>
         ) : (
-          visible.map((guest) => (
-            <div key={guest.id} style={{ background: COLORS.cardBg, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 16, marginBottom: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                    <span style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: COLORS.ink }}>{guest.name}</span>
-                    <Badge color={statusColors[guest.status] || COLORS.muted}>{guest.status}</Badge>
-                    {guest.side === 'both' && <Badge color={COLORS.crimson}>Mutual</Badge>}
-                    {guest.side === 'bride' && <Badge color={COLORS.crimson}>Bride's side</Badge>}
-                    {guest.side === 'groom' && <Badge color={COLORS.crimson}>Groom's side</Badge>}
-                  </div>
-                  {guest.email && <div style={{ fontSize: TYPE.small, color: COLORS.muted }}>{guest.email}</div>}
-                  {guest.phone && <div style={{ fontSize: TYPE.small, color: COLORS.muted }}>{guest.phone}</div>}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
-                    {guest.meal && <Badge color={COLORS.orangeText}>{guest.meal}</Badge>}
-                    {guest.plusOnes > 0 && <Badge color={COLORS.goldText}>+{guest.plusOnes}</Badge>}
-                    {SideBadge ? <SideBadge guest={guest} /> : null}
-                  </div>
-                </div>
-                {canEdit && (canEditGuestRow(role, ownSide, guest.side) || canDeleteGuestRow(role, ownSide, guest.side)) && (
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    {canEditGuestRow(role, ownSide, guest.side) && (
-                      <button type="button" aria-label="Edit guest" onClick={() => openEdit(guest)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: COLORS.crimson, minWidth: 48, minHeight: 48 }}>Edit</button>
-                    )}
-                    {canDeleteGuestRow(role, ownSide, guest.side) && (
-                      <button type="button" aria-label="Delete guest" onClick={() => void deleteGuest(guest.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: COLORS.danger, minWidth: 48, minHeight: 48 }}>Delete</button>
-                    )}
-                  </div>
+          visible.map((guest) => {
+            const meal = mealPillLabel(guest.meal)
+            const pill = rsvpPill[guest.status] ?? rsvpPill.Pending
+            const editable = canEdit && canEditGuestRow(role, ownSide, guest.side)
+            return (
+              <div key={guest.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, background: COLORS.cardBg, border: `1px solid ${COLORS.border}`, borderRadius: 16, padding: 12, marginBottom: 10, minHeight: 72 }}>
+                <button type="button" onClick={() => { if (editable) openEdit(guest) }} aria-label={editable ? `Edit ${guest.name}` : guest.name} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flex: 1, minWidth: 0, minHeight: 48, padding: 0, border: 'none', background: 'transparent', textAlign: 'left', cursor: editable ? 'pointer' : 'default', color: 'inherit' }}>
+                  <span aria-hidden="true" style={{ width: SIZE.avatar, height: SIZE.avatar, borderRadius: '50%', background: guestAvatarColor(guest.name), color: '#fff', fontSize: TYPE.small, fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{guestInitials(guest.name)}</span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: TYPE.body, fontWeight: 600, color: COLORS.ink, overflow: 'hidden', textOverflow: 'ellipsis' }}>{guest.name}</span>
+                    <span style={{ display: 'flex', gap: 8, marginTop: 6, flexWrap: 'wrap' }}>
+                      <span style={{ background: pill.background, color: pill.color, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600 }}>{guest.status}</span>
+                      {meal && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>
+                          <LeafIcon />
+                          {meal}
+                        </span>
+                      )}
+                      {SideBadge ? <SideBadge guest={guest} /> : null}
+                    </span>
+                  </span>
+                </button>
+                {guest.plusOnes > 0 && (
+                  <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600, flexShrink: 0 }}>+{guest.plusOnes}</span>
                 )}
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
       {canEdit && <FAB onClick={openAdd} />}
@@ -286,6 +291,11 @@ export function GuestsTab() {
         <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton()}>
           {busy ? 'Saving…' : editGuest ? 'Save changes' : 'Add guest'}
         </button>
+        {editGuest && canDeleteGuestRow(role, ownSide, editGuest.side) && (
+          <button type="button" disabled={busy} onClick={() => void deleteGuest(editGuest.id).then(() => setModalOpen(false)).catch((caught) => setError(toErrorMessage(caught)))} style={{ ...primaryButton(), background: COLORS.cardBg, color: COLORS.danger, border: `1px solid ${COLORS.dangerBorder}`, marginTop: 8 }}>
+            Delete guest
+          </button>
+        )}
       </Modal>
     </div>
   )
