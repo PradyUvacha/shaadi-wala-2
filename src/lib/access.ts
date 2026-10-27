@@ -1,4 +1,5 @@
-import type { InviteRole, MemberRole, Side } from '../types.ts'
+import { PLANNER_CAN_EDIT_TASK_COSTS } from '../config/budgetRules.ts'
+import type { GuestSide, InviteRole, MemberRole, Side } from '../types.ts'
 
 export function isCouple(role: MemberRole | null | undefined): boolean {
   return role === 'bride' || role === 'groom'
@@ -17,12 +18,54 @@ export function canEditBudget(role: MemberRole | null | undefined): boolean {
   return isCouple(role)
 }
 
+/** Couple edit any task cost. Family only when the task side is their side. Planner follows PLANNER_CAN_EDIT_TASK_COSTS. Friend never. */
+export function canEditTaskCost(
+  role: MemberRole | null | undefined,
+  task: { side: Side | null },
+  viewerSide: Side | null,
+): boolean {
+  if (role === 'friend') return false
+  if (role === 'planner') return PLANNER_CAN_EDIT_TASK_COSTS
+  if (isCouple(role)) return true
+  if (role === 'family') return viewerSide != null && task.side === viewerSide
+  return false
+}
+
 export function canLogPayment(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'family'
 }
 
 export function canEditGuests(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner' || role === 'family'
+}
+
+/** Family may insert and update their own side and Mutual. Couple and planner may write any side. */
+export function canEditGuestRow(
+  role: MemberRole | null | undefined,
+  viewerSide: Side | null,
+  guestSide: GuestSide,
+): boolean {
+  if (!canEditGuests(role)) return false
+  if (role !== 'family') return true
+  return guestSide === 'both' || (viewerSide != null && guestSide === viewerSide)
+}
+
+/** Mutual deletes stay with the couple and planner. Family can delete their own side only. */
+export function canDeleteGuestRow(
+  role: MemberRole | null | undefined,
+  viewerSide: Side | null,
+  guestSide: GuestSide,
+): boolean {
+  if (!canEditGuests(role)) return false
+  if (role === 'family') return viewerSide != null && guestSide === viewerSide
+  return true
+}
+
+/** Sides a member may choose. Family: own side and Mutual. Planner: a side is required, Mutual included. */
+export function guestSideChoices(role: MemberRole | null | undefined, viewerSide: Side | null): GuestSide[] {
+  if (role === 'planner') return ['both', 'bride', 'groom']
+  if (role === 'family') return viewerSide ? [viewerSide, 'both'] : ['both']
+  return ['', 'bride', 'groom', 'both']
 }
 
 export function canEditTimeline(role: MemberRole | null | undefined): boolean {

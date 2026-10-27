@@ -190,7 +190,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 export function FAB({ onClick }: { onClick: () => void }) {
   const style: CSSProperties = {
     borderRadius: '50%',
-    background: `linear-gradient(135deg,${COLORS.crimson},${COLORS.saffron})`,
+    background: `linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`,
     border: 'none',
     color: '#fff',
     fontSize: 28,

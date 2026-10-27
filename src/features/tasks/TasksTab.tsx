@@ -1,12 +1,15 @@
 import { useCallback, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
-import { assignableMembers, canEditChecklist, canManageTasks, unassignedSideGroups } from '../../lib/access.ts'
+import { FUNCTION_PHASES, PHASE_LABELS, type FunctionPhase } from '../../config/phases.ts'
+import { assignableMembers, canEditChecklist, canEditTaskCost, canManageTasks, canSeeBudget, unassignedSideGroups } from '../../lib/access.ts'
 import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
 import { DELETED_ITEM_MESSAGE, STALE_WRITE_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
+import { chipRupees, formatInrGrouped, roundHalfUpRupees, toPaise, wholeRupeeProblem } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
-import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS } from '../../styles/tokens.ts'
-import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
+import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
+import { inputStyle, primaryButton, sectionLabel, selectStyle } from '../../styles/ui.ts'
 import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
 import type { Category, MemberRole, Priority, Side, Task, TaskDraft, TaskStatus, WeddingFunction, WeddingMember } from '../../types.ts'
 import { CATEGORIES, PRIORITIES, TASK_STATUSES } from '../../types.ts'
@@ -33,14 +36,18 @@ export function TasksTab() {
   const members = bundle?.members ?? []
   const ownSide = bundle?.membership.side ?? null
   const functions = [...(bundle?.functions ?? [])].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
-  const [filter, setFilter] = useState<'All' | TaskStatus>('All')
+  const [filter, setFilter] = useState<'All' | 'Pending' | 'Done'>('All')
+  const [params, setParams] = useSearchParams()
+  const [costText, setCostText] = useState('')
+  const [costDirty, setCostDirty] = useState(false)
+  const [costCategoryId, setCostCategoryId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [celebrate, setCelebrate] = useState(false)
   const [form, setForm] = useState<TaskDraft>(emptyForm())
   const [newFunction, setNewFunction] = useState(false)
   const [functionName, setFunctionName] = useState('')
-  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string; updatedAt: string } | null>(null)
+  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string; updatedAt: string; phase: FunctionPhase } | null>(null)
   const [loadedTaskAt, setLoadedTaskAt] = useState('')
   const [taskConflict, setTaskConflict] = useState(false)
   const [functionConflict, setFunctionConflict] = useState(false)
@@ -48,9 +55,17 @@ export function TasksTab() {
   const [pendingRitual, setPendingRitual] = useState<Task | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [appliedEdit, setAppliedEdit] = useState<string | null>(null)
   const stopCelebration = useCallback(() => setCelebrate(false), [])
+  const editParam = params.get('edit')
 
-  const filtered = filter === 'All' ? tasks : tasks.filter((task) => task.status === filter)
+  const filtered = filter === 'All' ? tasks : tasks.filter((task) => (filter === 'Done' ? task.status === 'Completed' : task.status !== 'Completed'))
+  const pendingCount = tasks.filter((task) => task.status !== 'Completed').length
+  const doneCount = tasks.filter((task) => task.status === 'Completed').length
+  const seeCosts = mode === 'preview' || canSeeBudget(role)
+  const costEditable = editTask
+    ? (mode === 'preview' || canEditTaskCost(role, editTask, ownSide))
+    : (mode === 'preview' || canEditTaskCost(role, { side: null }, ownSide))
   const completedCount = tasks.filter((task) => task.status === 'Completed').length
   const pct = percent(completedCount, tasks.length)
   const community = communityLabel(bundle?.wedding.community)
@@ -78,6 +93,9 @@ export function TasksTab() {
   const openAdd = () => {
     setEditTask(null)
     setForm(emptyForm(functions[0]))
+    setCostText('')
+    setCostDirty(false)
+    setCostCategoryId(null)
     setNewFunction(functions.length === 0 && canStructure)
     setFunctionName('')
     setError(null)
@@ -100,10 +118,21 @@ export function TasksTab() {
       status: task.status,
       assignedTo: task.assignedTo,
     })
+    setCostText('')
+    setCostDirty(false)
+    setCostCategoryId(task.budgetCategoryId)
     setNewFunction(false)
     setFunctionName('')
     setError(null)
     setModalOpen(true)
+  }
+  if (editParam && appliedEdit !== editParam) {
+    setAppliedEdit(editParam)
+    const task = (bundle?.tasks ?? []).find((item) => item.id === editParam)
+    if (task) openEdit(task)
+    const next = new URLSearchParams(params)
+    next.delete('edit')
+    queueMicrotask(() => setParams(next, { replace: true }))
   }
   const save = async (overwrite = false) => {
     const ceremony = newFunction ? functionName.trim() : form.ceremony.trim()
@@ -115,6 +144,21 @@ export function TasksTab() {
       setError(newFunction ? 'Name the function.' : 'Choose a function.')
       return
     }
+    let actualCost = editTask?.actualCost ?? null
+    const budgetCategoryId = costCategoryId
+    if (seeCosts && costEditable) {
+      if (!editTask || costDirty) {
+        if (!costText.trim()) actualCost = null
+        else {
+          const problem = wholeRupeeProblem(costText)
+          if (problem) {
+            setError(problem)
+            return
+          }
+          actualCost = Number(costText.trim())
+        }
+      }
+    }
     setBusy(true)
     setError(null)
     try {
@@ -123,9 +167,10 @@ export function TasksTab() {
           ...form,
           ceremony,
           functionId: newFunction ? null : form.functionId,
+          ...(seeCosts && costEditable ? { actualCost, budgetCategoryId } : {}),
         },
         editTask?.id,
-        editTask ? { updatedAt: loadedTaskAt, overwrite } : undefined,
+        editTask ? { updatedAt: loadedTaskAt, costUpdatedAt: editTask.costUpdatedAt, overwrite } : undefined,
       )
       setTaskConflict(false)
       setModalOpen(false)
@@ -184,7 +229,7 @@ export function TasksTab() {
         setError(DELETED_ITEM_MESSAGE)
         return
       }
-      setFunctionEditor({ id: latest.id, name: latest.name, updatedAt: latest.updatedAt })
+      setFunctionEditor({ id: latest.id, name: latest.name, updatedAt: latest.updatedAt, phase: latest.phase })
       setFunctionConflict(false)
     } catch (caught) {
       setError(toErrorMessage(caught))
@@ -214,6 +259,7 @@ export function TasksTab() {
         name,
         functionEditor?.id ?? undefined,
         functionEditor?.id ? { updatedAt: functionEditor.updatedAt, overwrite } : undefined,
+        functionEditor?.phase,
       )
       setFunctionConflict(false)
       setFunctionEditor(null)
@@ -266,7 +312,7 @@ export function TasksTab() {
   const ritualCard = (task: Task, siblings: number) => (
     <div key={task.id} style={{ background: COLORS.cardBg, border: `1px solid ${task.status === 'Completed' ? '#4CAF5040' : '#E8D4B0'}`, borderRadius: 14, padding: 14, marginBottom: 10, animation: 'fadeIn 0.3s ease', opacity: task.status === 'Completed' ? 0.75 : 1 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <button type="button" disabled={!canComplete} aria-label={task.status === 'Completed' ? 'Mark pending' : 'Mark completed'} onClick={() => void toggle(task)} style={{ width: 28, height: 28, borderRadius: '50%', border: `2px solid ${task.status === 'Completed' ? COLORS.green : COLORS.crimson}`, background: task.status === 'Completed' ? COLORS.green : 'transparent', cursor: canComplete ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+        <button type="button" disabled={!canComplete} aria-label={task.status === 'Completed' ? 'Mark pending' : 'Mark completed'} onClick={() => void toggle(task)} style={{ width: SIZE.tap, height: SIZE.tap, borderRadius: '50%', border: `2px solid ${task.status === 'Completed' ? COLORS.green : COLORS.crimson}`, background: task.status === 'Completed' ? COLORS.green : 'transparent', cursor: canComplete ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {task.status === 'Completed' && <span style={{ color: '#fff', fontSize: 12 }}>✓</span>}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -275,7 +321,15 @@ export function TasksTab() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
             <Badge color={CATEGORY_COLORS[task.category] || '#666'} small>{task.category}</Badge>
             <Badge color={PRIORITY_COLORS[task.priority] || COLORS.gold} small>{task.priority}</Badge>
-            {task.dueDate && <span style={{ fontSize: 10, color: '#8B5050' }}>📅 {task.dueDate}</span>}
+            {seeCosts && chipRupees(task.actualCost) != null && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', minHeight: SIZE.tap }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 32, padding: '0 10px', borderRadius: 999, background: COLORS.goldTint, border: '1px solid #E5D4B2', color: COLORS.ink, fontSize: TYPE.small }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /></svg>
+                  {formatInrGrouped(chipRupees(task.actualCost)!)}
+                </span>
+              </span>
+            )}
+            {task.dueDate && <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.dueDate}</span>}
             {task.assignedTo && (
               <span style={{ fontSize: 10, color: '#8B5050' }}>
                 Assigned to {members.find((member) => member.userId === task.assignedTo)?.displayName ?? 'a member'}
@@ -293,7 +347,7 @@ export function TasksTab() {
             )}
             {canEdit && (
               <>
-                <button type="button" aria-label="Edit task" onClick={() => openEdit(task)} style={{ ...iconButton, color: COLORS.gold }}>✏️</button>
+                <button type="button" aria-label="Edit task" onClick={() => openEdit(task)} style={{ ...iconButton, color: COLORS.crimson }}>Edit</button>
                 <button type="button" aria-label="Delete task" onClick={() => { setError(null); setPendingRitual(task) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
               </>
             )}
@@ -306,9 +360,12 @@ export function TasksTab() {
   return (
     <div style={{ paddingBottom: listAboveFab }}>
       <Celebration active={celebrate} onDone={stopCelebration} />
-      <div style={{ background: `linear-gradient(135deg,${COLORS.saffron},${COLORS.crimson})`, padding: headerPadding }}>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 6 }}>Task Manager</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', marginBottom: 10 }}>Community · {community}</div>
+      <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.crimson})`, padding: headerPadding }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 6 }}>Task Manager</div>
+          <Link to="/timeline" style={{ color: COLORS.gold, fontSize: TYPE.small, fontWeight: 600, minHeight: SIZE.tap, display: 'inline-flex', alignItems: 'center' }}>Events</Link>
+        </div>
+        <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.9)', marginBottom: 10 }}>Community · {community}</div>
         <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, height: 8, overflow: 'hidden', marginBottom: 6 }}>
           <div style={{ height: '100%', width: `${pct}%`, background: '#fff', borderRadius: 99, transition: 'width 0.8s ease' }} />
         </div>
@@ -317,18 +374,25 @@ export function TasksTab() {
 
       {canStructure && (
         <div style={{ margin: '12px 16px 0' }}>
-          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.gold}`, background: 'transparent', color: COLORS.crimson, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '', phase: 'pre_wedding' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.goldText}`, background: 'transparent', color: COLORS.crimson, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
             Add function
           </button>
         </div>
       )}
 
-      <div className="chip-row" aria-label="Task status">
-        {(['All', ...TASK_STATUSES] as const).map((item) => (
-          <button key={item} type="button" onClick={() => setFilter(item)} style={{ padding: '7px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 16, fontWeight: 600, background: filter === item ? COLORS.crimson : '#F0E0CC', color: filter === item ? '#fff' : COLORS.crimson }}>
-            {item}
-          </button>
-        ))}
+      <div className="count-chips" aria-label="Task status">
+        {([
+          ['All', tasks.length],
+          ['Pending', pendingCount],
+          ['Done', doneCount],
+        ] as const).map(([item, count]) => {
+          const selected = filter === item
+          return (
+            <button key={item} type="button" onClick={() => setFilter(item)} style={{ minHeight: SIZE.chip, padding: '0 16px', borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: TYPE.small, fontWeight: 600, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, border: selected ? 'none' : `1.5px solid ${COLORS.gold}` }}>
+              {item} · {count}
+            </button>
+          )
+        })}
       </div>
 
       {error && !modalOpen && !functionEditor && !pendingDelete && !pendingRitual && <div style={{ padding: '0 16px' }}><FormError message={error} /></div>}
@@ -348,7 +412,13 @@ export function TasksTab() {
                 {group.tasks.map((task) => ritualCard(task, group.tasks.length))}
               </section>
             ))}
-            {visibleGroups.map(({ fn, rituals }) => (
+            {FUNCTION_PHASES.map((phase) => {
+              const groups = visibleGroups.filter((group) => group.fn.phase === phase)
+              if (groups.length === 0) return null
+              return (
+                <section key={phase}>
+                  <h2 style={sectionLabel}>{PHASE_LABELS[phase]}</h2>
+                  {groups.map(({ fn, rituals }) => (
               <section key={fn.id}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px' }}>
                   <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, color: COLORS.crimson, margin: 0, flex: 1 }}>{fn.name}</h2>
@@ -360,14 +430,17 @@ export function TasksTab() {
                           <button type="button" aria-label={`Move ${fn.name} down`} onClick={() => void moveFunction(fn.id, 1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↓</button>
                         </>
                       )}
-                      <button type="button" aria-label={`Rename ${fn.name}`} onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt }) }} style={iconButton}>✏️</button>
+                      <button type="button" aria-label={`Rename ${fn.name}`} onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt, phase: fn.phase }) }} style={iconButton}>Edit</button>
                       <button type="button" aria-label={`Delete ${fn.name}`} onClick={() => { setError(null); setPendingDelete(fn) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
                     </div>
                   )}
                 </div>
                 {rituals.map((task) => ritualCard(task, rituals.length))}
               </section>
-            ))}
+                  ))}
+                </section>
+              )
+            })}
             {loose.length > 0 && (
               <section>
                 <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, color: COLORS.crimson, margin: '14px 0 8px' }}>Other</h2>
@@ -384,6 +457,11 @@ export function TasksTab() {
         <FormError message={error} />
         <Field label="Function name">
           <input style={inputStyle} value={functionEditor?.name ?? ''} onChange={(event) => setFunctionEditor((current) => current ? { ...current, name: event.target.value } : current)} placeholder="Tilak" />
+        </Field>
+        <Field label="Phase">
+          <select style={selectStyle} value={functionEditor?.phase ?? 'pre_wedding'} onChange={(event) => setFunctionEditor((current) => current ? { ...current, phase: event.target.value as FunctionPhase } : current)}>
+            {FUNCTION_PHASES.map((phase) => <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>)}
+          </select>
         </Field>
         {functionConflict ? (
           <ConflictChoices busy={busy} onReload={() => void reloadFunction()} onOverwrite={() => void saveFunctionName(true)} />
@@ -480,6 +558,44 @@ export function TasksTab() {
             </select>
           </Field>
         )}
+        {seeCosts && (
+          <>
+            <Field label="Actual cost (₹)">
+              <input
+                style={inputStyle}
+                inputMode="numeric"
+                disabled={!costEditable}
+                value={costDirty ? costText : (editTask?.actualCost == null ? '' : String(roundHalfUpRupees(toPaise(editTask.actualCost))))}
+                placeholder="—"
+                onChange={(event) => {
+                  setCostDirty(true)
+                  setCostText(event.target.value)
+                }}
+              />
+              {costDirty && wholeRupeeProblem(costText, true) && <p style={{ color: COLORS.danger, fontSize: TYPE.small, margin: '6px 0 0' }}>{wholeRupeeProblem(costText, true)}</p>}
+            </Field>
+            <div style={{ marginBottom: 14 }}>
+              <div style={sectionLabel}>Budget category</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {(bundle?.budget ?? []).map((item) => {
+                  const selected = costCategoryId === item.id
+                  const duplicate = (bundle?.budget ?? []).filter((other) => other.category === item.category).length > 1
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      disabled={!costEditable}
+                      onClick={() => setCostCategoryId((current) => (current === item.id ? null : item.id))}
+                      style={{ minHeight: SIZE.chip, padding: '0 16px', borderRadius: 999, border: selected ? 'none' : `1.5px solid ${COLORS.gold}`, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: costEditable ? 'pointer' : 'default' }}
+                    >
+                      {duplicate && item.notes ? `${item.category} · ${item.notes}` : item.category}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </>
+        )}
         <Field label="Due Date">
           <input style={inputStyle} type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
         </Field>
@@ -529,6 +645,6 @@ const iconButton = {
   cursor: 'pointer',
   fontSize: 16,
   color: COLORS.crimson,
-  minHeight: 44,
+  minHeight: 48,
   minWidth: 44,
 } as const

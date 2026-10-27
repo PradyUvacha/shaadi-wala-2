@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { DeletedItemError, StaleWriteError } from '../../lib/errors.ts'
 import { WeddingContext, type WeddingContextValue } from '../../state/wedding-context.ts'
@@ -23,6 +24,9 @@ const ritual: Task = {
   assignedTo: null,
   side: null,
   updatedAt: '2026-10-26T10:00:00.000Z',
+  actualCost: null,
+  budgetCategoryId: null,
+  costUpdatedAt: '',
 }
 
 const bundle: WeddingBundle = {
@@ -30,7 +34,7 @@ const bundle: WeddingBundle = {
   membership: { id: 'm1', role: 'groom', side: 'groom', displayName: 'Groom' },
   displayName: 'Groom',
   members: [],
-  functions: [{ id: 'fn-1', name: 'Wedding', position: 1, updatedAt: '2026-10-26T09:00:00.000Z' }],
+  functions: [{ id: 'fn-1', name: 'Wedding', position: 1, phase: 'wedding_day', updatedAt: '2026-10-26T09:00:00.000Z' }],
   tasks: [ritual],
   budget: [],
   guests: [],
@@ -85,9 +89,11 @@ async function renderTab(value: WeddingContextValue) {
   const root: Root = createRoot(container)
   await act(async () => {
     root.render(
-      <WeddingContext.Provider value={value}>
-        <TasksTab />
-      </WeddingContext.Provider>,
+      <MemoryRouter>
+        <WeddingContext.Provider value={value}>
+          <TasksTab />
+        </WeddingContext.Provider>
+      </MemoryRouter>,
     )
   })
   return {

@@ -1,3 +1,4 @@
+import { asFunctionPhase } from '../config/phases.ts'
 import type { BudgetItem, Guest, MemberRole, Milestone, PartPayment, Split, Task, WeddingFunction } from '../types.ts'
 import { CATEGORIES, CURRENCY_CODES, MEMBER_ROLES, PAYERS, PRIORITIES, RSVP_STATUSES, TASK_STATUSES, MILESTONE_STATUSES } from '../types.ts'
 
@@ -23,6 +24,9 @@ export function mapTask(row: Record<string, unknown>): Task {
     assignedTo: row.assigned_to ? String(row.assigned_to) : null,
     side: row.side === 'bride' || row.side === 'groom' ? row.side : null,
     updatedAt: row.updated_at ? String(row.updated_at) : '',
+    actualCost: row.actual_cost == null || row.actual_cost === '' ? null : Number(row.actual_cost),
+    budgetCategoryId: row.budget_category_id ? String(row.budget_category_id) : null,
+    costUpdatedAt: row.cost_updated_at ? String(row.cost_updated_at) : '',
   }
 }
 
@@ -31,6 +35,7 @@ export function mapFunction(row: Record<string, unknown>): WeddingFunction {
     id: String(row.id),
     name: String(row.name ?? ''),
     position: Number(row.position ?? 0),
+    phase: asFunctionPhase(row.phase, String(row.name ?? '')),
     updatedAt: row.updated_at ? String(row.updated_at) : '',
   }
 }
@@ -42,7 +47,7 @@ export function mapBudgetItem(row: Record<string, unknown>): BudgetItem {
     : []
   return {
     id: String(row.id),
-    category: asOneOf(row.category, CATEGORIES, 'Other'),
+    category: budgetCategoryName(row.category),
     currency: asOneOf(row.currency, CURRENCY_CODES, 'INR'),
     estimated: Number(row.estimated ?? 0),
     actual: Number(row.actual ?? 0),
@@ -110,6 +115,12 @@ export function mapMemberRole(value: unknown): MemberRole {
   if (value === 'partner' || value === 'editor') return 'planner'
   if (value === 'viewer') return 'friend'
   return asOneOf(value, MEMBER_ROLES, 'family')
+}
+
+function budgetCategoryName(value: unknown): string {
+  const text = String(value ?? '').trim()
+  if (!text) return 'Other'
+  return text.slice(0, 40)
 }
 
 function asOneOf<T extends string>(value: unknown, allowed: readonly T[], fallback: T): T {

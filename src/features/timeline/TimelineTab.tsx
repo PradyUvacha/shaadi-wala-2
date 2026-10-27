@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { canEditTimeline } from '../../lib/access.ts'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
@@ -63,7 +64,10 @@ export function TimelineTab() {
   return (
     <div style={{ paddingBottom: listAboveFab }}>
       <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: headerPadding }}>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>📅 Wedding Timeline</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>Wedding Timeline</div>
+          <Link to="/planning" style={{ color: '#fff', fontSize: 14, fontWeight: 600, minHeight: 48, display: 'inline-flex', alignItems: 'center' }}>Tasks</Link>
+        </div>
         <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{sorted.filter((milestone) => milestone.status === 'Completed').length}/{sorted.length} milestones completed</div>
       </div>
       <div style={{ padding: 20 }}>

@@ -107,7 +107,17 @@ export function applyChecklistChange(bundle: WeddingBundle, change: ChecklistCha
   if (change.eventType === 'DELETE') {
     return { ...bundle, tasks: bundle.tasks.filter((task) => task.id !== id) }
   }
-  const task = mapTask(change.record)
+  const mapped = mapTask(change.record)
+  const previous = bundle.tasks.find((item) => item.id === mapped.id)
+  const record = change.record
+  const task = previous && !('actual_cost' in record) && !('budget_category_id' in record)
+    ? {
+        ...mapped,
+        actualCost: previous.actualCost,
+        budgetCategoryId: previous.budgetCategoryId,
+        costUpdatedAt: previous.costUpdatedAt,
+      }
+    : mapped
   const exists = bundle.tasks.some((item) => item.id === task.id)
   const tasks = exists ? bundle.tasks.map((item) => (item.id === task.id ? task : item)) : [...bundle.tasks, task]
   return { ...bundle, tasks: [...tasks].sort((a, b) => a.sortOrder - b.sortOrder || a.position - b.position) }

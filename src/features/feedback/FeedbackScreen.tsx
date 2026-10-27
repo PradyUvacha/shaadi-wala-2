@@ -40,7 +40,7 @@ export function FeedbackScreen() {
   return (
     <div style={{ paddingBottom: screenBottom }}>
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},${COLORS.crimson})`, padding: headerPadding }}>
-        <button type="button" onClick={() => navigate('/profile')} style={{ background: 'transparent', border: 'none', color: COLORS.lightGold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Profile</button>
+        <button type="button" onClick={() => navigate('/profile')} style={{ background: 'transparent', border: 'none', color: COLORS.gold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Profile</button>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, color: '#fff', fontWeight: 700 }}>Feedback</div>
       </div>
       <div style={{ padding: 16 }}>

@@ -19,7 +19,7 @@ export function AppShell() {
   useEffect(() => {
     if (mode === 'preview' || bundle || !notice) return
     const path = location.pathname
-    if (path === '/setup' || path.startsWith('/invite') || path.startsWith('/profile/settings')) return
+    if (path === '/setup' || path.startsWith('/invite') || path.startsWith('/profile/settings') || path === '/settings' || path.startsWith('/settings/')) return
     navigate('/setup', { replace: true })
   }, [bundle, notice, mode, location.pathname, navigate])
 

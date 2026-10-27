@@ -21,6 +21,7 @@ export class DeletedItemError extends Error {
 /** The timestamp loaded when an editor opened. Overwrite skips the equality check. */
 export type RowGuard = {
   updatedAt: string
+  costUpdatedAt?: string
   overwrite?: boolean
 }
 

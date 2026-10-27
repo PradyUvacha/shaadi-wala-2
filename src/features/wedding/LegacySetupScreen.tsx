@@ -140,7 +140,7 @@ export function LegacySetupScreen() {
 function LightField({ label, value, onChange, placeholder, type = 'text' }: { label: string; value: string; onChange: (value: string) => void; placeholder?: string; type?: string }) {
   return (
     <label style={{ display: 'block', marginBottom: 12 }}>
-      <span style={{ display: 'block', color: COLORS.lightGold, fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>{label.toUpperCase()}</span>
+      <span style={{ display: 'block', color: COLORS.gold, fontSize: 11, fontWeight: 700, letterSpacing: 0.6, marginBottom: 6 }}>{label.toUpperCase()}</span>
       <input className="auth-input" type={type} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.12)', color: '#fff', fontSize: 16 }} />
     </label>
   )

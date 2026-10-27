@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import type { FunctionPhase } from '../config/phases.ts'
 import { track } from '../lib/analytics.ts'
-import { canEditChecklist, canEditWedding, canInvite, canLeaveWedding, canManageTasks, isCouple } from '../lib/access.ts'
+import { canEditChecklist, canEditTaskCost, canEditWedding, canInvite, canLeaveWedding, canManageTasks, canSeeBudget, isCouple } from '../lib/access.ts'
 import {
   addFunction,
   addPayment,
@@ -25,6 +26,7 @@ import {
   withTask,
 } from '../lib/bundle.ts'
 import { acceptsChecklistChange, applyChecklistChange, subscribeWeddingChecklist } from '../lib/checklist.ts'
+import { applyTaskCostChange, stripTaskCosts, subscribeTaskCosts } from '../lib/taskCosts.ts'
 import { toErrorMessage, type RowGuard } from '../lib/errors.ts'
 import { LEFT_WEDDING_MESSAGE, membershipAccessChanged, subscribeOwnMembership } from '../lib/membershipSync.ts'
 import { readPreview, writePreview } from '../lib/preview.ts'
@@ -112,6 +114,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   const commit = useCallback((next: WeddingBundle) => {
+    next = stripTaskCosts(next)
     bundleRef.current = next
     if (!userId) {
       writePreview(next)
@@ -132,6 +135,17 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       commit(applyChecklistChange(current, change))
     })
   }, [mode, bundle?.wedding.id, commit, userId])
+
+  useEffect(() => {
+    if (!supabase || mode !== 'remote') return
+    const weddingId = bundle?.wedding.id
+    if (!weddingId || !canSeeBudget(bundle?.membership.role)) return
+    return subscribeTaskCosts(supabase, weddingId, (change) => {
+      const current = bundleRef.current
+      if (!current || current.wedding.id !== weddingId) return
+      commit(applyTaskCostChange(current, change))
+    })
+  }, [mode, bundle?.wedding.id, bundle?.membership.role, commit])
 
   useEffect(() => {
     if (!supabase || mode !== 'remote' || !userId || !bundle?.wedding.id) return
@@ -256,13 +270,22 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     saveTask: async (draft: TaskDraft, id?: string, guard?: RowGuard) => {
       const current = requireTaskWriter()
       const first = !id && current.tasks.length === 0
+      const existing = id ? current.tasks.find((task) => task.id === id) : undefined
+      const writeCost = modeRef.current === 'preview' || canEditTaskCost(
+        current.membership.role,
+        { side: existing?.side ?? null },
+        current.membership.side,
+      )
       if (modeRef.current === 'preview' || !apiRef.current) {
-        commit(saveTaskDraft(current, draft, id))
+        commit(saveTaskDraft(current, writeCost ? draft : { ...draft, actualCost: undefined, budgetCategoryId: undefined }, id))
         if (first) track('first_task_added')
         return
       }
-      const saved = await apiRef.current.saveTask(current.wedding.id, draft, id, guard)
-      const next = await pullChecklist(withTask(requireBundle(), saved))
+      const saved = await apiRef.current.saveTask(current.wedding.id, draft, id, guard, { writeCost })
+      const merged = !writeCost && existing
+        ? { ...saved, actualCost: existing.actualCost, budgetCategoryId: existing.budgetCategoryId, costUpdatedAt: existing.costUpdatedAt }
+        : saved
+      const next = await pullChecklist(withTask(requireBundle(), merged))
       commit(next)
       if (first) track('first_task_added')
     },
@@ -290,18 +313,24 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
           draft,
           task.id,
           task.updatedAt ? { updatedAt: task.updatedAt } : undefined,
+          { writeCost: false },
         )
-        commit(withTask(requireBundle(), saved))
+        commit(withTask(requireBundle(), {
+          ...saved,
+          actualCost: task.actualCost,
+          budgetCategoryId: task.budgetCategoryId,
+          costUpdatedAt: task.costUpdatedAt,
+        }))
       }
     },
-    saveFunction: async (name: string, id?: string, guard?: RowGuard) => {
+    saveFunction: async (name: string, id?: string, guard?: RowGuard, phase?: FunctionPhase) => {
       const current = requireChecklist()
       if (modeRef.current === 'preview' || !apiRef.current) {
-        commit(id ? renameFunction(current, id, name) : addFunction(current, name))
+        commit(id ? renameFunction(current, id, name, phase) : addFunction(current, name, phase))
         return
       }
-      if (id) await apiRef.current.renameFunction(id, name, guard)
-      else await apiRef.current.addFunction(current.wedding.id, name)
+      if (id) await apiRef.current.renameFunction(id, name, guard, phase)
+      else await apiRef.current.addFunction(current.wedding.id, name, phase)
       commit(await pullChecklist(requireBundle()))
     },
     deleteFunction: async (id: string) => {

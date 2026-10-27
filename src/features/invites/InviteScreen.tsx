@@ -96,7 +96,7 @@ export function InviteScreen() {
     <div className="page-fill" style={{ background: `linear-gradient(160deg,${COLORS.maroon},${COLORS.crimson})`, color: '#fff', padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
       <MehendiPattern />
       <div className="desktop-column" style={{ position: 'relative', zIndex: 1 }}>
-        <Link to={bundle ? '/profile' : '/'} style={{ color: COLORS.lightGold, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>{bundle ? 'Profile' : 'Shaadi Wala'}</Link>
+        <Link to={bundle ? '/profile' : '/'} style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>{bundle ? 'Profile' : 'Shaadi Wala'}</Link>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32 }}>{joining || !bundle ? 'Join a wedding' : 'Invite someone'}</h1>
         {joining || !bundle ? (
           <>
@@ -124,7 +124,7 @@ export function InviteScreen() {
                   </div>
                 )}
                 {joinRole && !joinProblem && (
-                  <p style={{ color: COLORS.lightGold, fontSize: 13 }}>{roleLabel(joinRole, joinSideFor(joinRole, joinSide))}</p>
+                  <p style={{ color: COLORS.gold, fontSize: 13 }}>{roleLabel(joinRole, joinSideFor(joinRole, joinSide))}</p>
                 )}
               </>
             )}
@@ -160,7 +160,7 @@ export function InviteScreen() {
         ) : (
           <p>Friends and planners cannot send invites.</p>
         )}
-        {info && <p style={{ color: COLORS.lightGold }}>{info}</p>}
+        {info && <p style={{ color: COLORS.gold }}>{info}</p>}
         {error && <p style={{ color: '#FFE0E0' }}>{error}</p>}
       </div>
     </div>

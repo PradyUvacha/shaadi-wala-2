@@ -40,7 +40,7 @@ export function DeleteAccountScreen() {
   return (
     <div style={{ paddingBottom: screenBottom }}>
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},${COLORS.crimson})`, padding: headerPadding }}>
-        <button type="button" onClick={() => navigate('/profile/settings')} style={{ background: 'transparent', border: 'none', color: COLORS.lightGold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Settings</button>
+        <button type="button" onClick={() => navigate('/profile/settings')} style={{ background: 'transparent', border: 'none', color: COLORS.gold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Settings</button>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, color: '#fff', fontWeight: 700 }}>Delete account</div>
       </div>
       <div style={{ padding: 16, color: '#3C1515', fontSize: 14, lineHeight: 1.55 }}>

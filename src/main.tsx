@@ -10,7 +10,7 @@ document.title = appConfig.appName
 
 if (Capacitor.isNativePlatform()) {
   void StatusBar.setOverlaysWebView({ overlay: false }).catch(() => undefined)
-  void StatusBar.setBackgroundColor({ color: '#6B0000' }).catch(() => undefined)
+  void StatusBar.setBackgroundColor({ color: '#760808' }).catch(() => undefined)
   void StatusBar.setStyle({ style: Style.Dark }).catch(() => undefined)
 }
 

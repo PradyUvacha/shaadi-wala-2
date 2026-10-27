@@ -17,6 +17,8 @@ import type {
   WeddingMember,
   WeddingSettings,
 } from '../types.ts'
+import type { FunctionPhase } from '../config/phases.ts'
+import { defaultPhaseForFunction } from '../config/phases.ts'
 import { rosterDisplayName } from './access.ts'
 import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { assertNoError, DeletedItemError, throwIfWriteMissed, type RowGuard } from './errors.ts'
@@ -24,6 +26,7 @@ import { splitsForSave } from './planning.ts'
 import { asRecord, mapBudgetItem, mapFunction, mapGuest, mapMemberRole, mapMilestone, mapTask, one } from './mappers.ts'
 import {
   budgetInsert,
+  budgetUpdate,
   guestInsert,
   milestoneInsert,
   paymentInsert,
@@ -31,6 +34,8 @@ import {
   taskInsert,
   taskUpdate,
 } from './payloads.ts'
+
+const TASK_COLUMNS = 'id, wedding_id, title, description, category, priority, ceremony, status, due_date, template_title, sort_order, created_at, updated_at, function_id, position, assigned_to, side'
 
 const BUDGET_SELECT = `
   id, category, currency, estimated, actual, paid, notes, paid_by_side, created_at,
@@ -82,7 +87,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     if (!wedding) return null
     const weddingId = String(wedding.id)
     const [tasks, functions, budget, guests, milestones, profile, members] = await Promise.all([
-      loadTasks(weddingId),
+      loadTasks(weddingId, mapMemberRole(member.role)),
       loadFunctions(weddingId),
       loadBudget(weddingId),
       loadGuests(weddingId),
@@ -166,7 +171,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(profileUpdate.error)
   }
 
-  async function saveTask(weddingId: string, draft: TaskDraft, id?: string, guard?: RowGuard): Promise<Task> {
+  async function saveTask(weddingId: string, draft: TaskDraft, id?: string, guard?: RowGuard, options?: { writeCost?: boolean }): Promise<Task> {
     const placed = await placeTask(weddingId, draft, id)
     if (placed.functionId) {
       const siblings = await client.from('tasks').select('id, title').eq('function_id', placed.functionId)
@@ -183,15 +188,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     }
     if (id) {
       const updated = await requireUpdatedRow(
-        withGuard(client.from('tasks').update(taskUpdate(placed)).eq('id', id), guard).select('*').maybeSingle(),
+        withGuard(client.from('tasks').update(taskUpdate(placed)).eq('id', id), guard).select(TASK_COLUMNS).maybeSingle(),
         () => client.from('tasks').select('id').eq('id', id).maybeSingle(),
       )
-      return mapTask(asRecord(updated))
+      return finishTask(weddingId, mapTask(asRecord(updated)), placed, guard, options?.writeCost)
     }
     const sortOrder = (await maxSort(weddingId)) + 1
-    const { data, error } = await client.from('tasks').insert(taskInsert(weddingId, placed, sortOrder)).select('*').single()
+    const { data, error } = await client.from('tasks').insert(taskInsert(weddingId, placed, sortOrder)).select(TASK_COLUMNS).single()
     assertNoError(error)
-    return mapTask(asRecord(data))
+    return finishTask(weddingId, mapTask(asRecord(data)), placed, guard, options?.writeCost)
   }
 
   async function deleteTask(id: string): Promise<void> {
@@ -206,13 +211,13 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       sortOrder += 1
       return taskInsert(weddingId, draft, sortOrder)
     })
-    const { data, error } = await client.from('tasks').insert(rows).select('*')
+    const { data, error } = await client.from('tasks').insert(rows).select(TASK_COLUMNS)
     assertNoError(error)
     return (data ?? []).map((row) => mapTask(asRecord(row))).sort((a, b) => a.sortOrder - b.sortOrder)
   }
 
   async function saveBudgetItem(weddingId: string, draft: BudgetDraft, id?: string): Promise<BudgetItem> {
-    const payload = budgetInsert(weddingId, draft)
+    const payload = id ? budgetUpdate(draft) : budgetInsert(weddingId, draft)
     const saved = id
       ? await requireUpdatedRow(
           client.from('budget_items').update(payload).eq('id', id).select('id').maybeSingle(),
@@ -294,15 +299,15 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return loadTasks(weddingId)
   }
 
-  async function addFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+  async function addFunction(weddingId: string, name: string, phase?: FunctionPhase): Promise<WeddingFunction> {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name the function.')
     const existing = await findFunctionByName(weddingId, trimmed)
     if (existing) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
-    return insertFunction(weddingId, trimmed)
+    return insertFunction(weddingId, trimmed, phase)
   }
 
-  async function renameFunction(id: string, name: string, guard?: RowGuard): Promise<void> {
+  async function renameFunction(id: string, name: string, guard?: RowGuard, phase?: FunctionPhase): Promise<void> {
     const trimmed = name.trim()
     if (!trimmed) throw new Error('Name the function.')
     const current = await client.from('wedding_functions').select('id, wedding_id, name').eq('id', id).maybeSingle()
@@ -313,7 +318,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     const existing = await findFunctionByName(weddingId, trimmed)
     if (existing && existing.id !== id) throw new Error(DUPLICATE_FUNCTION_MESSAGE)
     await requireUpdatedRow(
-      withGuard(client.from('wedding_functions').update({ name: trimmed }).eq('id', id), guard).select('id').maybeSingle(),
+      withGuard(client.from('wedding_functions').update(phase ? { name: trimmed, phase } : { name: trimmed }).eq('id', id), guard).select('id').maybeSingle(),
       () => client.from('wedding_functions').select('id').eq('id', id).maybeSingle(),
     )
   }
@@ -436,7 +441,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function loadFunctions(weddingId: string): Promise<WeddingFunction[]> {
     const { data, error } = await client
       .from('wedding_functions')
-      .select('id, name, position, updated_at')
+      .select('id, name, position, phase, updated_at')
       .eq('wedding_id', weddingId)
       .order('position')
     assertNoError(error)
@@ -450,7 +455,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return functions.find((fn) => fn.name.trim().toLowerCase() === key) ?? null
   }
 
-  async function insertFunction(weddingId: string, name: string): Promise<WeddingFunction> {
+  async function insertFunction(weddingId: string, name: string, phase?: FunctionPhase): Promise<WeddingFunction> {
     const top = await client
       .from('wedding_functions')
       .select('position')
@@ -461,8 +466,13 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     assertNoError(top.error)
     const inserted = await client
       .from('wedding_functions')
-      .insert({ wedding_id: weddingId, name, position: Number(top.data?.position ?? 0) + 1 })
-      .select('id, name, position, updated_at')
+      .insert({
+        wedding_id: weddingId,
+        name,
+        position: Number(top.data?.position ?? 0) + 1,
+        phase: phase ?? defaultPhaseForFunction(name),
+      })
+      .select('id, name, position, phase, updated_at')
       .single()
     assertNoError(inserted.error)
     return mapFunction(asRecord(inserted.data))
@@ -546,10 +556,64 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     return Number(data?.position ?? 0)
   }
 
-  async function loadTasks(weddingId: string): Promise<Task[]> {
-    const { data, error } = await client.from('tasks').select('*').eq('wedding_id', weddingId).order('sort_order')
+  async function loadTasks(weddingId: string, role?: string): Promise<Task[]> {
+    const { data, error } = await client.from('tasks').select(TASK_COLUMNS).eq('wedding_id', weddingId).order('sort_order')
     assertNoError(error)
-    return (data ?? []).map((row) => mapTask(asRecord(row)))
+    const tasks = (data ?? []).map((row) => mapTask(asRecord(row)))
+    if (role === 'friend') {
+      return tasks.map((task) => ({ ...task, actualCost: null, budgetCategoryId: null, costUpdatedAt: '' }))
+    }
+    const costs = await loadTaskCosts(weddingId)
+    return tasks.map((task) => {
+      const cost = costs.get(task.id)
+      return cost ? { ...task, ...cost } : { ...task, actualCost: null, budgetCategoryId: null, costUpdatedAt: '' }
+    })
+  }
+
+  async function loadTaskCosts(weddingId: string) {
+    const { data, error } = await client
+      .from('task_costs')
+      .select('task_id, actual_cost, budget_category_id, updated_at')
+      .eq('wedding_id', weddingId)
+    assertNoError(error)
+    const costs = new Map<string, Pick<Task, 'actualCost' | 'budgetCategoryId' | 'costUpdatedAt'>>()
+    for (const row of data ?? []) {
+      const record = asRecord(row)
+      costs.set(String(record.task_id), {
+        actualCost: record.actual_cost == null ? null : Number(record.actual_cost),
+        budgetCategoryId: record.budget_category_id ? String(record.budget_category_id) : null,
+        costUpdatedAt: record.updated_at ? String(record.updated_at) : '',
+      })
+    }
+    return costs
+  }
+
+  async function finishTask(weddingId: string, task: Task, draft: TaskDraft, guard: RowGuard | undefined, writeCost?: boolean): Promise<Task> {
+    if (!writeCost) return { ...task, actualCost: null, budgetCategoryId: null, costUpdatedAt: '' }
+    await saveTaskCost(weddingId, task.id, draft, guard)
+    const costs = await loadTaskCosts(weddingId)
+    const cost = costs.get(task.id)
+    return cost ? { ...task, ...cost } : { ...task, actualCost: draft.actualCost ?? null, budgetCategoryId: draft.budgetCategoryId ?? null, costUpdatedAt: '' }
+  }
+
+  async function saveTaskCost(weddingId: string, taskId: string, draft: TaskDraft, guard?: RowGuard): Promise<void> {
+    const payload = {
+      actual_cost: draft.actualCost ?? null,
+      budget_category_id: draft.budgetCategoryId || null,
+    }
+    const existing = await client.from('task_costs').select('task_id, updated_at').eq('task_id', taskId).maybeSingle()
+    assertNoError(existing.error)
+    if (!existing.data) {
+      const inserted = await client.from('task_costs').insert({ task_id: taskId, wedding_id: weddingId, ...payload }).select('task_id').maybeSingle()
+      assertNoError(inserted.error)
+      return
+    }
+    let query = client.from('task_costs').update(payload).eq('task_id', taskId)
+    if (guard?.costUpdatedAt && !guard.overwrite) query = query.eq('updated_at', guard.costUpdatedAt)
+    await requireUpdatedRow(
+      query.select('task_id').maybeSingle(),
+      () => client.from('task_costs').select('task_id').eq('task_id', taskId).maybeSingle(),
+    )
   }
 
   async function loadBudget(weddingId: string): Promise<BudgetItem[]> {

@@ -76,13 +76,15 @@ export function AppRoutes() {
         <Route element={canEnter ? <AppShell /> : <Navigate to={pathWithSurvey('/auth', location.search)} replace />}>
           <Route path="/setup" element={hasWedding ? <Navigate to="/" replace /> : <SetupScreen />} />
           <Route path="/profile" element={<ProfileScreen />} />
+          <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/profile/settings" element={<SettingsScreen />} />
           <Route path="/profile/settings/delete-account" element={<DeleteAccountScreen />} />
           <Route path="/profile/feedback" element={<FeedbackScreen />} />
           <Route path="/account" element={<AccountRedirect />} />
           <Route element={hasWedding ? <Outlet /> : <Navigate to="/setup" replace />}>
             <Route index element={<HomeTab />} />
-            <Route path="tasks" element={<TasksTab />} />
+            <Route path="planning" element={<TasksTab />} />
+            <Route path="tasks" element={<Navigate to="/planning" replace />} />
             <Route path="budget" element={<BudgetTab />} />
             <Route path="guests" element={<GuestsTab />} />
             <Route path="timeline" element={<TimelineTab />} />

@@ -74,11 +74,11 @@ export function AuthScreen() {
           <div style={{ fontSize: 52, marginBottom: 12 }}>💍</div>
           <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32, color: '#fff', fontWeight: 900, margin: '0 0 8px' }}>Shaadi Wala</h1>
           <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14, margin: 0 }}>Plan your perfect day, stress-free</p>
-          <div style={{ color: COLORS.lightGold, letterSpacing: 3, marginTop: 8, fontSize: 12 }}>🪔 ✨ 💐 ✨ 🪔</div>
+          <div style={{ color: COLORS.gold, letterSpacing: 3, marginTop: 8, fontSize: 12 }}>🪔 ✨ 💐 ✨ 🪔</div>
         </div>
         <div style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', borderRadius: 20, padding: 24, border: '1px solid rgba(255,255,255,0.25)' }}>
           {!isSupabaseConfigured && (
-            <p style={{ color: COLORS.lightGold, fontSize: 12, lineHeight: 1.5, marginTop: 0 }}>
+            <p style={{ color: COLORS.gold, fontSize: 12, lineHeight: 1.5, marginTop: 0 }}>
               Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, or preview the demo on this device.
             </p>
           )}
@@ -95,8 +95,8 @@ export function AuthScreen() {
           <AuthField label="Email" value={email} onChange={setEmail} placeholder="you@email.com" type="email" />
           <AuthField label="Password" value={password} onChange={setPassword} placeholder="At least 6 characters" type="password" />
           {error && <p style={{ color: '#FFE0E0', fontSize: 13, margin: '0 0 12px' }}>{error}</p>}
-          {info && <p style={{ color: COLORS.lightGold, fontSize: 13, margin: '0 0 12px' }}>{info}</p>}
-          <button type="button" disabled={busy} onClick={() => void submit()} style={{ width: '100%', padding: 14, borderRadius: 14, background: `linear-gradient(135deg,${COLORS.gold},${COLORS.saffron})`, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(201,168,76,0.5)' }}>
+          {info && <p style={{ color: COLORS.gold, fontSize: 13, margin: '0 0 12px' }}>{info}</p>}
+          <button type="button" disabled={busy} onClick={() => void submit()} style={{ width: '100%', padding: 14, borderRadius: 14, background: `linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`, border: 'none', color: '#fff', fontSize: 16, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 20px rgba(201,168,76,0.5)' }}>
             {busy ? 'Please wait…' : mode === 'sign-up' ? '🎉 Create account' : 'Sign in'}
           </button>
           <button type="button" disabled={busy} onClick={() => void google()} style={{ width: '100%', marginTop: 10, padding: 12, borderRadius: 14, background: '#fff', border: 'none', color: '#3C1515', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>
@@ -106,9 +106,9 @@ export function AuthScreen() {
             🔍 Preview the demo on this device
           </button>
           <p style={{ margin: '14px 0 0', fontSize: 12, lineHeight: 1.5, color: 'rgba(255,255,255,0.8)', textAlign: 'center' }}>
-            <a href={TERMS_OF_SERVICE_URL} target="_blank" rel="noreferrer" style={{ color: COLORS.lightGold }}>Terms of Service</a>
+            <a href={TERMS_OF_SERVICE_URL} target="_blank" rel="noreferrer" style={{ color: COLORS.gold }}>Terms of Service</a>
             {' · '}
-            <a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer" style={{ color: COLORS.lightGold }}>Privacy Policy</a>
+            <a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer" style={{ color: COLORS.gold }}>Privacy Policy</a>
           </p>
         </div>
       </div>
@@ -131,7 +131,7 @@ function AuthField({
 }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: COLORS.lightGold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</label>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: COLORS.gold, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 1 }}>{label}</label>
       <input className="auth-input" style={{ width: '100%', padding: 12, borderRadius: 12, border: '1px solid rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.15)', color: '#fff', fontSize: 16, outline: 'none' }} placeholder={placeholder} type={type} value={value} onChange={(event) => onChange(event.target.value)} autoCapitalize={type === 'email' ? 'none' : 'words'} />
     </div>
   )

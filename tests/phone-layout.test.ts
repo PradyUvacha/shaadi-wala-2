@@ -27,7 +27,7 @@ describe('phone layout', () => {
     expect(shell).not.toContain('maxWidth:')
     expect(css).toContain('min-height: 100dvh')
     expect(css).toContain('font-size: 16px')
-    expect(css).toContain('min-height: 44px')
+    expect(css).toContain('min-height: 48px')
     expect(css).toContain('.chip-row')
     expect(css).toMatch(/\.chip-row\s*\{[^}]*flex-wrap:\s*wrap/)
     expect(css).not.toMatch(/\.chip-row\s*\{[^}]*overflow-x:\s*auto/)

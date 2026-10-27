@@ -1,3 +1,5 @@
+import { DEFAULT_BUDGET_CATEGORIES } from '../config/budgetRules.ts'
+import { defaultPhaseForFunction, type FunctionPhase } from '../config/phases.ts'
 import { DEMO_CITY, DEMO_COUPLE_NAMES, DEMO_GUESTS, demoWeddingDate, placeDemoContent } from '../data/demoData.ts'
 import type {
   BudgetDraft,
@@ -80,7 +82,25 @@ export function createWeddingBundle(input: {
 }): WeddingBundle {
   let bundle = blankBundle(input)
   for (const task of input.tasks ?? []) bundle = saveTaskDraft(bundle, task)
-  for (const item of input.budget ?? []) bundle = saveBudgetDraft(bundle, item)
+  const budget = input.budget ?? []
+  for (const item of budget) bundle = saveBudgetDraft(bundle, item)
+  if (input.budget == null || input.budget.length === 0) {
+    for (const category of DEFAULT_BUDGET_CATEGORIES) {
+      bundle = saveBudgetDraft(bundle, {
+        category,
+        currency: 'INR',
+        estimated: 0,
+        actual: 0,
+        paid: false,
+        notes: '',
+        paidBySide: 'both',
+        splits: [
+          { name: "Bride's Family", pct: 50, side: 'bride' },
+          { name: "Groom's Family", pct: 50, side: 'groom' },
+        ],
+      })
+    }
+  }
   for (const guest of input.guests ?? []) bundle = saveGuestDraft(bundle, guest)
   for (const milestone of input.milestones ?? []) bundle = saveMilestoneDraft(bundle, milestone)
   return bundle
@@ -120,7 +140,7 @@ function ensureFunction(bundle: WeddingBundle, name: string): { bundle: WeddingB
   const existing = bundle.functions.find((fn) => sameFunctionName(fn.name, trimmed))
   if (existing) return { bundle, fn: existing }
   const position = bundle.functions.reduce((max, fn) => Math.max(max, fn.position), 0) + 1
-  const fn: WeddingFunction = { id: uid(), name: trimmed, position, updatedAt: '' }
+  const fn: WeddingFunction = { id: uid(), name: trimmed, position, phase: defaultPhaseForFunction(trimmed), updatedAt: '' }
   return { bundle: { ...bundle, functions: [...bundle.functions, fn] }, fn }
 }
 
@@ -130,25 +150,32 @@ function nextTaskPosition(bundle: WeddingBundle, functionId: string): number {
     .reduce((max, task) => Math.max(max, task.position), 0) + 1
 }
 
-export function addFunction(bundle: WeddingBundle, name: string): WeddingBundle {
+export function addFunction(bundle: WeddingBundle, name: string, phase?: FunctionPhase): WeddingBundle {
   const trimmed = name.trim()
   if (!trimmed) return bundle
   if (bundle.functions.some((fn) => sameFunctionName(fn.name, trimmed))) {
     throw new Error(DUPLICATE_FUNCTION_MESSAGE)
   }
-  return ensureFunction(bundle, trimmed).bundle
+  const next = ensureFunction(bundle, trimmed)
+  if (!phase) return next.bundle
+  return {
+    ...next.bundle,
+    functions: next.bundle.functions.map((fn) => (fn.id === next.fn.id ? { ...fn, phase } : fn)),
+  }
 }
 
-export function renameFunction(bundle: WeddingBundle, id: string, name: string): WeddingBundle {
+export function renameFunction(bundle: WeddingBundle, id: string, name: string, phase?: FunctionPhase): WeddingBundle {
   const trimmed = name.trim()
   const current = bundle.functions.find((fn) => fn.id === id)
-  if (!trimmed || !current || current.name === trimmed) return bundle
+  if (!trimmed || !current) return bundle
+  const nextPhase = phase ?? current.phase
+  if (current.name === trimmed && current.phase === nextPhase) return bundle
   if (bundle.functions.some((fn) => fn.id !== id && sameFunctionName(fn.name, trimmed))) {
     throw new Error(DUPLICATE_FUNCTION_MESSAGE)
   }
   return {
     ...bundle,
-    functions: bundle.functions.map((fn) => (fn.id === id ? { ...fn, name: trimmed } : fn)),
+    functions: bundle.functions.map((fn) => (fn.id === id ? { ...fn, name: trimmed, phase: nextPhase } : fn)),
     tasks: bundle.tasks.map((task) =>
       task.functionId === id || (task.functionId == null && task.ceremony === current.name)
         ? { ...task, ceremony: trimmed, functionId: task.functionId ?? id }
@@ -223,6 +250,9 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
       assignedTo: draft.assignedTo === undefined ? current.assignedTo : (draft.assignedTo || null),
       side: current.side ?? null,
       updatedAt: current.updatedAt,
+      actualCost: draft.actualCost === undefined ? (current.actualCost ?? null) : draft.actualCost,
+      budgetCategoryId: draft.budgetCategoryId === undefined ? (current.budgetCategoryId ?? null) : draft.budgetCategoryId,
+      costUpdatedAt: current.costUpdatedAt ?? '',
     }
     return { ...base, tasks: base.tasks.map((task) => (task.id === id ? next : task)) }
   }
@@ -243,6 +273,9 @@ export function saveTaskDraft(bundle: WeddingBundle, draft: TaskDraft, id?: stri
     assignedTo: draft.assignedTo || null,
     side: null,
     updatedAt: '',
+    actualCost: draft.actualCost ?? null,
+    budgetCategoryId: draft.budgetCategoryId ?? null,
+    costUpdatedAt: '',
   }
   return { ...base, tasks: [...base.tasks, task] }
 }
@@ -381,14 +414,23 @@ export function normalizeBundle(bundle: WeddingBundle): WeddingBundle {
     assignedTo: task.assignedTo ?? null,
     side: task.side === 'bride' || task.side === 'groom' ? task.side : null,
     updatedAt: task.updatedAt ?? '',
+    actualCost: task.actualCost ?? null,
+    budgetCategoryId: task.budgetCategoryId ?? null,
+    costUpdatedAt: task.costUpdatedAt ?? '',
   }))
-  let functions = Array.isArray(bundle.functions) ? bundle.functions.map((fn) => ({ ...fn, updatedAt: fn.updatedAt ?? '' })) : []
+  let functions = Array.isArray(bundle.functions)
+    ? bundle.functions.map((fn) => ({
+        ...fn,
+        phase: fn.phase ?? defaultPhaseForFunction(fn.name),
+        updatedAt: fn.updatedAt ?? '',
+      }))
+    : []
   if (functions.length === 0 && tasks.length > 0) {
     const names: string[] = []
     for (const task of [...tasks].sort((a, b) => a.sortOrder - b.sortOrder || a.title.localeCompare(b.title))) {
       if (!names.includes(task.ceremony)) names.push(task.ceremony)
     }
-    functions = names.map((name, index) => ({ id: `function-${index + 1}`, name, position: index + 1, updatedAt: '' }))
+    functions = names.map((name, index) => ({ id: `function-${index + 1}`, name, position: index + 1, phase: defaultPhaseForFunction(name), updatedAt: '' }))
   }
   const byName = new Map(functions.map((fn) => [fn.name, fn.id]))
   for (const task of tasks) {
