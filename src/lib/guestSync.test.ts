@@ -1,6 +1,18 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { describe, expect, it } from 'vitest'
-import { guestChannelFilters, guestEventShouldRefresh, guestsInFilter, subscribeWeddingGuests } from './guestSync.ts'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  GUEST_PING_EVENT,
+  GUEST_REFRESH_DEBOUNCE_MS,
+  guestChannelFilters,
+  guestEventShouldRefresh,
+  guestPingLeaksGuest,
+  guestPingPayload,
+  guestPingTopic,
+  guestsInFilter,
+  scheduleGuestRefresh,
+  subscribeGuestPings,
+  subscribeWeddingGuests,
+} from './guestSync.ts'
 
 describe('guest realtime', () => {
   it('listens to guests and function links, and refetches even when the old row is hidden', () => {
@@ -46,5 +58,76 @@ describe('guest realtime', () => {
     expect(guestsInFilter([bride], 'groom', 'groom', 'groom')).toEqual([])
     expect(guestsInFilter([mutual, groom], 'family', 'groom', 'all')).toEqual([mutual, groom])
     expect(guestsInFilter([bride, mutual], 'family', 'groom', 'all')).toEqual([mutual])
+  })
+
+  it('debounces two guest refreshes into one pull', () => {
+    vi.useFakeTimers()
+    try {
+      let pulls = 0
+      const refresher = scheduleGuestRefresh(() => {
+        pulls += 1
+      })
+      refresher.schedule()
+      refresher.schedule()
+      vi.advanceTimersByTime(GUEST_REFRESH_DEBOUNCE_MS - 1)
+      expect(pulls).toBe(0)
+      vi.advanceTimersByTime(1)
+      expect(pulls).toBe(1)
+      refresher.schedule()
+      refresher.cancel()
+      vi.advanceTimersByTime(GUEST_REFRESH_DEBOUNCE_MS)
+      expect(pulls).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('listens on a private topic and never applies guest fields from the ping', () => {
+    const payload = guestPingPayload('guests', 'wedding-1')
+    expect(guestPingTopic('wedding-1')).toBe('wedding:wedding-1:guests')
+    expect(payload).toEqual({ table: 'guests', wedding_id: 'wedding-1' })
+    expect(Object.keys(payload).sort()).toEqual(['table', 'wedding_id'])
+    expect(guestPingLeaksGuest(payload)).toBe(false)
+    expect(guestPingLeaksGuest({ ...payload, name: 'Secret Guest', side: 'groom', email: 'a@b.c' })).toBe(true)
+
+    const seen: unknown[] = []
+    const statuses: boolean[] = []
+    let pingArgs: unknown[] | null = null
+    let statusCb: ((status: string) => void) | undefined
+    const channel = {
+      on(event: string, filter: { event: string }, callback: (message: { payload: Record<string, unknown> }) => void) {
+        seen.push({ event, filter })
+        callback({ payload: { table: 'guests', wedding_id: 'wedding-1', name: 'Secret Guest', phone: '999' } })
+        return channel
+      },
+      subscribe(cb?: (status: string) => void) {
+        statusCb = cb
+        return channel
+      },
+    }
+    const stop = subscribeGuestPings({
+      channel: (name: string, opts: { config: { private: boolean } }) => {
+        seen.push({ name, private: opts.config.private })
+        return channel
+      },
+      removeChannel: () => {
+        seen.push('removed')
+      },
+    } as unknown as SupabaseClient, 'wedding-1', (...args: unknown[]) => {
+      pingArgs = args
+    }, (down) => {
+      statuses.push(down)
+    })
+    expect(seen[0]).toEqual({ name: 'wedding:wedding-1:guests', private: true })
+    expect(seen[1]).toEqual({ event: 'broadcast', filter: { event: GUEST_PING_EVENT } })
+    expect(pingArgs).toEqual([])
+    statusCb?.('SUBSCRIBED')
+    statusCb?.('CHANNEL_ERROR')
+    statusCb?.('TIMED_OUT')
+    expect(statuses).toEqual([false, true, true])
+    stop()
+    statusCb?.('CLOSED')
+    expect(statuses).toEqual([false, true, true])
+    expect(seen).toContain('removed')
   })
 })

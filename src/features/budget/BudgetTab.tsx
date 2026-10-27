@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { MOVE_LINKS_BEFORE_DELETE } from '../../config/budgetRules.ts'
+import { DUPLICATE_CATEGORY_MESSAGE, categoryNameKey, duplicateCategoryName } from '../../lib/budgetCategories.ts'
 import { canEditBudget, canLogPayment, canSeeBudget } from '../../lib/access.ts'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { money } from '../../lib/format.ts'
@@ -102,6 +103,11 @@ export function BudgetTab() {
     }
     if (!form.category.trim()) {
       setError('Name the category.')
+      return
+    }
+    const unchangedName = editItem ? categoryNameKey(editItem.category) === categoryNameKey(form.category) : false
+    if (!unchangedName && duplicateCategoryName(budget, form.category, editItem?.id)) {
+      setError(DUPLICATE_CATEGORY_MESSAGE)
       return
     }
     const next = { ...form, currency: editItem ? form.currency : 'INR' as const, estimated: Number(estimateText), actual: editItem?.actual ?? 0 }

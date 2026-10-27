@@ -457,6 +457,8 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       weddingId,
       demo.tasks.map((task) => ({ ...task, functionId: byName.get(task.ceremony) ?? null })),
     )
+    const clearedBudget = await client.from('budget_items').delete().eq('wedding_id', weddingId)
+    assertNoError(clearedBudget.error)
     for (const item of demo.budget) await saveBudgetItem(weddingId, item)
     if (DEMO_GUESTS.length > 0) {
       const guests = await client.from('guests').insert(DEMO_GUESTS.map((guest) => guestInsert(weddingId, guest)))

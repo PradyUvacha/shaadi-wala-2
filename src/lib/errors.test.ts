@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DUPLICATE_CATEGORY_MESSAGE } from './budgetCategories.ts'
 import { assertNoError, DeletedItemError, isOptionalSchemaMiss, OFFLINE_MESSAGE, saveErrorPresentation, STALE_WRITE_MESSAGE, StaleWriteError, throwIfWriteMissed, toErrorMessage } from './errors.ts'
 
 describe('assertNoError', () => {
@@ -58,6 +59,15 @@ describe('assertNoError', () => {
         message: 'relation "public.weddings" does not exist',
       }),
     ).toThrow(/missing the Shaadi Wala tables/)
+  })
+
+  it('turns a repeated category name into a sentence', () => {
+    expect(() =>
+      assertNoError({
+        code: 'P0001',
+        message: 'A category with this name already exists.',
+      }),
+    ).toThrow(DUPLICATE_CATEGORY_MESSAGE)
   })
 
   it('keeps a different unique violation as the database message', () => {

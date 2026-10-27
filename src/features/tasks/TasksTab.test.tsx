@@ -55,6 +55,8 @@ function weddingValue(overrides: Partial<WeddingContextValue>): WeddingContextVa
     clearError: () => {},
     reload: () => {},
     refreshWedding: async () => bundle,
+    refreshGuests: async () => bundle.guests,
+    guestPingDown: false,
     startPreview: () => {},
     leavePreview: () => {},
     createWedding: unused,

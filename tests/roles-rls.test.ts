@@ -249,6 +249,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`)
   file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
   file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
+  file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
+  file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -275,7 +277,7 @@ beforeAll(() => {
     insert into public.tasks (wedding_id, title, category, priority, status, side, assigned_to)
     select id, 'Friend task', 'Invitations', 'Low', 'Pending', 'bride', '${friend}' from public.weddings where couple_names = 'Role Fixture';
     insert into public.budget_items (wedding_id, category, currency, estimated, actual, notes, paid_by_side)
-    select id, 'Venue', 'INR', 1000, 0, 'hall', 'both' from public.weddings where couple_names = 'Role Fixture';
+    select id, 'Hall', 'INR', 1000, 0, 'hall', 'both' from public.weddings where couple_names = 'Role Fixture';
     insert into public.budget_splits (budget_item_id, name, pct, side)
     select id, 'Bride family', 60, 'bride' from public.budget_items where notes = 'hall';
     insert into public.budget_splits (budget_item_id, name, pct, side)
@@ -327,7 +329,7 @@ describe('approved role permissions', () => {
   it('friend has no budget access', () => {
     expect(asUser(friend, `select count(*) from public.budget_items;`)).toBe('0')
     expect(asUser(friend, `select count(*) from public.part_payments;`)).toBe('0')
-    expect(errorOf(friend, `insert into public.budget_items (wedding_id, category, estimated) select id, 'Venue', 10 from public.weddings;`)).toMatch(/row-level security/i)
+    expect(errorOf(friend, `insert into public.budget_items (wedding_id, category, estimated) select id, 'Off Books', 10 from public.weddings;`)).toMatch(/row-level security/i)
   })
 
   it('planner can view the whole budget, not edit', () => {
@@ -1126,6 +1128,119 @@ describe('approved role permissions', () => {
       select count(*) from pg_publication_tables
       where pubname = 'supabase_realtime' and tablename in ('guests', 'guest_functions');
     `).trim()).toBe('2')
+  })
+
+  it('pings wedding members without guest fields, and rejects a repeated category name', () => {
+    const pingFile = `${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`
+    const otherSide = 'e7e7e7e7-e7e7-e7e7-e7e7-e7e7e7e7e7e7'
+    const outsider = 'e8e8e8e8-e8e8-e8e8-e8e8-e8e8e8e8e8e8'
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    file(pingFile)
+    expect(psql(`select count(*) from pg_trigger where tgname = 'guests_ping_list' and not tgisinternal;`).trim()).toBe('1')
+    expect(psql(`select count(*) from pg_trigger where tgname = 'guest_functions_ping_list' and not tgisinternal;`).trim()).toBe('1')
+    expect(psql(`select count(*) from pg_trigger where tgname = 'budget_items_unique_name' and not tgisinternal;`).trim()).toBe('1')
+    const definition = psql(`select pg_get_functiondef('public.ping_guest_list()'::regprocedure);`)
+    for (const column of ['name', 'side', 'email', 'phone', 'rsvp_status', 'meal', 'plus_ones', 'guest_id']) {
+      expect(definition).not.toMatch(new RegExp(`\\b${column}\\b`))
+    }
+    psql(`
+      insert into auth.users (id, email) values
+        ('${otherSide}', 'other-side@example.com'),
+        ('${outsider}', 'outsider@example.com')
+      on conflict (id) do nothing;
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, '${otherSide}', 'family', 'groom', 'Other Side'
+      from public.weddings where couple_names = 'Role Fixture'
+        and not exists (
+          select 1 from public.wedding_members
+          where user_id = '${otherSide}' and wedding_id = public.weddings.id
+        );
+      insert into public.guests (wedding_id, name, side, email, phone)
+      select id, 'Secret Guest', 'bride', 'secret@example.com', '999' from public.weddings where couple_names = 'Role Fixture';
+    `)
+    const topic = psql(`select 'wedding:' || id::text || ':guests' from public.weddings where couple_names = 'Role Fixture';`).trim()
+    const readPing = (userId: string) => asUser(userId, `
+      select set_config('realtime.topic', '${topic}', false);
+      select (payload - 'table' - 'wedding_id')::text || '|' || payload::text
+      from realtime.messages
+      where event = 'guest_ping'
+      order by id desc
+      limit 1;
+    `)
+    const latest = psql(`
+      select (payload - 'table' - 'wedding_id')::text
+        || '|' || (select string_agg(item.key, ',' order by item.key) from jsonb_each(payload) as item(key, value))
+        || '|' || (payload->>'table')
+        || '|' || (payload->>'wedding_id')
+      from realtime.messages
+      where event = 'guest_ping'
+      order by id desc
+      limit 1;
+    `).trim()
+    const weddingId = psql(`select id::text from public.weddings where couple_names = 'Role Fixture';`).trim()
+    expect(latest).toBe(`{}|table,wedding_id|guests|${weddingId}`)
+    expect(psql(`select payload::text from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).not.toContain('Secret Guest')
+    expect(asUser(otherSide, `select count(*) from public.guests where name = 'Secret Guest';`)).toBe('0')
+    for (const member of [friend, family, otherSide]) {
+      const row = readPing(member)
+      expect(row.startsWith('{}|')).toBe(true)
+      expect(row).not.toContain('Secret Guest')
+      expect(row).not.toContain('secret@example.com')
+      expect(row).not.toContain('999')
+    }
+    expect(asUser(outsider, `
+      select set_config('realtime.topic', '${topic}', false);
+      select count(*) from realtime.messages;
+    `)).toBe('0')
+    psql(`update public.guests set side = 'groom' where name = 'Secret Guest' and wedding_id = ${wedding};`)
+    expect(psql(`select payload->>'table' from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).toBe('guests')
+    expect(psql(`select payload::text from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).not.toContain('Secret Guest')
+    expect(asUser(family, `select count(*) from public.guests where name = 'Secret Guest';`)).toBe('0')
+    const mehendi = psql(`select f.id from public.wedding_functions f join public.weddings w on w.id = f.wedding_id where w.couple_names = 'Role Fixture' and f.name = 'Mehendi';`).trim()
+    psql(`
+      insert into public.guest_functions (guest_id, function_id, wedding_id)
+      select g.id, '${mehendi}', g.wedding_id
+      from public.guests g
+      where g.name = 'Secret Guest';
+    `)
+    expect(psql(`select payload->>'table' from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).toBe('guest_functions')
+    expect(readPing(friend)).not.toContain('Secret Guest')
+    psql(`delete from public.guests where name = 'Secret Guest';`)
+
+    const venueId = psql(`select id from public.budget_items where category = 'Venue' and wedding_id = ${wedding} limit 1;`).trim()
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'Venue', 10 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/already exists/i)
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, ' venue ', 10 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/already exists/i)
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'VENUE', 10 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/already exists/i)
+    psql(`update public.budget_items set estimated = 4242 where id = '${venueId}';`)
+    expect(psql(`select estimated from public.budget_items where id = '${venueId}';`).trim()).toBe('4242.00')
+    psql(`alter table public.budget_items disable trigger budget_items_unique_name;`)
+    psql(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'Dup Cat', 1 from public.weddings where couple_names = 'Role Fixture';
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'Dup Cat', 2 from public.weddings where couple_names = 'Role Fixture';
+    `)
+    psql(`alter table public.budget_items enable trigger budget_items_unique_name;`)
+    psql(`update public.budget_items set estimated = 9 where category = 'Dup Cat' and wedding_id = ${wedding};`)
+    expect(psql(`select count(*) from public.budget_items where category = 'Dup Cat' and estimated = 9 and wedding_id = ${wedding};`).trim()).toBe('2')
+    psql(`update public.budget_items set category = 'Dup Cat', notes = 'kept' where category = 'Dup Cat' and wedding_id = ${wedding};`)
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, ' dup cat ', 3 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/A category with this name already exists\./)
+    psql(`delete from public.budget_items where category = 'Dup Cat' and wedding_id = ${wedding};`)
+    psql(`update public.budget_items set estimated = 0 where id = '${venueId}';`)
+    file(pingFile)
+    expect(psql(`select count(*) from pg_trigger where tgname = 'guests_ping_list' and not tgisinternal;`).trim()).toBe('1')
   })
 })
 

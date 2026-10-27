@@ -2,6 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react'
 import { FAB, FormError } from '../../components/ui.tsx'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
+import { GUEST_LIST_FALLBACK_MS } from '../../lib/guestSync.ts'
 import { compareGuestNames, guestAvatarColor, guestEmailProblem, guestFunctionLine, guestInitials, guestMatchesQuery, guestNameProblem, guestPhoneProblem, guestStatCounts, mealPillLabel, mealUsesLeaf } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, FONT, SIZE, TYPE } from '../../styles/tokens.ts'
@@ -126,7 +127,7 @@ type RsvpModule = typeof import('./RsvpBySide.tsx')
 type FieldErrors = { name?: string; phone?: string; email?: string; side?: string }
 
 export function GuestsTab() {
-  const { bundle, mode, saveGuest, deleteGuest, refreshWedding } = useWedding()
+  const { bundle, mode, saveGuest, deleteGuest, refreshWedding, refreshGuests, guestPingDown } = useWedding()
   const role = bundle?.membership.role
   const viewerSide = bundle?.membership.side ?? null
   const canEdit = mode === 'preview' || canEditGuests(role)
@@ -156,6 +157,29 @@ export function GuestsTab() {
     const timer = window.setTimeout(() => setDebouncedQuery(query), 150)
     return () => window.clearTimeout(timer)
   }, [query])
+
+  useEffect(() => {
+    if (guestPingDown !== true) return
+    let stopped = false
+    const pull = () => {
+      if (stopped) return
+      void refreshGuests().catch(() => {})
+    }
+    pull()
+    const onFocus = () => pull()
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') pull()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    const timer = window.setInterval(pull, GUEST_LIST_FALLBACK_MS)
+    return () => {
+      stopped = true
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+      window.clearInterval(timer)
+    }
+  }, [guestPingDown, refreshGuests])
 
   useEffect(() => {
     if (!rsvpBySideEnabled) return

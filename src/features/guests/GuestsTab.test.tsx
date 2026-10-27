@@ -57,6 +57,8 @@ function weddingValue(current: WeddingBundle, saves: GuestDraft[] = []): Wedding
     clearError: () => {},
     reload: () => {},
     refreshWedding: async () => current,
+    refreshGuests: async () => current.guests,
+    guestPingDown: false,
     startPreview: () => {},
     leavePreview: () => {},
     createWedding: unused,
@@ -160,5 +162,33 @@ describe('Mutual guest side', () => {
     expect(plannerSheet.textContent).not.toContain('Only the couple or planner can change this.')
     expect(sideButtons(plannerSheet)).toEqual(['Bride', 'Groom', 'Mutual'])
     await planner.unmount()
+  })
+})
+
+describe('guest list fallback', () => {
+  it('refetches the allowed list while the private ping is down', async () => {
+    let pulls = 0
+    const value = weddingValue(bundle('friend', 'bride'))
+    value.guestPingDown = true
+    value.refreshGuests = async () => {
+      pulls += 1
+      return value.bundle?.guests ?? []
+    }
+    const view = await renderTab(value)
+    expect(pulls).toBe(1)
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'))
+    })
+    expect(pulls).toBe(2)
+    await view.unmount()
+    const quiet = weddingValue(bundle('family', 'bride'))
+    let extra = 0
+    quiet.refreshGuests = async () => {
+      extra += 1
+      return []
+    }
+    const idle = await renderTab(quiet)
+    expect(extra).toBe(0)
+    await idle.unmount()
   })
 })

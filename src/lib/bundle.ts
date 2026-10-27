@@ -20,6 +20,7 @@ import type {
   WeddingMember,
   WeddingSettings,
 } from '../types.ts'
+import { DUPLICATE_CATEGORY_MESSAGE, categoryNameKey, duplicateCategoryName } from './budgetCategories.ts'
 import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { moneyAmountError, splitsForSave, validateBudgetAmounts } from './planning.ts'
 
@@ -333,12 +334,16 @@ export function saveBudgetDraft(bundle: WeddingBundle, draft: BudgetDraft, id?: 
   const invalid = validateBudgetAmounts(draft.estimated, draft.actual)
   if (invalid) throw new Error(invalid)
   const splits = splitsForSave(draft).map(splitFromDraft)
+  const category = draft.category.trim()
   if (id) {
     const current = bundle.budget.find((item) => item.id === id)
     if (!current) return bundle
+    if (categoryNameKey(current.category) !== categoryNameKey(category) && duplicateCategoryName(bundle.budget, category, id)) {
+      throw new Error(DUPLICATE_CATEGORY_MESSAGE)
+    }
     const next: BudgetItem = {
       ...current,
-      category: draft.category,
+      category,
       currency: draft.currency,
       estimated: Number(draft.estimated || 0),
       actual: Number(draft.actual || 0),
@@ -349,9 +354,10 @@ export function saveBudgetDraft(bundle: WeddingBundle, draft: BudgetDraft, id?: 
     }
     return { ...bundle, budget: bundle.budget.map((item) => (item.id === id ? next : item)) }
   }
+  if (duplicateCategoryName(bundle.budget, category)) throw new Error(DUPLICATE_CATEGORY_MESSAGE)
   const item: BudgetItem = {
     id: uid(),
-    category: draft.category,
+    category,
     currency: draft.currency,
     estimated: Number(draft.estimated || 0),
     actual: Number(draft.actual || 0),

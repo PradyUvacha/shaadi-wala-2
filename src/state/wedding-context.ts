@@ -10,6 +10,7 @@ import type {
   MilestoneDraft,
   PartPaymentDraft,
   Side,
+  Guest,
   Task,
   TaskDraft,
   WeddingBundle,
@@ -30,6 +31,8 @@ export type WeddingContextValue = {
   clearError: () => void
   reload: () => void
   refreshWedding: () => Promise<WeddingBundle | null>
+  refreshGuests: () => Promise<Guest[]>
+  guestPingDown: boolean
   startPreview: () => void
   leavePreview: () => void
   createWedding: (input: CreateWeddingInput) => Promise<void>

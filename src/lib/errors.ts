@@ -1,3 +1,4 @@
+import { DUPLICATE_CATEGORY_MESSAGE } from './budgetCategories.ts'
 import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE } from './checklist.ts'
 
 export const STALE_WRITE_MESSAGE = 'This was changed by someone else'
@@ -102,6 +103,9 @@ export function assertNoError(error: DbError | null): void {
   }
   if (error.code === '23505' && /wedding_functions_name_ci/i.test(constraint)) {
     throw new Error(DUPLICATE_FUNCTION_MESSAGE)
+  }
+  if (/a category with this name already exists/i.test(`${error.message} ${error.details ?? ''}`)) {
+    throw new Error(DUPLICATE_CATEGORY_MESSAGE)
   }
   if (isOptionalSchemaMiss(error)) throw new Error(error.message)
   const missingSchema =

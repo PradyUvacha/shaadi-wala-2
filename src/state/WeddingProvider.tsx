@@ -26,7 +26,7 @@ import {
   withTask,
 } from '../lib/bundle.ts'
 import { acceptsChecklistChange, applyChecklistChange, subscribeWeddingChecklist } from '../lib/checklist.ts'
-import { subscribeWeddingGuests } from '../lib/guestSync.ts'
+import { scheduleGuestRefresh, subscribeGuestPings, subscribeWeddingGuests } from '../lib/guestSync.ts'
 import { applyTaskCostChange, stripTaskCosts, subscribeTaskCosts } from '../lib/taskCosts.ts'
 import { toErrorMessage, type RowGuard } from '../lib/errors.ts'
 import { LEFT_WEDDING_MESSAGE, membershipAccessChanged, subscribeOwnMembership } from '../lib/membershipSync.ts'
@@ -56,6 +56,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   const [preview, setPreview] = useState<WeddingBundle | null>(() => readPreview())
   const [remote, setRemote] = useState<{ userId: string; bundle: WeddingBundle | null; error: string | null } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pingWatch, setPingWatch] = useState({ key: '', down: false })
   const [reloadKey, setReloadKey] = useState(0)
   const bundleRef = useRef<WeddingBundle | null>(null)
   const modeRef = useRef<WeddingMode>(null)
@@ -66,6 +67,9 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   const bundle = userId ? (remote?.userId === userId ? remote.bundle : null) : preview
   const mode: WeddingMode = userId ? 'remote' : preview ? 'preview' : null
   const error = userId && remote?.userId === userId ? remote.error : null
+  const pingKey = mode === 'remote' ? (bundle?.wedding.id ?? '') : ''
+  if (pingWatch.key !== pingKey) setPingWatch({ key: pingKey, down: false })
+  const guestPingDown = pingWatch.down
 
   useEffect(() => {
     bundleRef.current = bundle
@@ -180,7 +184,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     if (!weddingId) return
     let cancelled = false
     let ticket = 0
-    const stop = subscribeWeddingGuests(supabase, weddingId, () => {
+    const pull = () => {
       const api = apiRef.current
       const current = bundleRef.current
       if (!api || !current || current.wedding.id !== weddingId) return
@@ -194,10 +198,18 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       }).catch((caught: unknown) => {
         if (!cancelled) setNotice(toErrorMessage(caught))
       })
+    }
+    const refresher = scheduleGuestRefresh(pull)
+    const stopRows = subscribeWeddingGuests(supabase, weddingId, () => refresher.schedule())
+    const stopPings = subscribeGuestPings(supabase, weddingId, () => refresher.schedule(), (down) => {
+      if (cancelled) return
+      setPingWatch((current) => (current.key === weddingId ? { key: weddingId, down } : current))
     })
     return () => {
       cancelled = true
-      stop()
+      refresher.cancel()
+      stopRows()
+      stopPings()
     }
   }, [mode, bundle?.wedding.id, commit])
 
@@ -274,6 +286,19 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       commit(next)
       return next
     },
+    refreshGuests: async () => {
+      const current = bundleRef.current
+      const api = apiRef.current
+      if (!api || modeRef.current !== 'remote' || !current) return current?.guests ?? []
+      const epoch = guestEpoch.current
+      const guests = await api.listGuests(current.wedding.id)
+      if (epoch !== guestEpoch.current) return bundleRef.current?.guests ?? guests
+      const latest = bundleRef.current
+      if (!latest || latest.wedding.id !== current.wedding.id) return guests
+      commit({ ...latest, guests })
+      return guests
+    },
+    guestPingDown,
     startPreview: () => {
       const next = createDemoBundle({ side: 'bride', displayName: 'Guest' })
       modeRef.current = 'preview'
@@ -521,7 +546,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       }
       commit(removeMemberFromBundle(requireBundle(), memberId))
     },
-  }), [bundle, commit, error, leaveOpenWedding, mode, notice, pullChecklist, ready, requireBundle, requireChecklist, requireEditor, requireGuestWriter, requireTaskWriter, userId])
+  }), [bundle, commit, error, guestPingDown, leaveOpenWedding, mode, notice, pullChecklist, ready, requireBundle, requireChecklist, requireEditor, requireGuestWriter, requireTaskWriter, userId])
 
   return <WeddingContext.Provider value={value}>{children}</WeddingContext.Provider>
 }
