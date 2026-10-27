@@ -4,6 +4,11 @@
 -- A new category name must not repeat another name in the same wedding once
 -- spaces and case are ignored. Rows already stored are left as they are.
 -- Safe to run again. Does not replace a hosted realtime.send.
+-- Hosted Supabase already owns realtime.messages and already has row security
+-- on. The SQL editor role cannot alter that table, change its owner, or grant
+-- on it. The only statement this file runs against that existing table is the
+-- select policy below. The stub further down creates missing objects for the
+-- local test database, which has no realtime schema, and never runs on hosted.
 
 do $stub$
 begin
@@ -22,6 +27,11 @@ begin
         inserted_at timestamptz not null default now()
       )
     $sql$;
+    -- Owned by this session, because the table was just created. Skipped when
+    -- hosted realtime.messages already exists.
+    execute 'alter table realtime.messages enable row level security';
+    execute 'grant usage on schema realtime to authenticated';
+    execute 'grant select on realtime.messages to authenticated';
   end if;
   if to_regprocedure('realtime.send(jsonb,text,text,boolean)') is null
      and to_regprocedure('realtime.send(jsonb,text,text)') is null then
@@ -49,20 +59,10 @@ begin
         select nullif(current_setting('realtime.topic', true), '');
       $fn$;
     $sql$;
+    execute 'grant execute on function realtime.topic() to authenticated';
   end if;
 end
 $stub$;
-
-do $grant$
-begin
-  execute 'grant usage on schema realtime to authenticated';
-  execute 'grant select on realtime.messages to authenticated';
-  execute 'grant execute on function realtime.topic() to authenticated';
-exception
-  when insufficient_privilege then
-    null;
-end
-$grant$;
 
 create or replace function public.guest_ping_topic_wedding(topic text)
 returns uuid
@@ -89,8 +89,6 @@ $$;
 
 revoke all on function public.guest_ping_topic_wedding(text) from public;
 grant execute on function public.guest_ping_topic_wedding(text) to authenticated;
-
-alter table realtime.messages enable row level security;
 
 drop policy if exists wedding_members_read_guest_pings on realtime.messages;
 create policy wedding_members_read_guest_pings
