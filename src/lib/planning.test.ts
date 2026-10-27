@@ -185,6 +185,84 @@ describe('family settlement and headcount', () => {
     expect(settlementSummary(settlement)).toMatch(/Record a payment/)
   })
 
+  it('counts actual with no payment as unattributed so paid and unattributed add up', () => {
+    const open = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 100000,
+        actual: 100000,
+        paid: false,
+        paidBySide: 'bride',
+        splits: [{ id: 'split-1', name: "Bride's Family", pct: 100, side: 'bride' }],
+        partPayments: [],
+      },
+    ])
+    expect(open.brideShare).toBe(50000)
+    expect(open.groomShare).toBe(50000)
+    expect(open.bridePaid).toBe(0)
+    expect(open.groomPaid).toBe(0)
+    expect(open.unattributed).toBe(100000)
+    expect(open.groomOwesBride).toBe(0)
+    expect(settlementSummary(open)).toMatch(/Record a payment/)
+
+    const partial = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 100000,
+        actual: 100000,
+        paid: false,
+        paidBySide: 'bride',
+        splits: [{ id: 'split-1', name: "Bride's Family", pct: 100, side: 'bride' }],
+        partPayments: [{ id: 'pay-1', amount: 40000, paidBy: 'Bride', paidBySide: 'bride', date: '2026-01-01', notes: '' }],
+      },
+    ])
+    expect(partial.bridePaid).toBe(40000)
+    expect(partial.groomPaid).toBe(0)
+    expect(partial.unattributed).toBe(60000)
+    expect(partial.bridePaid + partial.groomPaid + partial.unattributed).toBe(100000)
+
+    const migrated = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 100000,
+        actual: 100000,
+        paid: false,
+        paidBySide: 'both',
+        splits: [],
+        partPayments: [{ id: 'pay-m', amount: 100000, paidBy: 'Earlier spend (migrated)', paidBySide: '', date: '2026-01-01', notes: 'Earlier spend (migrated)' }],
+      },
+    ])
+    expect(migrated.bridePaid).toBe(0)
+    expect(migrated.groomPaid).toBe(0)
+    expect(migrated.unattributed).toBe(100000)
+
+    const withTask = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 100000,
+        actual: 100000,
+        paid: false,
+        paidBySide: 'both',
+        splits: [],
+        partPayments: [],
+      },
+      {
+        currency: 'USD',
+        estimated: 50,
+        actual: 40,
+        paid: false,
+        paidBySide: 'bride',
+        splits: [],
+        partPayments: [],
+      },
+    ], [
+      { status: 'Completed', actualCost: 40000 },
+      { status: 'Pending', actualCost: 15000 },
+    ])
+    expect(withTask.unattributed).toBe(140000)
+    expect(withTask.brideShare).toBe(50000)
+  })
+
   it('counts confirmed people with plus-ones on each side', () => {
     const counts = guestHeadcount([
       { status: 'Confirmed', plusOnes: 2, side: 'bride' },

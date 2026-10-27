@@ -245,6 +245,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261028130000_whole_rupee_writes.sql`)
   file(`${root}supabase/migrations/20261028140000_mutual_side_lock.sql`)
   file(`${root}supabase/migrations/20261028140000_mutual_side_lock.sql`)
+  file(`${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`)
+  file(`${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -1031,6 +1033,72 @@ describe('approved role permissions', () => {
     `).trim().split('\n').filter(Boolean).at(-1)).toBe('Kavita Rao')
     expect(psql(`select count(*) from information_schema.columns where table_schema = 'public' and table_name in ('profiles', 'wedding_members') and column_name = 'email';`).trim()).toBe('0')
     expect(asUser(family, `select display_name from public.profiles where id = '${prefixed}';`)).toBe('Kavita Rao')
+  })
+
+  it('backfills a later actual gap, including paise and a row that already has a migrated note', () => {
+    const brideId = 'a4a4a4a4-a4a4-4a4a-8a4a-a4a4a4a4a4a4'
+    const gapFile = `${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`
+    psql(`
+      insert into auth.users (id, email) values ('${brideId}', 'gap@example.com');
+      select set_config('request.jwt.claim.sub', '${brideId}', false);
+      set role authenticated;
+      select public.create_wedding('Gap Backfill', '2027-08-01', 'bride', 'Gap Bride', 'Pune');
+      reset role;
+      update public.budget_items set actual = 100000
+      where category = 'Photography' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 10.50
+      where category = 'Make Up Artists' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 100
+      where category = 'Decor' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side, notes)
+      select id, 40, 'Earlier spend (migrated)', null, 'Earlier spend (migrated)'
+      from public.budget_items
+      where category = 'Decor' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 500
+      where category = 'Attire' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side, notes)
+      select id, 500, 'Already', 'bride', 'covered'
+      from public.budget_items
+      where category = 'Attire' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 80, currency = 'USD'
+      where category = 'Invitations' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+    `)
+    file(gapFile)
+    const wedding = `(select id from public.weddings where couple_names = 'Gap Backfill')`
+    const pay = (category: string) => psql(`
+      select coalesce(string_agg(amount::text, ',' order by amount), '')
+      from public.part_payments p
+      join public.budget_items b on b.id = p.budget_item_id
+      where b.wedding_id = ${wedding} and b.category = '${category}' and p.notes = 'Earlier spend (migrated)';
+    `).trim()
+    expect(pay('Photography')).toBe('100000.00')
+    expect(pay('Make Up Artists')).toBe('10.50')
+    expect(pay('Decor')).toBe('40.00,60.00')
+    expect(pay('Attire')).toBe('')
+    expect(pay('Invitations')).toBe('80.00')
+    expect(psql(`select count(*) from public.part_payments p join public.budget_items b on b.id = p.budget_item_id where b.wedding_id = ${wedding} and b.category = 'Attire';`).trim()).toBe('1')
+    file(gapFile)
+    expect(pay('Photography')).toBe('100000.00')
+    expect(pay('Decor')).toBe('40.00,60.00')
+    psql(`
+      update public.budget_items set actual = 150000
+      where category = 'Photography' and wedding_id = ${wedding};
+      update public.budget_items set actual = 25.75
+      where category = 'Make Up Artists' and wedding_id = ${wedding};
+    `)
+    file(gapFile)
+    expect(pay('Photography')).toBe('50000.00,100000.00')
+    expect(pay('Make Up Artists')).toBe('10.50,15.25')
+    file(gapFile)
+    expect(pay('Photography')).toBe('50000.00,100000.00')
+    expect(pay('Make Up Artists')).toBe('10.50,15.25')
+    expect(psql(`select tgenabled from pg_trigger where tgname = 'part_payments_whole_rupees' and tgrelid = 'public.part_payments'::regclass;`).trim()).toBe('O')
+    expect(dbError(`
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 10.5, 'Fraction', 'bride' from public.budget_items
+      where category = 'Photography' and wedding_id = ${wedding};
+    `)).toMatch(/whole rupees/)
+    psql(`delete from public.weddings where couple_names = 'Gap Backfill';`)
   })
 })
 

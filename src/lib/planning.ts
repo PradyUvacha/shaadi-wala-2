@@ -1,6 +1,6 @@
 import type { AchievementType } from '../data/content.ts'
 import { ACHIEVEMENTS } from '../data/content.ts'
-import { ACTUAL_COUNTS_DONE_TASKS_ONLY, ODD_RUPEE_SIDE } from '../config/budgetRules.ts'
+import { ACTUAL_COUNTS_DONE_TASKS_ONLY, MIGRATED_PAYMENT_NOTE, ODD_RUPEE_SIDE } from '../config/budgetRules.ts'
 import type { BudgetItem, Guest, Payer, SplitDraft, Task, TemplateTask } from '../types.ts'
 
 export function percent(part: number, total: number): number {
@@ -202,7 +202,7 @@ export type FamilySettlement = {
   groomShare: number
   bridePaid: number
   groomPaid: number
-  /** Done task costs and payments with no bride or groom payer. Not a family debt. */
+  /** Done task costs, payments with no bride or groom payer, and logged actual that no payment covers. Not a family debt. */
   unattributed: number
   /** Positive when the groom's family owes the bride's family. */
   groomOwesBride: number
@@ -229,6 +229,19 @@ function countsInActual(task: Pick<Task, 'status' | 'actualCost'>): boolean {
   return task.status === 'Completed'
 }
 
+function paymentTotal(payments: readonly { amount: number }[]): number {
+  return payments.reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0)
+}
+
+/** Same rule as the category card: a migrated payment replaces the column; otherwise the column still covers any unpaid gap. */
+function loggedAmount(item: Pick<BudgetItem, 'actual' | 'partPayments'>): number {
+  const payments = paymentTotal(item.partPayments)
+  const migrated = item.partPayments.some((payment) => payment.notes === MIGRATED_PAYMENT_NOTE || payment.paidBy === MIGRATED_PAYMENT_NOTE)
+  if (migrated) return payments
+  const actual = Number(item.actual) || 0
+  return actual > payments ? actual : payments
+}
+
 export function familySettlement(
   items: Pick<BudgetItem, 'currency' | 'estimated' | 'actual' | 'paid' | 'paidBySide' | 'splits' | 'partPayments'>[],
   tasks: readonly Pick<Task, 'status' | 'actualCost'>[] = [],
@@ -246,6 +259,8 @@ export function familySettlement(
       else if (payment.paidBySide === 'groom') groomPaidRaw += amount
       else unattributedRaw += amount
     }
+    const gap = loggedAmount(item) - paymentTotal(item.partPayments)
+    if (gap > 0) unattributedRaw += gap
   }
   for (const task of tasks) {
     if (!countsInActual(task)) continue

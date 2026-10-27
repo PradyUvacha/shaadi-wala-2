@@ -131,6 +131,11 @@ describe('ritual editor conflicts', () => {
     expect(stale.container.textContent).toContain('24/04/2027')
     expect(stale.container.textContent).toContain('0 / 1 · 0%')
     expect(stale.container.textContent).toContain('Community ·')
+    expect(stale.container.textContent).toContain('Planning')
+    expect(stale.container.querySelector('h1')?.textContent).toBe('Planning')
+    const banner = stale.container.querySelector('img')
+    expect(banner?.getAttribute('alt')).toBe('Wedding planning banner')
+    expect(banner?.getAttribute('src')).toBe('/planning-strip.webp')
     expect(stale.container.textContent).not.toContain('🎯')
     await act(async () => {
       clickButton(stale.container, 'Actions for Book the hall')

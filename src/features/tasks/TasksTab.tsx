@@ -9,7 +9,7 @@ import { DELETED_ITEM_MESSAGE, STALE_WRITE_MESSAGE, saveErrorPresentation, toErr
 import { percent } from '../../lib/planning.ts'
 import { chipRupees, formatInrGrouped, roundHalfUpRupees, toPaise, wholeRupeeProblem } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
-import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
+import { CATEGORY_COLORS, COLORS, FONT, PRIORITY_COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
 import { headerPadding } from '../../styles/safeArea.ts'
 import type { Category, MemberRole, Priority, Side, Task, TaskDraft, TaskStatus, WeddingFunction, WeddingMember } from '../../types.ts'
@@ -443,6 +443,7 @@ export function TasksTab() {
     <div className="planning-page">
       <Celebration active={celebrate} onDone={stopCelebration} />
       <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, padding: headerPadding }}>
+        <h1 style={{ fontFamily: FONT.display, fontSize: TYPE.title, fontWeight: 700, color: '#fff', margin: '0 0 10px' }}>Planning</h1>
         <div role="tablist" aria-label="Planning" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 0, background: COLORS.maroon, borderRadius: 12, padding: 4, marginBottom: 10 }}>
           <Link to="/timeline" role="tab" aria-selected={false} style={segmentStyle(false)}>Events</Link>
           <span role="tab" aria-selected={true} style={segmentStyle(true)}>Tasks</span>
@@ -453,6 +454,7 @@ export function TasksTab() {
           <div style={{ height: '100%', width: `${pct}%`, background: COLORS.goldTint, borderRadius: 99 }} />
         </div>
         <div style={{ fontSize: 14, color: '#fff' }}>{completedCount} / {tasks.length} · {pct}%</div>
+        <img src="/planning-strip.webp" alt="Wedding planning banner" style={{ display: 'block', width: '100%', height: 72, marginTop: 10, objectFit: 'cover', borderRadius: 12 }} />
       </div>
 
       {canStructure && (
