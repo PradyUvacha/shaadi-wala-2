@@ -27,7 +27,7 @@ describe('phone layout', () => {
     expect(shell).not.toContain('maxWidth:')
     expect(css).toContain('min-height: 100dvh')
     expect(css).toContain('font-size: 16px')
-    expect(css).toContain('min-height: 44px')
+    expect(css).toContain('min-height: 48px')
     expect(css).toContain('.chip-row')
     expect(css).toMatch(/\.chip-row\s*\{[^}]*flex-wrap:\s*wrap/)
     expect(css).not.toMatch(/\.chip-row\s*\{[^}]*overflow-x:\s*auto/)
@@ -35,6 +35,12 @@ describe('phone layout', () => {
     expect(setup).not.toContain('Settings')
     expect(setup).not.toContain('maxWidth')
     expect(setup).not.toContain('desktop-column')
+  })
+
+  it('pads the real list scroller by the FAB, the gap, and the safe area', () => {
+    expect(css).toMatch(/\.app-shell-scroll\.has-fab-clearance\s*\{[^}]*padding-bottom:\s*calc\(56px \+ 16px \+ var\(--safe-area-inset-bottom/)
+    expect(shell).toContain('has-fab-clearance')
+    expect(shell).toContain('app-shell-scroll')
   })
 
   it('tells the Android WebView to use the device width instead of a scaled overview', () => {

@@ -1,7 +1,9 @@
+import type { FunctionPhase } from './config/phases.ts'
+
 export const CATEGORIES = ['Venue', 'Catering', 'Decor', 'Attire', 'Invitations', 'Other'] as const
 export const PRIORITIES = ['High', 'Medium', 'Low'] as const
 export const TASK_STATUSES = ['Pending', 'In Progress', 'Completed'] as const
-export const RSVP_STATUSES = ['Pending', 'Confirmed', 'Declined'] as const
+export const RSVP_STATUSES = ['Pending', 'Maybe', 'Confirmed', 'Declined'] as const
 export const MILESTONE_STATUSES = ['Upcoming', 'Completed'] as const
 export const MEALS = ['', 'Vegetarian', 'Non-Vegetarian', 'Jain', 'Vegan'] as const
 export const CURRENCY_CODES = ['INR', 'USD', 'EUR', 'GBP'] as const
@@ -44,6 +46,8 @@ export type TaskDraft = {
   functionId?: string | null
   position?: number
   assignedTo?: string | null
+  actualCost?: number | null
+  budgetCategoryId?: string | null
 }
 
 export type Task = {
@@ -62,12 +66,16 @@ export type Task = {
   assignedTo: string | null
   side: Side | null
   updatedAt: string
+  actualCost: number | null
+  budgetCategoryId: string | null
+  costUpdatedAt: string
 }
 
 export type WeddingFunction = {
   id: string
   name: string
   position: number
+  phase: FunctionPhase | null
   updatedAt: string
 }
 
@@ -98,7 +106,7 @@ export type PartPaymentDraft = {
 export type PartPayment = PartPaymentDraft & { id: string }
 
 export type BudgetDraft = {
-  category: Category
+  category: string
   currency: CurrencyCode
   estimated: number
   actual: number
@@ -111,7 +119,7 @@ export type BudgetDraft = {
 
 export type BudgetItem = {
   id: string
-  category: Category
+  category: string
   currency: CurrencyCode
   estimated: number
   actual: number
@@ -130,6 +138,7 @@ export type GuestDraft = {
   meal: string
   plusOnes: number
   side: GuestSide
+  functionIds: string[]
 }
 
 export type Guest = GuestDraft & { id: string }

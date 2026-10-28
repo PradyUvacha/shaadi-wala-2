@@ -1,13 +1,18 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
-import { assignableMembers, canEditChecklist, canManageTasks, unassignedSideGroups } from '../../lib/access.ts'
+import { FUNCTION_PHASES, PHASE_HEADERS, PHASE_LABELS, type FunctionPhase } from '../../config/phases.ts'
+import { assignableMembers, canEditChecklist, canEditTaskCost, canManageTasks, canSeeBudget, unassignedSideGroups } from '../../lib/access.ts'
 import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
 import { DELETED_ITEM_MESSAGE, STALE_WRITE_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
+import { chipRupees, formatInrGrouped, roundHalfUpRupees, toPaise, wholeRupeeProblem } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
-import { CATEGORY_COLORS, COLORS, PRIORITY_COLORS } from '../../styles/tokens.ts'
+import { CATEGORY_COLORS, COLORS, FONT, PRIORITY_COLORS, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
+import { headerPadding } from '../../styles/safeArea.ts'
+import { STATUS_CHIP_GAP, STATUS_CHIP_PAD_X, STATUS_CHIP_ROW_PAD_X } from './statusChips.ts'
 import type { Category, MemberRole, Priority, Side, Task, TaskDraft, TaskStatus, WeddingFunction, WeddingMember } from '../../types.ts'
 import { CATEGORIES, PRIORITIES, TASK_STATUSES } from '../../types.ts'
 
@@ -33,14 +38,18 @@ export function TasksTab() {
   const members = bundle?.members ?? []
   const ownSide = bundle?.membership.side ?? null
   const functions = [...(bundle?.functions ?? [])].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
-  const [filter, setFilter] = useState<'All' | TaskStatus>('All')
+  const [filter, setFilter] = useState<'All' | 'Pending' | 'Done'>('All')
+  const [params, setParams] = useSearchParams()
+  const [costText, setCostText] = useState('')
+  const [costDirty, setCostDirty] = useState(false)
+  const [costCategoryId, setCostCategoryId] = useState<string | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
   const [editTask, setEditTask] = useState<Task | null>(null)
   const [celebrate, setCelebrate] = useState(false)
   const [form, setForm] = useState<TaskDraft>(emptyForm())
   const [newFunction, setNewFunction] = useState(false)
   const [functionName, setFunctionName] = useState('')
-  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string; updatedAt: string } | null>(null)
+  const [functionEditor, setFunctionEditor] = useState<{ id: string | null; name: string; updatedAt: string; phase: FunctionPhase | null } | null>(null)
   const [loadedTaskAt, setLoadedTaskAt] = useState('')
   const [taskConflict, setTaskConflict] = useState(false)
   const [functionConflict, setFunctionConflict] = useState(false)
@@ -48,9 +57,82 @@ export function TasksTab() {
   const [pendingRitual, setPendingRitual] = useState<Task | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [appliedEdit, setAppliedEdit] = useState<string | null>(null)
+  const [menuKey, setMenuKey] = useState<string | null>(null)
+  const [menuPlace, setMenuPlace] = useState<{ top: number; left: number; width: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const stopCelebration = useCallback(() => setCelebrate(false), [])
+  useEffect(() => {
+    if (!menuKey) return
+    const onPointer = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (menuRef.current?.contains(target)) return
+      if (target instanceof Element && target.closest('[aria-haspopup="menu"]')) return
+      setMenuKey(null)
+      setMenuPlace(null)
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMenuKey(null)
+        setMenuPlace(null)
+      }
+    }
+    const scroller = document.querySelector('.app-shell-scroll')
+    const onScroll = () => {
+      setMenuKey(null)
+      setMenuPlace(null)
+    }
+    document.addEventListener('pointerdown', onPointer)
+    document.addEventListener('keydown', onKey)
+    scroller?.addEventListener('scroll', onScroll)
+    return () => {
+      document.removeEventListener('pointerdown', onPointer)
+      document.removeEventListener('keydown', onKey)
+      scroller?.removeEventListener('scroll', onScroll)
+    }
+  }, [menuKey])
+  const closeMenu = () => {
+    setMenuKey(null)
+    setMenuPlace(null)
+  }
+  const placeMenu = (anchor: HTMLButtonElement, count: number) => {
+    const menuWidth = Math.min(280, window.innerWidth - 16)
+    const menuHeight = count * 64 + 16
+    const rect = anchor.getBoundingClientRect()
+    const below = rect.bottom + 4
+    const top = below + menuHeight > window.innerHeight - 8 ? Math.max(8, rect.top - 4 - menuHeight) : below
+    const left = Math.min(Math.max(8, rect.right - menuWidth), Math.max(8, window.innerWidth - menuWidth - 8))
+    setMenuPlace({ top, left, width: menuWidth })
+  }
+  const openTaskMenu = (task: Task, siblings: number, anchor: HTMLButtonElement) => {
+    const key = `task:${task.id}`
+    if (menuKey === key) {
+      closeMenu()
+      return
+    }
+    const count = (canStructure && siblings > 1 ? 2 : 0) + (canEdit ? 2 : 0)
+    placeMenu(anchor, count)
+    setMenuKey(key)
+  }
+  const openFunctionMenu = (fnId: string, anchor: HTMLButtonElement) => {
+    const key = `fn:${fnId}`
+    if (menuKey === key) {
+      closeMenu()
+      return
+    }
+    placeMenu(anchor, functions.length > 1 ? 4 : 2)
+    setMenuKey(key)
+  }
+  const editParam = params.get('edit')
 
-  const filtered = filter === 'All' ? tasks : tasks.filter((task) => task.status === filter)
+  const filtered = filter === 'All' ? tasks : tasks.filter((task) => (filter === 'Done' ? task.status === 'Completed' : task.status !== 'Completed'))
+  const pendingCount = tasks.filter((task) => task.status !== 'Completed').length
+  const doneCount = tasks.filter((task) => task.status === 'Completed').length
+  const seeCosts = mode === 'preview' || canSeeBudget(role)
+  const costEditable = editTask
+    ? (mode === 'preview' || canEditTaskCost(role, editTask, ownSide))
+    : (mode === 'preview' || canEditTaskCost(role, { side: null }, ownSide))
   const completedCount = tasks.filter((task) => task.status === 'Completed').length
   const pct = percent(completedCount, tasks.length)
   const community = communityLabel(bundle?.wedding.community)
@@ -78,6 +160,9 @@ export function TasksTab() {
   const openAdd = () => {
     setEditTask(null)
     setForm(emptyForm(functions[0]))
+    setCostText('')
+    setCostDirty(false)
+    setCostCategoryId(null)
     setNewFunction(functions.length === 0 && canStructure)
     setFunctionName('')
     setError(null)
@@ -100,10 +185,21 @@ export function TasksTab() {
       status: task.status,
       assignedTo: task.assignedTo,
     })
+    setCostText('')
+    setCostDirty(false)
+    setCostCategoryId(task.budgetCategoryId)
     setNewFunction(false)
     setFunctionName('')
     setError(null)
     setModalOpen(true)
+  }
+  if (editParam && appliedEdit !== editParam) {
+    setAppliedEdit(editParam)
+    const task = (bundle?.tasks ?? []).find((item) => item.id === editParam)
+    if (task) openEdit(task)
+    const next = new URLSearchParams(params)
+    next.delete('edit')
+    queueMicrotask(() => setParams(next, { replace: true }))
   }
   const save = async (overwrite = false) => {
     const ceremony = newFunction ? functionName.trim() : form.ceremony.trim()
@@ -115,6 +211,21 @@ export function TasksTab() {
       setError(newFunction ? 'Name the function.' : 'Choose a function.')
       return
     }
+    let actualCost = editTask?.actualCost ?? null
+    const budgetCategoryId = costCategoryId
+    if (seeCosts && costEditable) {
+      if (!editTask || costDirty) {
+        if (!costText.trim()) actualCost = null
+        else {
+          const problem = wholeRupeeProblem(costText)
+          if (problem) {
+            setError(problem)
+            return
+          }
+          actualCost = Number(costText.trim())
+        }
+      }
+    }
     setBusy(true)
     setError(null)
     try {
@@ -123,9 +234,10 @@ export function TasksTab() {
           ...form,
           ceremony,
           functionId: newFunction ? null : form.functionId,
+          ...(seeCosts && costEditable ? { actualCost, budgetCategoryId } : {}),
         },
         editTask?.id,
-        editTask ? { updatedAt: loadedTaskAt, overwrite } : undefined,
+        editTask ? { updatedAt: loadedTaskAt, costUpdatedAt: editTask.costUpdatedAt, overwrite } : undefined,
       )
       setTaskConflict(false)
       setModalOpen(false)
@@ -184,7 +296,7 @@ export function TasksTab() {
         setError(DELETED_ITEM_MESSAGE)
         return
       }
-      setFunctionEditor({ id: latest.id, name: latest.name, updatedAt: latest.updatedAt })
+      setFunctionEditor({ id: latest.id, name: latest.name, updatedAt: latest.updatedAt, phase: latest.phase })
       setFunctionConflict(false)
     } catch (caught) {
       setError(toErrorMessage(caught))
@@ -214,6 +326,7 @@ export function TasksTab() {
         name,
         functionEditor?.id ?? undefined,
         functionEditor?.id ? { updatedAt: functionEditor.updatedAt, overwrite } : undefined,
+        functionEditor?.phase ?? 'pre_wedding',
       )
       setFunctionConflict(false)
       setFunctionEditor(null)
@@ -266,36 +379,59 @@ export function TasksTab() {
   const ritualCard = (task: Task, siblings: number) => (
     <div key={task.id} style={{ background: COLORS.cardBg, border: `1px solid ${task.status === 'Completed' ? '#4CAF5040' : '#E8D4B0'}`, borderRadius: 14, padding: 14, marginBottom: 10, animation: 'fadeIn 0.3s ease', opacity: task.status === 'Completed' ? 0.75 : 1 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-        <button type="button" disabled={!canComplete} aria-label={task.status === 'Completed' ? 'Mark pending' : 'Mark completed'} onClick={() => void toggle(task)} style={{ width: 28, height: 28, borderRadius: '50%', border: `2px solid ${task.status === 'Completed' ? COLORS.green : COLORS.crimson}`, background: task.status === 'Completed' ? COLORS.green : 'transparent', cursor: canComplete ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-          {task.status === 'Completed' && <span style={{ color: '#fff', fontSize: 12 }}>✓</span>}
+        <button type="button" disabled={!canComplete} aria-label={task.status === 'Completed' ? 'Mark pending' : 'Mark completed'} onClick={() => void toggle(task)} style={{ width: SIZE.tap, height: SIZE.tap, borderRadius: '50%', border: `2px solid ${task.status === 'Completed' ? COLORS.green : COLORS.crimson}`, background: task.status === 'Completed' ? COLORS.green : 'transparent', cursor: canComplete ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {task.status === 'Completed' && <span style={{ color: '#fff', fontSize: TYPE.body }}>✓</span>}
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: '#2A0A0A', textDecoration: task.status === 'Completed' ? 'line-through' : 'none', marginBottom: 4 }}>{task.title}</div>
-          {task.description && <div style={{ fontSize: 12, color: '#7A5050', marginBottom: 6 }}>{task.description}</div>}
+          <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.ink, textDecoration: task.status === 'Completed' ? 'line-through' : 'none', marginBottom: 4 }}>{task.title}</div>
+          {task.description && <div style={{ fontSize: TYPE.small, color: COLORS.muted, marginBottom: 6 }}>{task.description}</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
             <Badge color={CATEGORY_COLORS[task.category] || '#666'} small>{task.category}</Badge>
             <Badge color={PRIORITY_COLORS[task.priority] || COLORS.gold} small>{task.priority}</Badge>
-            {task.dueDate && <span style={{ fontSize: 10, color: '#8B5050' }}>📅 {task.dueDate}</span>}
+            {seeCosts && chipRupees(task.actualCost) != null && (
+              <span style={{ display: 'inline-flex', alignItems: 'center', minHeight: SIZE.tap }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 32, padding: '0 10px', borderRadius: 999, background: COLORS.goldTint, border: '1px solid #E5D4B2', color: COLORS.ink, fontSize: TYPE.small }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18" /></svg>
+                  {formatInrGrouped(chipRupees(task.actualCost)!)}
+                </span>
+              </span>
+            )}
+            {task.dueDate && <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.dueDate}</span>}
             {task.assignedTo && (
-              <span style={{ fontSize: 10, color: '#8B5050' }}>
+              <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>
                 Assigned to {members.find((member) => member.userId === task.assignedTo)?.displayName ?? 'a member'}
               </span>
             )}
           </div>
         </div>
         {(canEdit || canStructure) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {canStructure && siblings > 1 && (
-              <>
-                <button type="button" aria-label={`Move ${task.title} up`} onClick={() => void moveTask(task.id, -1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↑</button>
-                <button type="button" aria-label={`Move ${task.title} down`} onClick={() => void moveTask(task.id, 1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↓</button>
-              </>
-            )}
-            {canEdit && (
-              <>
-                <button type="button" aria-label="Edit task" onClick={() => openEdit(task)} style={{ ...iconButton, color: COLORS.gold }}>✏️</button>
-                <button type="button" aria-label="Delete task" onClick={() => { setError(null); setPendingRitual(task) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
-              </>
+          <div style={{ position: 'relative', flex: '0 0 auto' }}>
+            <button
+              type="button"
+              aria-label={`Actions for ${task.title}`}
+              aria-haspopup="menu"
+              aria-expanded={menuKey === `task:${task.id}`}
+              onClick={(event) => openTaskMenu(task, siblings, event.currentTarget)}
+              style={iconButton}
+            >
+              ⋯
+            </button>
+            {menuKey === `task:${task.id}` && menuPlace && createPortal(
+              <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menuPlace.top, left: menuPlace.left, zIndex: 400, width: menuPlace.width, background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 12, boxShadow: '0 8px 24px rgba(26,5,5,0.12)', padding: 4 }}>
+                {canStructure && siblings > 1 && (
+                  <>
+                    <button type="button" role="menuitem" aria-label={`Move ${task.title} up`} onClick={() => { closeMenu(); void moveTask(task.id, -1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move up</button>
+                    <button type="button" role="menuitem" aria-label={`Move ${task.title} down`} onClick={() => { closeMenu(); void moveTask(task.id, 1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move down</button>
+                  </>
+                )}
+                {canEdit && (
+                  <>
+                    <button type="button" role="menuitem" aria-label="Edit task" onClick={() => { closeMenu(); openEdit(task) }} style={menuItem}>Edit</button>
+                    <button type="button" role="menuitem" aria-label="Delete task" onClick={() => { closeMenu(); setError(null); setPendingRitual(task) }} style={{ ...menuItem, color: COLORS.danger }}>Delete</button>
+                  </>
+                )}
+              </div>,
+              document.body,
             )}
           </div>
         )}
@@ -303,32 +439,46 @@ export function TasksTab() {
     </div>
   )
 
+  const weddingDate = headerDate(bundle?.wedding.weddingDate)
   return (
-    <div style={{ paddingBottom: listAboveFab }}>
+    <div className="planning-page">
       <Celebration active={celebrate} onDone={stopCelebration} />
-      <div style={{ background: `linear-gradient(135deg,${COLORS.saffron},${COLORS.crimson})`, padding: headerPadding }}>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 6 }}>Task Manager</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', marginBottom: 10 }}>Community · {community}</div>
-        <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 99, height: 8, overflow: 'hidden', marginBottom: 6 }}>
-          <div style={{ height: '100%', width: `${pct}%`, background: '#fff', borderRadius: 99, transition: 'width 0.8s ease' }} />
+      <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, padding: headerPadding }}>
+        <h1 style={{ fontFamily: FONT.display, fontSize: TYPE.title, fontWeight: 700, color: '#fff', margin: '0 0 10px' }}>Planning</h1>
+        <div role="tablist" aria-label="Planning" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 0, background: COLORS.maroon, borderRadius: 12, padding: 4, marginBottom: 10 }}>
+          <Link to="/timeline" role="tab" aria-selected={false} style={segmentStyle(false)}>Events</Link>
+          <span role="tab" aria-selected={true} style={segmentStyle(true)}>Tasks</span>
         </div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)' }}>🎯 {completedCount}/{tasks.length} Tasks Done — {pct}%</div>
+        {weddingDate ? <div style={{ fontSize: 14, color: '#fff', marginBottom: 8 }}>{weddingDate}</div> : null}
+        <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.9)', marginBottom: 10 }}>Community · {community}</div>
+        <div style={{ background: 'rgba(255,255,255,0.3)', borderRadius: 99, height: 6, overflow: 'hidden', marginBottom: 6 }}>
+          <div style={{ height: '100%', width: `${pct}%`, background: COLORS.goldTint, borderRadius: 99 }} />
+        </div>
+        <div style={{ fontSize: 14, color: '#fff' }}>{completedCount} / {tasks.length} · {pct}%</div>
+        <img src="/planning-strip.webp" alt="Wedding planning banner" style={{ display: 'block', width: '100%', height: 72, marginTop: 10, objectFit: 'cover', borderRadius: 12 }} />
       </div>
 
       {canStructure && (
         <div style={{ margin: '12px 16px 0' }}>
-          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '' }) }} style={{ width: '100%', padding: 10, borderRadius: 12, border: `1.5px dashed ${COLORS.gold}`, background: 'transparent', color: COLORS.crimson, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
+          <button type="button" onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: null, name: '', updatedAt: '', phase: 'pre_wedding' }) }} style={{ width: '100%', height: SIZE.button, minHeight: SIZE.button, maxHeight: SIZE.button, boxSizing: 'border-box', padding: '0 16px', borderRadius: 12, border: `1.5px dashed ${COLORS.goldText}`, background: 'transparent', color: COLORS.crimson, fontSize: 16, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', whiteSpace: 'nowrap' }}>
             Add function
           </button>
         </div>
       )}
 
-      <div className="chip-row" aria-label="Task status">
-        {(['All', ...TASK_STATUSES] as const).map((item) => (
-          <button key={item} type="button" onClick={() => setFilter(item)} style={{ padding: '7px 16px', borderRadius: 99, border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: 16, fontWeight: 600, background: filter === item ? COLORS.crimson : '#F0E0CC', color: filter === item ? '#fff' : COLORS.crimson }}>
-            {item}
-          </button>
-        ))}
+      <div className="count-chips" aria-label="Task status" style={{ gap: STATUS_CHIP_GAP, padding: `12px ${STATUS_CHIP_ROW_PAD_X}px 16px` }}>
+        {([
+          ['All', tasks.length],
+          ['Pending', pendingCount],
+          ['Done', doneCount],
+        ] as const).map(([item, count]) => {
+          const selected = filter === item
+          return (
+            <button key={item} type="button" onClick={() => setFilter(item)} style={{ minHeight: SIZE.chip, padding: `0 ${STATUS_CHIP_PAD_X}px`, borderRadius: 999, cursor: 'pointer', whiteSpace: 'nowrap', fontSize: TYPE.small, fontWeight: 600, background: selected ? COLORS.crimson : '#fff', color: selected ? '#fff' : COLORS.ink, border: selected ? 'none' : `1.5px solid ${COLORS.gold}` }}>
+              {item} · {count}
+            </button>
+          )
+        })}
       </div>
 
       {error && !modalOpen && !functionEditor && !pendingDelete && !pendingRitual && <div style={{ padding: '0 16px' }}><FormError message={error} /></div>}
@@ -336,9 +486,8 @@ export function TasksTab() {
       <div style={{ padding: '0 16px' }}>
         {sideGroups.length === 0 && visibleGroups.length === 0 && loose.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>
-            <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}>✓</div>
             <div style={{ fontSize: 16, fontWeight: 600 }}>No tasks yet</div>
-            <div style={{ fontSize: 13, marginTop: 4 }}>Add your first task to get started!</div>
+            <div style={{ fontSize: TYPE.small, marginTop: 4 }}>Add your first task to get started.</div>
           </div>
         ) : (
           <>
@@ -350,18 +499,31 @@ export function TasksTab() {
             ))}
             {visibleGroups.map(({ fn, rituals }) => (
               <section key={fn.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 8px' }}>
-                  <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, color: COLORS.crimson, margin: 0, flex: 1 }}>{fn.name}</h2>
+                <div className="event-group-header">
+                  <div className="event-group-title">
+                    <span className="event-group-name">
+                      <span aria-hidden="true" style={{ color: COLORS.muted, display: 'inline-flex', flex: '0 0 auto' }}><CalendarIcon /></span>
+                      <h2>{fn.name}</h2>
+                    </span>
+                    <span className="event-count-pill">{rituals.length} {rituals.length === 1 ? 'task' : 'tasks'}</span>
+                  </div>
+                  {fn.phase ? <span className="event-phase-label">{PHASE_HEADERS[fn.phase]}</span> : null}
                   {canStructure && (
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      {functions.length > 1 && (
-                        <>
-                          <button type="button" aria-label={`Move ${fn.name} up`} onClick={() => void moveFunction(fn.id, -1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↑</button>
-                          <button type="button" aria-label={`Move ${fn.name} down`} onClick={() => void moveFunction(fn.id, 1).catch((caught) => setError(toErrorMessage(caught)))} style={iconButton}>↓</button>
-                        </>
+                    <div className="event-group-actions">
+                      <button type="button" aria-label={`Actions for function ${fn.name}`} aria-haspopup="menu" aria-expanded={menuKey === `fn:${fn.id}`} onClick={(event) => openFunctionMenu(fn.id, event.currentTarget)} style={iconButton}>⋯</button>
+                      {menuKey === `fn:${fn.id}` && menuPlace && createPortal(
+                        <div ref={menuRef} role="menu" style={{ position: 'fixed', top: menuPlace.top, left: menuPlace.left, zIndex: 400, width: menuPlace.width, background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: 12, boxShadow: '0 8px 24px rgba(26,5,5,0.12)', padding: 4 }}>
+                          {functions.length > 1 && (
+                            <>
+                              <button type="button" role="menuitem" aria-label={`Move ${fn.name} up`} onClick={() => { closeMenu(); void moveFunction(fn.id, -1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move up</button>
+                              <button type="button" role="menuitem" aria-label={`Move ${fn.name} down`} onClick={() => { closeMenu(); void moveFunction(fn.id, 1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move down</button>
+                            </>
+                          )}
+                          <button type="button" role="menuitem" aria-label={`Rename ${fn.name}`} onClick={() => { closeMenu(); setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt, phase: fn.phase }) }} style={menuItem}>Edit</button>
+                          <button type="button" role="menuitem" aria-label={`Delete ${fn.name}`} onClick={() => { closeMenu(); setError(null); setPendingDelete(fn) }} style={{ ...menuItem, color: COLORS.danger }}>Delete</button>
+                        </div>,
+                        document.body,
                       )}
-                      <button type="button" aria-label={`Rename ${fn.name}`} onClick={() => { setError(null); setFunctionConflict(false); setFunctionEditor({ id: fn.id, name: fn.name, updatedAt: fn.updatedAt }) }} style={iconButton}>✏️</button>
-                      <button type="button" aria-label={`Delete ${fn.name}`} onClick={() => { setError(null); setPendingDelete(fn) }} style={{ ...iconButton, color: '#CC4444' }}>🗑️</button>
                     </div>
                   )}
                 </div>
@@ -370,7 +532,14 @@ export function TasksTab() {
             ))}
             {loose.length > 0 && (
               <section>
-                <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, color: COLORS.crimson, margin: '14px 0 8px' }}>Other</h2>
+                <div className="event-group-header">
+                  <div className="event-group-title">
+                    <span className="event-group-name">
+                      <h2>Other tasks</h2>
+                    </span>
+                    <span className="event-count-pill">{loose.length} {loose.length === 1 ? 'task' : 'tasks'}</span>
+                  </div>
+                </div>
                 {loose.map((task) => ritualCard(task, loose.length))}
               </section>
             )}
@@ -385,6 +554,11 @@ export function TasksTab() {
         <Field label="Function name">
           <input style={inputStyle} value={functionEditor?.name ?? ''} onChange={(event) => setFunctionEditor((current) => current ? { ...current, name: event.target.value } : current)} placeholder="Tilak" />
         </Field>
+        <Field label="Phase">
+          <select style={selectStyle} value={functionEditor?.phase ?? 'pre_wedding'} onChange={(event) => setFunctionEditor((current) => current ? { ...current, phase: event.target.value as FunctionPhase } : current)}>
+            {FUNCTION_PHASES.map((phase) => <option key={phase} value={phase}>{PHASE_LABELS[phase]}</option>)}
+          </select>
+        </Field>
         {functionConflict ? (
           <ConflictChoices busy={busy} onReload={() => void reloadFunction()} onOverwrite={() => void saveFunctionName(true)} />
         ) : (
@@ -396,7 +570,7 @@ export function TasksTab() {
 
       <Modal open={pendingDelete !== null} onClose={() => setPendingDelete(null)} title="Remove function">
         <FormError message={error} />
-        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+        <p style={{ fontSize: TYPE.small, color: COLORS.ink, marginBottom: 16, lineHeight: 1.6 }}>
           {deleteCopy}
         </p>
         <button type="button" disabled={busy} onClick={() => void removeFunctionNow()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
@@ -406,7 +580,7 @@ export function TasksTab() {
 
       <Modal open={pendingRitual !== null} onClose={() => setPendingRitual(null)} title="Remove ritual">
         <FormError message={error} />
-        <p style={{ fontSize: 13, color: '#5A2020', marginBottom: 16, lineHeight: 1.6 }}>
+        <p style={{ fontSize: TYPE.small, color: COLORS.ink, marginBottom: 16, lineHeight: 1.6 }}>
           Remove {pendingRitual?.title}?
         </p>
         <button type="button" disabled={busy} onClick={() => void removeRitualNow()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
@@ -420,7 +594,7 @@ export function TasksTab() {
           <input style={inputStyle} value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="Task title" />
         </Field>
         <Field label="Description">
-          <textarea style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Details..." />
+          <textarea style={{ ...inputStyle, height: 'auto', maxHeight: 'none', minHeight: 70, resize: 'vertical' }} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Details..." />
         </Field>
         <Field label="Function">
           <select
@@ -480,6 +654,44 @@ export function TasksTab() {
             </select>
           </Field>
         )}
+        {seeCosts && (
+          <>
+            <Field label="Actual cost (₹)">
+              <input
+                style={inputStyle}
+                inputMode="numeric"
+                disabled={!costEditable}
+                value={costDirty ? costText : (editTask?.actualCost == null ? '' : String(roundHalfUpRupees(toPaise(editTask.actualCost))))}
+                placeholder="—"
+                onChange={(event) => {
+                  setCostDirty(true)
+                  setCostText(event.target.value)
+                }}
+              />
+              {costDirty && wholeRupeeProblem(costText, true) && <p style={{ color: COLORS.danger, fontSize: TYPE.small, margin: '6px 0 0' }}>{wholeRupeeProblem(costText, true)}</p>}
+            </Field>
+            <label style={{ display: 'block', marginBottom: 14 }}>
+              <span style={{ display: 'block', fontSize: TYPE.body, fontWeight: 600, color: COLORS.ink, marginBottom: 6 }}>Budget category</span>
+              <select
+                aria-label="Budget category"
+                style={selectStyle}
+                disabled={!costEditable}
+                value={costCategoryId ?? ''}
+                onChange={(event) => setCostCategoryId(event.target.value || null)}
+              >
+                <option value="">Choose category</option>
+                {(bundle?.budget ?? []).map((item) => {
+                  const duplicate = (bundle?.budget ?? []).filter((other) => other.category === item.category).length > 1
+                  return (
+                    <option key={item.id} value={item.id}>
+                      {duplicate && item.notes ? `${item.category} · ${item.notes}` : item.category}
+                    </option>
+                  )
+                })}
+              </select>
+            </label>
+          </>
+        )}
         <Field label="Due Date">
           <input style={inputStyle} type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
         </Field>
@@ -498,7 +710,7 @@ export function TasksTab() {
 function ConflictChoices({ busy, onReload, onOverwrite }: { busy: boolean; onReload: () => void; onOverwrite: () => void }) {
   return (
     <div>
-      <p style={{ color: '#8B0000', fontSize: 13, margin: '8px 0' }}>{STALE_WRITE_MESSAGE}</p>
+      <p style={{ color: COLORS.danger, fontSize: TYPE.small, margin: '8px 0' }}>{STALE_WRITE_MESSAGE}</p>
       <div style={{ display: 'flex', gap: 8 }}>
         <button type="button" disabled={busy} onClick={onReload} style={{ ...primaryButton('transparent'), color: COLORS.crimson, border: `1px solid ${COLORS.gold}`, flex: 1 }}>
           Reload
@@ -523,12 +735,73 @@ function assigneeChoices(
   return current ? [current, ...allowed] : allowed
 }
 
+function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </svg>
+  )
+}
+
 const iconButton = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
   fontSize: 16,
   color: COLORS.crimson,
-  minHeight: 44,
-  minWidth: 44,
+  height: 48,
+  width: 48,
+  minHeight: 48,
+  minWidth: 48,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: 0,
 } as const
+
+const menuItem = {
+  display: 'flex',
+  alignItems: 'center',
+  width: '100%',
+  minHeight: 48,
+  height: 'auto',
+  minWidth: 48,
+  padding: '12px 16px',
+  border: 'none',
+  background: 'transparent',
+  color: COLORS.ink,
+  fontSize: 16,
+  lineHeight: 1.3,
+  whiteSpace: 'normal' as const,
+  textAlign: 'left' as const,
+  cursor: 'pointer',
+  borderRadius: 8,
+}
+
+function segmentStyle(selected: boolean) {
+  return {
+    minHeight: 48,
+    minWidth: 0,
+    height: 'auto',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    textDecoration: 'none',
+    fontSize: 16,
+    fontWeight: 600,
+    padding: '8px 12px',
+    background: selected ? COLORS.gold : 'transparent',
+    color: selected ? COLORS.crimson : '#fff',
+    whiteSpace: 'normal' as const,
+    textAlign: 'center' as const,
+    lineHeight: 1.2,
+  }
+}
+
+function headerDate(iso: string | undefined): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso ?? '')
+  if (!match) return ''
+  return `${match[3]}/${match[2]}/${match[1]}`
+}

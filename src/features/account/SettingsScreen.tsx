@@ -44,17 +44,18 @@ export function SettingsScreen() {
           Delete account
         </button>
         <h2 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: COLORS.crimson, margin: '28px 0 8px' }}>About</h2>
-        <p style={{ fontSize: 16, color: '#A08080', margin: 0 }}>
+        <p style={{ fontSize: 16, color: COLORS.muted, margin: 0 }}>
           {aboutVersionLabel({
             versionName: appConfig.versionName,
             versionCode: appConfig.versionCode,
             commitSha,
           })}
         </p>
+        <p style={{ fontSize: 16, color: COLORS.ink, margin: '8px 0 0' }}>Design by Sushrut.</p>
       </div>
     </div>
   )
 }
 
-const backButton = { background: 'transparent', border: 'none', color: COLORS.lightGold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer', fontSize: 16 }
-const linkRow = { display: 'flex', alignItems: 'center', minHeight: 44, padding: '14px 0', borderBottom: '1px solid #E8D4B0', color: COLORS.crimson, fontWeight: 600, textDecoration: 'none', fontSize: 16 }
+const backButton = { background: 'transparent', border: 'none', color: COLORS.gold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer', fontSize: 16 }
+const linkRow = { display: 'flex', alignItems: 'center', minHeight: 48, padding: '14px 0', borderBottom: '1px solid #E8D4B0', color: COLORS.crimson, fontWeight: 600, textDecoration: 'none', fontSize: 16 }

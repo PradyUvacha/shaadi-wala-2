@@ -16,9 +16,9 @@ export function RsvpHeadcount({ guests }: { guests: Guest[] }) {
   return (
     <div style={{ margin: '14px 16px 0', background: '#fff', border: '1px solid #E8D4B0', borderRadius: 16, padding: 14 }}>
       <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.crimson }}>Headcount by side</div>
-      <p style={{ margin: '4px 0 10px', fontSize: 13, color: '#5A2020' }}>{counts.confirmedPeople} people confirmed, including plus-ones.</p>
+      <p style={{ margin: '4px 0 10px', fontSize: 14, color: COLORS.ink }}>{counts.confirmedPeople} people confirmed, including plus-ones.</p>
       {rows.map(([label, side]) => (
-        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '6px 0', borderTop: '1px solid #F0E0CC' }}>
+        <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, padding: '6px 0', borderTop: '1px solid #F0E0CC' }}>
           <span>{label}</span>
           <span>{side.confirmed} confirmed · {side.pending} pending · {side.declined} declined</span>
         </div>

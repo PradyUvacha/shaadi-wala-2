@@ -1,10 +1,12 @@
 /** @vitest-environment happy-dom */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import { DeletedItemError, StaleWriteError } from '../../lib/errors.ts'
 import { WeddingContext, type WeddingContextValue } from '../../state/wedding-context.ts'
 import type { Task, WeddingBundle } from '../../types.ts'
+import { statusChipRowFits } from './statusChips.ts'
 import { TasksTab } from './TasksTab.tsx'
 
 const ritual: Task = {
@@ -23,6 +25,9 @@ const ritual: Task = {
   assignedTo: null,
   side: null,
   updatedAt: '2026-10-26T10:00:00.000Z',
+  actualCost: null,
+  budgetCategoryId: null,
+  costUpdatedAt: '',
 }
 
 const bundle: WeddingBundle = {
@@ -30,7 +35,7 @@ const bundle: WeddingBundle = {
   membership: { id: 'm1', role: 'groom', side: 'groom', displayName: 'Groom' },
   displayName: 'Groom',
   members: [],
-  functions: [{ id: 'fn-1', name: 'Wedding', position: 1, updatedAt: '2026-10-26T09:00:00.000Z' }],
+  functions: [{ id: 'fn-1', name: 'Wedding', position: 1, phase: 'wedding_day', updatedAt: '2026-10-26T09:00:00.000Z' }],
   tasks: [ritual],
   budget: [],
   guests: [],
@@ -50,6 +55,8 @@ function weddingValue(overrides: Partial<WeddingContextValue>): WeddingContextVa
     clearError: () => {},
     reload: () => {},
     refreshWedding: async () => bundle,
+    refreshGuests: async () => bundle.guests,
+    guestPingDown: false,
     startPreview: () => {},
     leavePreview: () => {},
     createWedding: unused,
@@ -85,9 +92,11 @@ async function renderTab(value: WeddingContextValue) {
   const root: Root = createRoot(container)
   await act(async () => {
     root.render(
-      <WeddingContext.Provider value={value}>
-        <TasksTab />
-      </WeddingContext.Provider>,
+      <MemoryRouter>
+        <WeddingContext.Provider value={value}>
+          <TasksTab />
+        </WeddingContext.Provider>
+      </MemoryRouter>,
     )
   })
   return {
@@ -100,7 +109,8 @@ async function renderTab(value: WeddingContextValue) {
 }
 
 function clickButton(container: HTMLElement, label: string) {
-  const button = [...container.querySelectorAll('button')].find((item) => item.getAttribute('aria-label') === label || item.textContent?.trim() === label)
+  const scopes = [container, document.body]
+  const button = scopes.flatMap((scope) => [...scope.querySelectorAll('button')]).find((item) => item.getAttribute('aria-label') === label || item.textContent?.trim() === label)
   if (!button) throw new Error(`missing ${label}`)
   button.click()
 }
@@ -119,6 +129,27 @@ describe('ritual editor conflicts', () => {
         return bundle
       },
     }))
+    expect(stale.container.textContent).toContain('WEDDING DAY')
+    expect(stale.container.textContent).toContain('1 task')
+    expect(stale.container.textContent).toContain('24/04/2027')
+    expect(stale.container.textContent).toContain('0 / 1 · 0%')
+    expect(stale.container.textContent).toContain('Community ·')
+    expect(stale.container.textContent).toContain('Planning')
+    expect(stale.container.querySelector('h1')?.textContent).toBe('Planning')
+    const banner = stale.container.querySelector('img')
+    expect(banner?.getAttribute('alt')).toBe('Wedding planning banner')
+    expect(banner?.getAttribute('src')).toBe('/planning-strip.webp')
+    expect(stale.container.textContent).not.toContain('🎯')
+    const chipRow = stale.container.querySelector('.count-chips')
+    const chipLabels = [...(chipRow?.querySelectorAll('button') ?? [])].map((button) => button.textContent?.trim())
+    expect(chipLabels).toEqual(['All · 1', 'Pending · 1', 'Done · 0'])
+    expect(statusChipRowFits(['All · 0', 'Pending · 0', 'Done · 0'], 304)).toBe(true)
+    expect(statusChipRowFits(chipLabels.filter((label): label is string => Boolean(label)), 304)).toBe(true)
+    expect((chipRow as HTMLElement).style.padding).toBe('12px 8px 16px')
+    expect((chipRow as HTMLElement).style.gap).toBe('6px')
+    await act(async () => {
+      clickButton(stale.container, 'Actions for Book the hall')
+    })
     await act(async () => {
       clickButton(stale.container, 'Edit task')
     })
@@ -143,6 +174,9 @@ describe('ritual editor conflicts', () => {
         return { ...bundle, tasks: [] }
       },
     }))
+    await act(async () => {
+      clickButton(deleted.container, 'Actions for Book the hall')
+    })
     await act(async () => {
       clickButton(deleted.container, 'Edit task')
     })

@@ -40,20 +40,20 @@ export function FeedbackScreen() {
   return (
     <div style={{ paddingBottom: screenBottom }}>
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},${COLORS.crimson})`, padding: headerPadding }}>
-        <button type="button" onClick={() => navigate('/profile')} style={{ background: 'transparent', border: 'none', color: COLORS.lightGold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Profile</button>
+        <button type="button" onClick={() => navigate('/profile')} style={{ background: 'transparent', border: 'none', color: COLORS.gold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Profile</button>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, color: '#fff', fontWeight: 700 }}>Feedback</div>
       </div>
       <div style={{ padding: 16 }}>
-        <p style={{ fontSize: 13, color: '#5A2020', lineHeight: 1.5 }}>Tell us what would help. A screenshot is optional and stays visible only to you.</p>
+        <p style={{ fontSize: 14, color: COLORS.ink, lineHeight: 1.5 }}>Tell us what would help. A screenshot is optional and stays visible only to you.</p>
         <div style={{ display: 'flex', gap: 8, margin: '12px 0 16px' }}>
           {[1, 2, 3, 4, 5].map((value) => (
-            <button key={value} type="button" aria-pressed={rating === value} onClick={() => setRating(rating === value ? null : value)} style={{ flex: 1, minHeight: 44, borderRadius: 12, border: `1px solid ${COLORS.gold}`, background: rating === value ? COLORS.gold : '#fff', color: rating === value ? '#3C1515' : COLORS.crimson, fontWeight: 700, cursor: 'pointer' }}>
+            <button key={value} type="button" aria-pressed={rating === value} onClick={() => setRating(rating === value ? null : value)} style={{ flex: 1, minHeight: 48, borderRadius: 12, border: `1px solid ${COLORS.gold}`, background: rating === value ? COLORS.gold : '#fff', color: rating === value ? COLORS.ink : COLORS.crimson, fontWeight: 700, cursor: 'pointer' }}>
               {value}
             </button>
           ))}
         </div>
-        <textarea style={{ ...inputStyle, minHeight: 140, resize: 'vertical' }} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="What should we improve?" />
-        <label style={{ display: 'block', marginTop: 14, fontSize: 13, color: '#5A2020', fontWeight: 700 }}>
+        <textarea style={{ ...inputStyle, height: 'auto', maxHeight: 'none', minHeight: 140, resize: 'vertical' }} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="What should we improve?" />
+        <label style={{ display: 'block', marginTop: 14, fontSize: 14, color: COLORS.ink, fontWeight: 700 }}>
           Screenshot (optional)
           <input
             key={screenshotKey}
@@ -63,9 +63,9 @@ export function FeedbackScreen() {
             onChange={(event) => setScreenshot(event.target.files?.[0] ?? null)}
           />
         </label>
-        {screenshot && <p style={{ fontSize: 12, color: '#8B5050' }}>{screenshot.name}</p>}
+        {screenshot && <p style={{ fontSize: 14, color: COLORS.muted }}>{screenshot.name}</p>}
         <FormError message={error} />
-        {sent && <p style={{ color: COLORS.green, fontSize: 13 }}>Thank you. We read every note.</p>}
+        {sent && <p style={{ color: COLORS.green, fontSize: 14 }}>Thank you. We read every note.</p>}
         <button type="button" disabled={busy} onClick={() => void send()} style={{ ...primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`), marginTop: 16 }}>
           {busy ? 'Sending…' : 'Send feedback'}
         </button>

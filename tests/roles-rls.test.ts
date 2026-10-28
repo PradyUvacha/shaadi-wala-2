@@ -9,6 +9,7 @@ const groom = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2'
 const family = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3'
 const friend = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa4'
 const planner = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa5'
+const familyGroom = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa6'
 const db = process.env.PGDATABASE ?? 'shaadi_roles'
 
 function run(database: string, args: string[], sql?: string): string {
@@ -222,6 +223,34 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261026260000_price_answer_leave.sql`)
   file(`${root}supabase/migrations/20261026270000_member_realtime.sql`)
   file(`${root}supabase/migrations/20261026270000_member_realtime.sql`)
+  file(`${root}supabase/migrations/20261027130000_task_cost_rollup.sql`)
+  file(`${root}supabase/migrations/20261027130000_task_cost_rollup.sql`)
+  file(`${root}supabase/migrations/20261027140000_mutual_guests.sql`)
+  file(`${root}supabase/migrations/20261027140000_mutual_guests.sql`)
+  file(`${root}supabase/migrations/20261027150000_function_phases.sql`)
+  file(`${root}supabase/migrations/20261027150000_function_phases.sql`)
+  file(`${root}supabase/migrations/20261027160000_task_event_phase.sql`)
+  file(`${root}supabase/migrations/20261027160000_task_event_phase.sql`)
+  file(`${root}supabase/migrations/20261027170000_mutual_side.sql`)
+  file(`${root}supabase/migrations/20261027170000_mutual_side.sql`)
+  file(`${root}supabase/migrations/20261027180000_nullable_function_phase.sql`)
+  file(`${root}supabase/migrations/20261027180000_nullable_function_phase.sql`)
+  file(`${root}supabase/migrations/20261027190000_guest_functions.sql`)
+  file(`${root}supabase/migrations/20261027190000_guest_functions.sql`)
+  file(`${root}supabase/migrations/20261027200000_mutual_visibility.sql`)
+  file(`${root}supabase/migrations/20261027200000_mutual_visibility.sql`)
+  file(`${root}supabase/migrations/20261028120000_wedding_delete_linked_costs.sql`)
+  file(`${root}supabase/migrations/20261028120000_wedding_delete_linked_costs.sql`)
+  file(`${root}supabase/migrations/20261028130000_whole_rupee_writes.sql`)
+  file(`${root}supabase/migrations/20261028130000_whole_rupee_writes.sql`)
+  file(`${root}supabase/migrations/20261028140000_mutual_side_lock.sql`)
+  file(`${root}supabase/migrations/20261028140000_mutual_side_lock.sql`)
+  file(`${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`)
+  file(`${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`)
+  file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
+  file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
+  file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
+  file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -248,7 +277,7 @@ beforeAll(() => {
     insert into public.tasks (wedding_id, title, category, priority, status, side, assigned_to)
     select id, 'Friend task', 'Invitations', 'Low', 'Pending', 'bride', '${friend}' from public.weddings where couple_names = 'Role Fixture';
     insert into public.budget_items (wedding_id, category, currency, estimated, actual, notes, paid_by_side)
-    select id, 'Venue', 'INR', 1000, 0, 'hall', 'both' from public.weddings where couple_names = 'Role Fixture';
+    select id, 'Hall', 'INR', 1000, 0, 'hall', 'both' from public.weddings where couple_names = 'Role Fixture';
     insert into public.budget_splits (budget_item_id, name, pct, side)
     select id, 'Bride family', 60, 'bride' from public.budget_items where notes = 'hall';
     insert into public.budget_splits (budget_item_id, name, pct, side)
@@ -289,23 +318,23 @@ describe('approved role permissions', () => {
   })
 
   it('parent/family can view the whole budget and log payments for their own side', () => {
-    expect(asUser(family, `select count(*) from public.budget_items;`)).toBe('1')
+    expect(asUser(family, `select count(*) from public.budget_items;`)).toBe('8')
     expect(asUser(family, `insert into public.part_payments (budget_item_id, amount, paid_by_side) select id, 25, 'bride' from public.budget_items where notes = 'hall'; select count(*) from public.part_payments where paid_by_side = 'bride';`)).toBe('1')
-    expect(psql(`select actual from public.budget_items where notes = 'hall';`).trim()).toBe('25.00')
-    expect(asUser(family, `update public.budget_items set actual = 999 where notes = 'hall'; select actual from public.budget_items where notes = 'hall';`)).toBe('25.00')
+    expect(psql(`select actual from public.budget_items where notes = 'hall';`).trim()).toBe('0.00')
+    expect(asUser(family, `update public.budget_items set actual = 999 where notes = 'hall'; select actual from public.budget_items where notes = 'hall';`)).toBe('0.00')
     expect(errorOf(family, `insert into public.part_payments (budget_item_id, amount, paid_by_side) select id, 25, 'groom' from public.budget_items where notes = 'hall';`)).toMatch(/row-level security/i)
-    expect(asUser(family, `update public.budget_items set notes = 'changed' where notes = 'hall'; select notes from public.budget_items;`)).toBe('hall')
+    expect(asUser(family, `update public.budget_items set notes = 'changed' where notes = 'hall'; select count(*) from public.budget_items where notes = 'hall';`)).toBe('1')
   })
 
   it('friend has no budget access', () => {
     expect(asUser(friend, `select count(*) from public.budget_items;`)).toBe('0')
     expect(asUser(friend, `select count(*) from public.part_payments;`)).toBe('0')
-    expect(errorOf(friend, `insert into public.budget_items (wedding_id, category, estimated) select id, 'Venue', 10 from public.weddings;`)).toMatch(/row-level security/i)
+    expect(errorOf(friend, `insert into public.budget_items (wedding_id, category, estimated) select id, 'Off Books', 10 from public.weddings;`)).toMatch(/row-level security/i)
   })
 
   it('planner can view the whole budget, not edit', () => {
-    expect(asUser(planner, `select count(*) from public.budget_items;`)).toBe('1')
-    expect(asUser(planner, `update public.budget_items set notes = 'planner edit' where notes = 'hall'; select notes from public.budget_items;`)).toBe('hall')
+    expect(asUser(planner, `select count(*) from public.budget_items;`)).toBe('8')
+    expect(asUser(planner, `update public.budget_items set notes = 'planner edit' where notes = 'hall'; select count(*) from public.budget_items where notes = 'hall';`)).toBe('1')
     expect(errorOf(planner, `insert into public.part_payments (budget_item_id, amount, paid_by_side) select id, 5, 'bride' from public.budget_items;`)).toMatch(/row-level security/i)
   })
 
@@ -319,6 +348,47 @@ describe('approved role permissions', () => {
     expect(asUser(friend, `select name from public.guests where name = 'Bride Guest';`)).toBe('Bride Guest')
     expect(asUser(friend, `select count(*) from public.guests where name = 'Groom Guest';`)).toBe('0')
     expect(asUser(friend, `update public.guests set phone = '333' where name = 'Bride Guest'; select count(*) from public.guests where phone = '333';`)).toBe('0')
+  })
+
+  it('family on both sides can insert and update mutual guests, and only the couple or planner can delete them', () => {
+    expect(psql(`select count(*) from pg_policies where tablename = 'guests' and policyname = 'guests_write_by_permission';`).trim()).toBe('0')
+    expect(psql(`select count(*) from pg_policies where tablename = 'guests' and policyname in ('guests_write_family', 'guests_update_family', 'guests_delete_by_permission');`).trim()).toBe('3')
+    psql(`
+      insert into auth.users (id, email) values ('${familyGroom}', 'family-groom@example.com');
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, '${familyGroom}', 'family', 'groom', 'Groom Parent' from public.weddings where couple_names = 'Role Fixture';
+    `)
+    expect(asUser(family, `insert into public.guests (wedding_id, name, side) select id, 'Mutual From Bride', 'both' from public.weddings where couple_names = 'Role Fixture'; select side from public.guests where name = 'Mutual From Bride';`)).toBe('both')
+    expect(asUser(familyGroom, `update public.guests set phone = '444' where name = 'Mutual From Bride'; select phone from public.guests where name = 'Mutual From Bride';`)).toBe('444')
+    expect(asUser(familyGroom, `insert into public.guests (wedding_id, name, side) select id, 'Mutual From Groom', 'both' from public.weddings where couple_names = 'Role Fixture'; select side from public.guests where name = 'Mutual From Groom';`)).toBe('both')
+    expect(asUser(family, `update public.guests set meal = 'Jain' where name = 'Mutual From Groom'; select meal from public.guests where name = 'Mutual From Groom';`)).toBe('Jain')
+    expect(errorOf(family, `insert into public.guests (wedding_id, name, side) select id, 'Sneaky Groom', 'groom' from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/row-level security/i)
+    expect(errorOf(familyGroom, `insert into public.guests (wedding_id, name, side) select id, 'Sneaky Bride', 'bride' from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/row-level security/i)
+    expect(errorOf(family, `update public.guests set side = 'groom' where name = 'Mutual From Bride';`)).toMatch(/only the couple or planner|row-level security/i)
+    expect(psql(`select side from public.guests where name = 'Mutual From Bride';`).trim()).toBe('both')
+    expect(asUser(family, `select count(*) from public.guests where name = 'Groom Guest';`)).toBe('0')
+    expect(asUser(familyGroom, `select count(*) from public.guests where name = 'Bride Guest';`)).toBe('0')
+    expect(asUser(family, `delete from public.guests where name = 'Mutual From Bride'; select count(*) from public.guests where name = 'Mutual From Bride';`)).toBe('1')
+    expect(asUser(familyGroom, `delete from public.guests where name = 'Mutual From Groom'; select count(*) from public.guests where name = 'Mutual From Groom';`)).toBe('1')
+    expect(asUser(family, `insert into public.guests (wedding_id, name, side) select id, 'Bride Only', 'bride' from public.weddings where couple_names = 'Role Fixture'; delete from public.guests where name = 'Bride Only'; select count(*) from public.guests where name = 'Bride Only';`)).toBe('0')
+    expect(asUser(friend, `select name from public.guests where name = 'Mutual From Bride';`)).toBe('Mutual From Bride')
+    expect(asUser(friend, `select count(*) from public.guests where name = 'Groom Guest';`)).toBe('0')
+    expect(errorOf(friend, `insert into public.guests (wedding_id, name, side) select id, 'Friend Mutual', 'both' from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/row-level security/i)
+    expect(asUser(friend, `update public.guests set phone = '555' where name = 'Mutual From Bride'; select count(*) from public.guests where phone = '555';`)).toBe('0')
+    expect(asUser(friend, `delete from public.guests where name = 'Mutual From Bride'; select count(*) from public.guests where name = 'Mutual From Bride';`)).toBe('1')
+    expect(asUser(bride, `delete from public.guests where name = 'Mutual From Bride'; select count(*) from public.guests where name = 'Mutual From Bride';`)).toBe('0')
+    expect(asUser(planner, `delete from public.guests where name = 'Mutual From Groom'; select count(*) from public.guests where name = 'Mutual From Groom';`)).toBe('0')
+  })
+
+  it('keeps Mutual when family updates a guest, and lets the couple or planner change that side', () => {
+    expect(asUser(family, `insert into public.guests (wedding_id, name, side) select id, 'Locked Mutual', 'both' from public.weddings where couple_names = 'Role Fixture'; select side from public.guests where name = 'Locked Mutual';`)).toBe('both')
+    expect(asUser(family, `update public.guests set phone = '777' where name = 'Locked Mutual'; select side || ':' || phone from public.guests where name = 'Locked Mutual';`)).toBe('both:777')
+    expect(errorOf(family, `update public.guests set side = 'bride' where name = 'Locked Mutual';`)).toMatch(/only the couple or planner/i)
+    expect(errorOf(familyGroom, `update public.guests set side = 'groom' where name = 'Locked Mutual';`)).toMatch(/only the couple or planner/i)
+    expect(psql(`select side from public.guests where name = 'Locked Mutual';`).trim()).toBe('both')
+    expect(asUser(family, `insert into public.guests (wedding_id, name, side) select id, 'Family Own Side', 'bride' from public.weddings where couple_names = 'Role Fixture'; update public.guests set side = 'both' where name = 'Family Own Side'; select side from public.guests where name = 'Family Own Side';`)).toBe('both')
+    expect(asUser(bride, `update public.guests set side = 'groom' where name = 'Locked Mutual'; select side from public.guests where name = 'Locked Mutual';`)).toBe('groom')
+    expect(asUser(planner, `update public.guests set side = 'both' where name = 'Locked Mutual'; select side from public.guests where name = 'Locked Mutual';`)).toBe('both')
   })
 
   it('planner can edit all guests and the timeline', () => {
@@ -387,6 +457,107 @@ describe('approved role permissions', () => {
     expect(psql(`select count(*) from public.weddings where couple_names = 'Slot Wedding';`).trim()).toBe('1')
     expect(psql(`select count(*) from public.wedding_members where role = 'bride' and wedding_id = (select id from public.weddings where couple_names = 'Slot Wedding');`).trim()).toBe('0')
     expect(asUser('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2', `select public.create_invite((select id from public.weddings where couple_names = 'Slot Wedding'), 'bride', 'bride');`)).toMatch(/^\d{6}$/)
+  })
+
+  it('deletes the wedding when the last partner leaves even if a task is linked to a category', () => {
+    psql(`
+      insert into auth.users (id, email) values
+        ('b49b49b4-9b49-4b49-8b49-b49b49b49b49', 'bride-linked@example.com'),
+        ('b49b49b4-9b49-4b49-8b49-b49b49b49b4a', 'groom-linked@example.com');
+      select set_config('request.jwt.claim.sub', 'b49b49b4-9b49-4b49-8b49-b49b49b49b49', false);
+      set role authenticated;
+      select public.create_wedding('Linked Delete', '2027-07-01', 'bride', 'Bride Linked', 'Jaipur');
+      reset role;
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, 'b49b49b4-9b49-4b49-8b49-b49b49b49b4a', 'groom', 'groom', 'Groom Linked'
+      from public.weddings where couple_names = 'Linked Delete';
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Linked task', 'Venue', 'Low', 'Pending' from public.weddings where couple_names = 'Linked Delete';
+      insert into public.budget_items (wedding_id, category, currency, estimated, actual, paid_by_side)
+      select id, 'Linked Venue', 'INR', 100000, 0, 'bride' from public.weddings where couple_names = 'Linked Delete';
+      insert into public.task_costs (task_id, wedding_id, actual_cost, budget_category_id)
+      select t.id, t.wedding_id, 40000, b.id
+      from public.tasks t
+      join public.budget_items b on b.wedding_id = t.wedding_id and b.category = 'Linked Venue'
+      where t.title = 'Linked task';
+    `)
+    expect(dbError(`
+      delete from public.budget_items
+      where category = 'Linked Venue'
+        and wedding_id = (select id from public.weddings where couple_names = 'Linked Delete');
+    `)).toMatch(/Move linked/)
+    expect(psql(`select count(*) from public.task_costs where task_id = (select id from public.tasks where title = 'Linked task');`).trim()).toBe('1')
+    psql(`select public.release_account('b49b49b4-9b49-4b49-8b49-b49b49b49b49');`)
+    expect(psql(`select count(*) from public.weddings where couple_names = 'Linked Delete';`).trim()).toBe('1')
+    psql(`select public.release_account('b49b49b4-9b49-4b49-8b49-b49b49b49b4a');`)
+    expect(psql(`select count(*) from public.weddings where couple_names = 'Linked Delete';`).trim()).toBe('0')
+    expect(psql(`select count(*) from public.tasks where title = 'Linked task';`).trim()).toBe('0')
+    expect(psql(`select count(*) from public.task_costs tc join public.tasks t on t.id = tc.task_id where t.title = 'Linked task';`).trim()).toBe('0')
+  })
+
+  it('keeps older paise and rejects a new task cost or payment that is not a whole rupee within ₹10 crore', () => {
+    psql(`
+      alter table public.task_costs disable trigger task_costs_whole_rupees;
+      alter table public.part_payments disable trigger part_payments_whole_rupees;
+    `)
+    try {
+      psql(`
+        insert into public.tasks (wedding_id, title, category, priority, status)
+        select id, 'Paise task', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+        insert into public.budget_items (wedding_id, category, currency, estimated, actual, paid_by_side)
+        select id, 'Paise Probe', 'INR', 100, 0, 'both' from public.weddings where couple_names = 'Role Fixture';
+        insert into public.task_costs (task_id, wedding_id, actual_cost, budget_category_id)
+        select t.id, t.wedding_id, 10.50, b.id
+        from public.tasks t
+        join public.budget_items b on b.wedding_id = t.wedding_id and b.category = 'Paise Probe'
+        where t.title = 'Paise task';
+        insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side, notes)
+        select id, 10.50, 'Earlier', 'bride', 'kept' from public.budget_items where category = 'Paise Probe';
+      `)
+    } finally {
+      psql(`
+        alter table public.task_costs enable trigger task_costs_whole_rupees;
+        alter table public.part_payments enable trigger part_payments_whole_rupees;
+      `)
+    }
+    psql(`update public.task_costs set updated_at = now() where task_id = (select id from public.tasks where title = 'Paise task');`)
+    expect(psql(`select case when actual_cost = 10.50 then 'yes' else 'no' end from public.task_costs where task_id = (select id from public.tasks where title = 'Paise task');`).trim()).toBe('yes')
+    psql(`update public.part_payments set notes = 'still kept' where amount = 10.50 and notes = 'kept';`)
+    expect(psql(`select case when amount = 10.50 then 'yes' else 'no' end from public.part_payments where notes = 'still kept';`).trim()).toBe('yes')
+    expect(dbError(`
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Fraction task', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 10.5 from public.tasks where title = 'Fraction task';
+    `)).toMatch(/whole rupees/)
+    expect(dbError(`
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Huge task', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 100000001 from public.tasks where title = 'Huge task';
+    `)).toMatch(/whole rupees/)
+    expect(dbError(`
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 0, 'Nobody', 'bride' from public.budget_items where category = 'Paise Probe';
+    `)).toMatch(/whole rupees/)
+    expect(dbError(`
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 10.5, 'Nobody', 'bride' from public.budget_items where category = 'Paise Probe';
+    `)).toMatch(/whole rupees/)
+    psql(`
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Zero cost', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 0 from public.tasks where title = 'Zero cost';
+      insert into public.tasks (wedding_id, title, category, priority, status)
+      select id, 'Cap cost', 'Other', 'Low', 'Pending' from public.weddings where couple_names = 'Role Fixture';
+      insert into public.task_costs (task_id, wedding_id, actual_cost)
+      select id, wedding_id, 100000000 from public.tasks where title = 'Cap cost';
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 100000000, 'Cap', 'groom' from public.budget_items where category = 'Paise Probe';
+    `)
+    expect(psql(`select case when actual_cost = 0 then 'yes' else 'no' end from public.task_costs where task_id = (select id from public.tasks where title = 'Zero cost');`).trim()).toBe('yes')
+    expect(psql(`select case when actual_cost = 100000000 then 'yes' else 'no' end from public.task_costs where task_id = (select id from public.tasks where title = 'Cap cost');`).trim()).toBe('yes')
   })
 
   it('if both bride and groom delete, the wedding and all its data are deleted', () => {
@@ -468,6 +639,69 @@ describe('approved role permissions', () => {
       psql(`update public.role_permissions set scope = 'none' where role = 'friend' and action = 'budget.view';`)
     }
     expect(asUser(friend, `select count(*) from public.budget_items where notes = 'hall';`)).toBe('0')
+  })
+
+  it('lets every member read an event phase and only the couple or planner change it', () => {
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    expect(asUser(friend, `select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(asUser(friend, `update public.wedding_functions set phase = 'post_wedding' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(asUser(family, `update public.wedding_functions set phase = 'post_wedding' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(asUser(planner, `update public.wedding_functions set phase = 'post_wedding' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('post_wedding')
+    expect(asUser(bride, `update public.wedding_functions set phase = 'wedding_day' where name = 'Wedding' and wedding_id = ${wedding}; select phase from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding};`)).toBe('wedding_day')
+    expect(errorOf(friend, `update public.tasks set function_id = (select id from public.wedding_functions where name = 'Wedding' and wedding_id = ${wedding}) where title = 'Friend task';`)).toMatch(/complete tasks assigned/i)
+    expect(psql(`select function_id is null from public.tasks where title = 'Friend task';`).trim()).toBe('t')
+  })
+
+  it('lets a phase be empty and links guests to functions with the same visibility as the guest', () => {
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    expect(psql(`select is_nullable from information_schema.columns where table_schema = 'public' and table_name = 'wedding_functions' and column_name = 'phase';`).trim()).toBe('YES')
+    expect(psql(`select public.default_function_phase('Sangeet');`).trim()).toBe('pre_wedding')
+    expect(psql(`select public.default_function_phase('Vidaai');`).trim()).toBe('wedding_day')
+    expect(psql(`select public.default_function_phase('Reception');`).trim()).toBe('post_wedding')
+    expect(psql(`select public.default_function_phase('Tilak');`).trim()).toBe('pre_wedding')
+    expect(psql(`select pg_get_expr(polqual, polrelid) from pg_policy where polname = 'guests_delete_by_permission';`)).not.toMatch(/both/)
+    expect(psql(`select pg_get_expr(polqual, polrelid) from pg_policy where polname = 'guests_select_by_permission';`)).toMatch(/both/)
+    expect(asUser(bride, `
+      update public.wedding_functions set phase = null where name = 'Haldi' and wedding_id = ${wedding};
+      select coalesce(phase, 'none') from public.wedding_functions where name = 'Haldi' and wedding_id = ${wedding};
+    `)).toBe('none')
+    expect(errorOf(bride, `update public.wedding_functions set phase = 'nope' where name = 'Haldi' and wedding_id = ${wedding};`)).toMatch(/check|phase/i)
+    expect(asUser(bride, `
+      update public.wedding_functions set phase = 'pre_wedding' where name = 'Haldi' and wedding_id = ${wedding};
+      select phase from public.wedding_functions where name = 'Haldi' and wedding_id = ${wedding};
+    `)).toBe('pre_wedding')
+    expect(asUser(bride, `
+      insert into public.guests (wedding_id, name, rsvp_status, side)
+      select id, 'Maybe Guest', 'Maybe', 'bride' from public.weddings where couple_names = 'Role Fixture';
+      select rsvp_status from public.guests where name = 'Maybe Guest';
+    `)).toBe('Maybe')
+    expect(asUser(bride, `
+      insert into public.guest_functions (guest_id, function_id, wedding_id)
+      select g.id, f.id, g.wedding_id
+      from public.guests g
+      join public.wedding_functions f on f.wedding_id = g.wedding_id and f.name = 'Mehendi'
+      where g.name = 'Bride Guest';
+      select count(*) from public.guest_functions gf
+      join public.guests g on g.id = gf.guest_id
+      where g.name = 'Bride Guest';
+    `)).toBe('1')
+    expect(asUser(family, `select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('1')
+    expect(asUser(friend, `select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('1')
+    expect(asUser(familyGroom, `select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('0')
+    const groomGuest = psql(`select id from public.guests where name = 'Groom Guest';`).trim()
+    const mehendi = psql(`select f.id from public.wedding_functions f join public.weddings w on w.id = f.wedding_id where w.couple_names = 'Role Fixture' and f.name = 'Mehendi';`).trim()
+    const weddingId = psql(`select id from public.weddings where couple_names = 'Role Fixture';`).trim()
+    expect(errorOf(family, `insert into public.guest_functions (guest_id, function_id, wedding_id) values ('${groomGuest}', '${mehendi}', '${weddingId}');`)).toMatch(/row-level security/i)
+    expect(errorOf(friend, `
+      insert into public.guest_functions (guest_id, function_id, wedding_id)
+      select g.id, f.id, g.wedding_id
+      from public.guests g
+      join public.wedding_functions f on f.wedding_id = g.wedding_id and f.name = 'Mehendi'
+      where g.name = 'Bride Guest';
+    `)).toMatch(/row-level security/i)
+    expect(asUser(friend, `delete from public.guest_functions where guest_id in (select id from public.guests where name = 'Bride Guest'); select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('1')
+    expect(asUser(family, `delete from public.guest_functions where guest_id in (select id from public.guests where name = 'Bride Guest'); select count(*) from public.guest_functions gf join public.guests g on g.id = gf.guest_id where g.name = 'Bride Guest';`)).toBe('0')
+    expect(asUser(bride, `delete from public.guests where name = 'Maybe Guest'; select count(*) from public.guests where name = 'Maybe Guest';`)).toBe('0')
   })
 
   it('copies the hindu checklist and lets only the couple or planner edit that wedding', () => {
@@ -803,6 +1037,210 @@ describe('approved role permissions', () => {
     `).trim().split('\n').filter(Boolean).at(-1)).toBe('Kavita Rao')
     expect(psql(`select count(*) from information_schema.columns where table_schema = 'public' and table_name in ('profiles', 'wedding_members') and column_name = 'email';`).trim()).toBe('0')
     expect(asUser(family, `select display_name from public.profiles where id = '${prefixed}';`)).toBe('Kavita Rao')
+  })
+
+  it('backfills a later actual gap, including paise and a row that already has a migrated note', () => {
+    const brideId = 'a4a4a4a4-a4a4-4a4a-8a4a-a4a4a4a4a4a4'
+    const gapFile = `${root}supabase/migrations/20261028150000_actual_gap_backfill.sql`
+    psql(`
+      insert into auth.users (id, email) values ('${brideId}', 'gap@example.com');
+      select set_config('request.jwt.claim.sub', '${brideId}', false);
+      set role authenticated;
+      select public.create_wedding('Gap Backfill', '2027-08-01', 'bride', 'Gap Bride', 'Pune');
+      reset role;
+      update public.budget_items set actual = 100000
+      where category = 'Photography' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 10.50
+      where category = 'Make Up Artists' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 100
+      where category = 'Decor' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side, notes)
+      select id, 40, 'Earlier spend (migrated)', null, 'Earlier spend (migrated)'
+      from public.budget_items
+      where category = 'Decor' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 500
+      where category = 'Attire' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side, notes)
+      select id, 500, 'Already', 'bride', 'covered'
+      from public.budget_items
+      where category = 'Attire' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+      update public.budget_items set actual = 80, currency = 'USD'
+      where category = 'Invitations' and wedding_id = (select id from public.weddings where couple_names = 'Gap Backfill');
+    `)
+    file(gapFile)
+    const wedding = `(select id from public.weddings where couple_names = 'Gap Backfill')`
+    const pay = (category: string) => psql(`
+      select coalesce(string_agg(amount::text, ',' order by amount), '')
+      from public.part_payments p
+      join public.budget_items b on b.id = p.budget_item_id
+      where b.wedding_id = ${wedding} and b.category = '${category}' and p.notes = 'Earlier spend (migrated)';
+    `).trim()
+    expect(pay('Photography')).toBe('100000.00')
+    expect(pay('Make Up Artists')).toBe('10.50')
+    expect(pay('Decor')).toBe('40.00,60.00')
+    expect(pay('Attire')).toBe('')
+    expect(pay('Invitations')).toBe('80.00')
+    expect(psql(`select count(*) from public.part_payments p join public.budget_items b on b.id = p.budget_item_id where b.wedding_id = ${wedding} and b.category = 'Attire';`).trim()).toBe('1')
+    file(gapFile)
+    expect(pay('Photography')).toBe('100000.00')
+    expect(pay('Decor')).toBe('40.00,60.00')
+    psql(`
+      update public.budget_items set actual = 150000
+      where category = 'Photography' and wedding_id = ${wedding};
+      update public.budget_items set actual = 25.75
+      where category = 'Make Up Artists' and wedding_id = ${wedding};
+    `)
+    file(gapFile)
+    expect(pay('Photography')).toBe('50000.00,100000.00')
+    expect(pay('Make Up Artists')).toBe('10.50,15.25')
+    file(gapFile)
+    expect(pay('Photography')).toBe('50000.00,100000.00')
+    expect(pay('Make Up Artists')).toBe('10.50,15.25')
+    expect(psql(`select tgenabled from pg_trigger where tgname = 'part_payments_whole_rupees' and tgrelid = 'public.part_payments'::regclass;`).trim()).toBe('O')
+    expect(dbError(`
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side)
+      select id, 10.5, 'Fraction', 'bride' from public.budget_items
+      where category = 'Photography' and wedding_id = ${wedding};
+    `)).toMatch(/whole rupees/)
+    psql(`delete from public.weddings where couple_names = 'Gap Backfill';`)
+  })
+
+  it('publishes guests and guest function links with a full replica identity', () => {
+    const guestFile = `${root}supabase/migrations/20261028160000_guest_realtime.sql`
+    file(guestFile)
+    const identity = psql(`
+      select c.relname || ':' || c.relreplident::text
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = 'public' and c.relname in ('guests', 'guest_functions')
+      order by c.relname;
+    `).trim().split('\n')
+    expect(identity).toEqual(['guest_functions:f', 'guests:f'])
+    const published = psql(`
+      select tablename
+      from pg_publication_tables
+      where pubname = 'supabase_realtime' and tablename in ('guests', 'guest_functions')
+      order by tablename;
+    `).trim().split('\n')
+    expect(published).toEqual(['guest_functions', 'guests'])
+    file(guestFile)
+    expect(psql(`
+      select count(*) from pg_publication_tables
+      where pubname = 'supabase_realtime' and tablename in ('guests', 'guest_functions');
+    `).trim()).toBe('2')
+  })
+
+  it('pings wedding members without guest fields, and rejects a repeated category name', () => {
+    const pingFile = `${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`
+    const otherSide = 'e7e7e7e7-e7e7-e7e7-e7e7-e7e7e7e7e7e7'
+    const outsider = 'e8e8e8e8-e8e8-e8e8-e8e8-e8e8e8e8e8e8'
+    const wedding = `(select id from public.weddings where couple_names = 'Role Fixture')`
+    file(pingFile)
+    expect(psql(`select count(*) from pg_trigger where tgname = 'guests_ping_list' and not tgisinternal;`).trim()).toBe('1')
+    expect(psql(`select count(*) from pg_trigger where tgname = 'guest_functions_ping_list' and not tgisinternal;`).trim()).toBe('1')
+    expect(psql(`select count(*) from pg_trigger where tgname = 'budget_items_unique_name' and not tgisinternal;`).trim()).toBe('1')
+    const definition = psql(`select pg_get_functiondef('public.ping_guest_list()'::regprocedure);`)
+    for (const column of ['name', 'side', 'email', 'phone', 'rsvp_status', 'meal', 'plus_ones', 'guest_id']) {
+      expect(definition).not.toMatch(new RegExp(`\\b${column}\\b`))
+    }
+    psql(`
+      insert into auth.users (id, email) values
+        ('${otherSide}', 'other-side@example.com'),
+        ('${outsider}', 'outsider@example.com')
+      on conflict (id) do nothing;
+      insert into public.wedding_members (wedding_id, user_id, role, side, display_name)
+      select id, '${otherSide}', 'family', 'groom', 'Other Side'
+      from public.weddings where couple_names = 'Role Fixture'
+        and not exists (
+          select 1 from public.wedding_members
+          where user_id = '${otherSide}' and wedding_id = public.weddings.id
+        );
+      insert into public.guests (wedding_id, name, side, email, phone)
+      select id, 'Secret Guest', 'bride', 'secret@example.com', '999' from public.weddings where couple_names = 'Role Fixture';
+    `)
+    const topic = psql(`select 'wedding:' || id::text || ':guests' from public.weddings where couple_names = 'Role Fixture';`).trim()
+    const readPing = (userId: string) => asUser(userId, `
+      select set_config('realtime.topic', '${topic}', false);
+      select (payload - 'table' - 'wedding_id')::text || '|' || payload::text
+      from realtime.messages
+      where event = 'guest_ping'
+      order by id desc
+      limit 1;
+    `)
+    const latest = psql(`
+      select (payload - 'table' - 'wedding_id')::text
+        || '|' || (select string_agg(item.key, ',' order by item.key) from jsonb_each(payload) as item(key, value))
+        || '|' || (payload->>'table')
+        || '|' || (payload->>'wedding_id')
+      from realtime.messages
+      where event = 'guest_ping'
+      order by id desc
+      limit 1;
+    `).trim()
+    const weddingId = psql(`select id::text from public.weddings where couple_names = 'Role Fixture';`).trim()
+    expect(latest).toBe(`{}|table,wedding_id|guests|${weddingId}`)
+    expect(psql(`select payload::text from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).not.toContain('Secret Guest')
+    expect(asUser(otherSide, `select count(*) from public.guests where name = 'Secret Guest';`)).toBe('0')
+    for (const member of [friend, family, otherSide]) {
+      const row = readPing(member)
+      expect(row.startsWith('{}|')).toBe(true)
+      expect(row).not.toContain('Secret Guest')
+      expect(row).not.toContain('secret@example.com')
+      expect(row).not.toContain('999')
+    }
+    expect(asUser(outsider, `
+      select set_config('realtime.topic', '${topic}', false);
+      select count(*) from realtime.messages;
+    `)).toBe('0')
+    psql(`update public.guests set side = 'groom' where name = 'Secret Guest' and wedding_id = ${wedding};`)
+    expect(psql(`select payload->>'table' from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).toBe('guests')
+    expect(psql(`select payload::text from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).not.toContain('Secret Guest')
+    expect(asUser(family, `select count(*) from public.guests where name = 'Secret Guest';`)).toBe('0')
+    const mehendi = psql(`select f.id from public.wedding_functions f join public.weddings w on w.id = f.wedding_id where w.couple_names = 'Role Fixture' and f.name = 'Mehendi';`).trim()
+    psql(`
+      insert into public.guest_functions (guest_id, function_id, wedding_id)
+      select g.id, '${mehendi}', g.wedding_id
+      from public.guests g
+      where g.name = 'Secret Guest';
+    `)
+    expect(psql(`select payload->>'table' from realtime.messages where event = 'guest_ping' order by id desc limit 1;`).trim()).toBe('guest_functions')
+    expect(readPing(friend)).not.toContain('Secret Guest')
+    psql(`delete from public.guests where name = 'Secret Guest';`)
+
+    const venueId = psql(`select id from public.budget_items where category = 'Venue' and wedding_id = ${wedding} limit 1;`).trim()
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'Venue', 10 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/already exists/i)
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, ' venue ', 10 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/already exists/i)
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'VENUE', 10 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/already exists/i)
+    psql(`update public.budget_items set estimated = 4242 where id = '${venueId}';`)
+    expect(psql(`select estimated from public.budget_items where id = '${venueId}';`).trim()).toBe('4242.00')
+    psql(`alter table public.budget_items disable trigger budget_items_unique_name;`)
+    psql(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'Dup Cat', 1 from public.weddings where couple_names = 'Role Fixture';
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, 'Dup Cat', 2 from public.weddings where couple_names = 'Role Fixture';
+    `)
+    psql(`alter table public.budget_items enable trigger budget_items_unique_name;`)
+    psql(`update public.budget_items set estimated = 9 where category = 'Dup Cat' and wedding_id = ${wedding};`)
+    expect(psql(`select count(*) from public.budget_items where category = 'Dup Cat' and estimated = 9 and wedding_id = ${wedding};`).trim()).toBe('2')
+    psql(`update public.budget_items set category = 'Dup Cat', notes = 'kept' where category = 'Dup Cat' and wedding_id = ${wedding};`)
+    expect(dbError(`
+      insert into public.budget_items (wedding_id, category, estimated)
+      select id, ' dup cat ', 3 from public.weddings where couple_names = 'Role Fixture';
+    `)).toMatch(/A category with this name already exists\./)
+    psql(`delete from public.budget_items where category = 'Dup Cat' and wedding_id = ${wedding};`)
+    psql(`update public.budget_items set estimated = 0 where id = '${venueId}';`)
+    file(pingFile)
+    expect(psql(`select count(*) from pg_trigger where tgname = 'guests_ping_list' and not tgisinternal;`).trim()).toBe('1')
   })
 })
 

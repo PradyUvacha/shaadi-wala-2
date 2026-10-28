@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react'
+import type { FunctionPhase } from '../config/phases.ts'
 import type { RowGuard } from '../lib/errors.ts'
 import type {
   BudgetDraft,
@@ -9,6 +10,7 @@ import type {
   MilestoneDraft,
   PartPaymentDraft,
   Side,
+  Guest,
   Task,
   TaskDraft,
   WeddingBundle,
@@ -29,6 +31,8 @@ export type WeddingContextValue = {
   clearError: () => void
   reload: () => void
   refreshWedding: () => Promise<WeddingBundle | null>
+  refreshGuests: () => Promise<Guest[]>
+  guestPingDown: boolean
   startPreview: () => void
   leavePreview: () => void
   createWedding: (input: CreateWeddingInput) => Promise<void>
@@ -36,7 +40,7 @@ export type WeddingContextValue = {
   saveTask: (draft: TaskDraft, id?: string, guard?: RowGuard) => Promise<void>
   deleteTask: (id: string) => Promise<void>
   toggleTask: (task: Task) => Promise<void>
-  saveFunction: (name: string, id?: string, guard?: RowGuard) => Promise<void>
+  saveFunction: (name: string, id?: string, guard?: RowGuard, phase?: FunctionPhase | null) => Promise<void>
   deleteFunction: (id: string) => Promise<void>
   moveFunction: (id: string, direction: -1 | 1) => Promise<void>
   moveTask: (id: string, direction: -1 | 1) => Promise<void>

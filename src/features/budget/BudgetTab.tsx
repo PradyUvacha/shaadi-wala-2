@@ -1,20 +1,24 @@
-import { useState } from 'react'
-import { Badge, FAB, Field, FormError, MehendiPattern, Modal } from '../../components/ui.tsx'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { FAB, Field, FormError, Modal } from '../../components/ui.tsx'
+import { MOVE_LINKS_BEFORE_DELETE } from '../../config/budgetRules.ts'
+import { DUPLICATE_CATEGORY_MESSAGE, categoryNameKey, duplicateCategoryName } from '../../lib/budgetCategories.ts'
 import { canEditBudget, canLogPayment, canSeeBudget } from '../../lib/access.ts'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
-import { budgetHeadline, canAddSplit, defaultPayerForSide, familySettlement, MAX_BUDGET_AMOUNT, moneyAmountError, otherCurrencyTotals, payerLabel, settlementSummary, sideLabel, SPLIT_REQUIRED, splitsForPayer, splitsForSave, validateBudgetAmounts } from '../../lib/planning.ts'
 import { money } from '../../lib/format.ts'
+import { budgetHeadline, canAddSplit, defaultPayerForSide, familySettlement, MAX_BUDGET_AMOUNT, otherCurrencyTotals, payerLabel, settlementSummary, sideLabel, SPLIT_REQUIRED, splitsForPayer, splitsForSave } from '../../lib/planning.ts'
+import { formatInrGrouped, formatInrShort, percentOf, remainingLabel, rollupWedding, roundHalfUpRupees, splitShareLabel, toPaise, wholeRupeeProblem, type CategoryCard } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
-import { CATEGORY_COLORS, COLORS, CURRENCIES } from '../../styles/tokens.ts'
-import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
-import type { BudgetDraft, BudgetItem, Category, CurrencyCode, Payer, PartPaymentDraft, PaymentSide } from '../../types.ts'
-import { CATEGORIES, CURRENCY_CODES, PAYERS } from '../../types.ts'
+import { COLORS, RADIUS, SIZE, TYPE } from '../../styles/tokens.ts'
+import { cardStyle, inputStyle, primaryButton, sectionLabel, selectStyle } from '../../styles/ui.ts'
+import { headerPadding } from '../../styles/safeArea.ts'
+import type { BudgetDraft, BudgetItem, Payer, PartPaymentDraft, PaymentSide, Task } from '../../types.ts'
+import { PAYERS } from '../../types.ts'
 
 const emptyForm = (side: 'bride' | 'groom' | null): BudgetDraft => {
   const paidBySide = defaultPayerForSide(side)
   return {
-    category: 'Venue',
+    category: '',
     currency: 'INR',
     estimated: 0,
     actual: 0,
@@ -25,7 +29,20 @@ const emptyForm = (side: 'bride' | 'groom' | null): BudgetDraft => {
   }
 }
 
+function useNarrow(max = 320) {
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia(`(max-width: ${max}px)`).matches)
+  useEffect(() => {
+    const query = window.matchMedia(`(max-width: ${max}px)`)
+    const update = () => setNarrow(query.matches)
+    update()
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [max])
+  return narrow
+}
+
 export function BudgetTab() {
+  const navigate = useNavigate()
   const { bundle, mode, saveBudgetItem, deleteBudgetItem, addPayment, refreshWedding } = useWedding()
   const role = bundle?.membership.role
   const seeBudget = mode === 'preview' || canSeeBudget(role)
@@ -33,31 +50,38 @@ export function BudgetTab() {
   const logPayment = mode === 'preview' || canLogPayment(role)
   const creatorSide = bundle?.membership.side ?? null
   const budget = bundle?.budget ?? []
-  const [currFilter, setCurrFilter] = useState('All')
+  const tasks = bundle?.tasks ?? []
+  const narrow = useNarrow()
+  const rolled = rollupWedding(budget, tasks)
+  const headline = budgetHeadline(budget, 'INR')
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [modalOpen, setModalOpen] = useState(false)
   const [editItem, setEditItem] = useState<BudgetItem | null>(null)
+  const [estimateText, setEstimateText] = useState('')
   const [payItemId, setPayItemId] = useState<string | null>(null)
-  const [payForm, setPayForm] = useState<PartPaymentDraft>({ amount: 0, paidBy: '', paidBySide: '', notes: '', date: '' })
+  const [payText, setPayText] = useState('')
+  const [payForm, setPayForm] = useState<Omit<PartPaymentDraft, 'amount'>>({ paidBy: '', paidBySide: '', notes: '', date: '' })
+  const [inlineId, setInlineId] = useState<string | null>(null)
+  const [inlineText, setInlineText] = useState('')
   const [form, setForm] = useState<BudgetDraft>(() => emptyForm(creatorSide))
   const [splitSide, setSplitSide] = useState<'bride' | 'groom'>(creatorSide === 'groom' ? 'groom' : 'bride')
   const [splitName, setSplitName] = useState('')
   const [splitPct, setSplitPct] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-
-  const filtered = currFilter === 'All' ? budget : budget.filter((item) => item.currency === currFilter)
-  const totals = budgetHeadline(budget, currFilter)
-  const symbol = CURRENCIES[totals.currency]?.symbol || '₹'
-  const otherCurrencies = currFilter === 'All' ? otherCurrencyTotals(budget) : []
+  const moneyText = (rupees: bigint) => (narrow ? formatInrShort(rupees) : formatInrGrouped(rupees))
+  const remaining = remainingLabel(rolled.remainingRupees)
 
   const openAdd = () => {
     setEditItem(null)
     setForm(emptyForm(creatorSide))
+    setEstimateText('')
     setError(null)
     setModalOpen(true)
   }
   const openEdit = (item: BudgetItem) => {
     setEditItem(item)
+    setEstimateText(String(Math.round(item.estimated)))
     setForm({
       category: item.category,
       currency: item.currency,
@@ -72,13 +96,23 @@ export function BudgetTab() {
     setModalOpen(true)
   }
   const save = async () => {
-    const invalid = validateBudgetAmounts(form.estimated, form.actual)
-    if (invalid) {
-      setError(invalid)
+    const problem = wholeRupeeProblem(estimateText)
+    if (problem) {
+      setError(problem)
       return
     }
+    if (!form.category.trim()) {
+      setError('Name the category.')
+      return
+    }
+    const unchangedName = editItem ? categoryNameKey(editItem.category) === categoryNameKey(form.category) : false
+    if (!unchangedName && duplicateCategoryName(budget, form.category, editItem?.id)) {
+      setError(DUPLICATE_CATEGORY_MESSAGE)
+      return
+    }
+    const next = { ...form, currency: editItem ? form.currency : 'INR' as const, estimated: Number(estimateText), actual: editItem?.actual ?? 0 }
     try {
-      splitsForSave(form)
+      splitsForSave(next)
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : SPLIT_REQUIRED)
       return
@@ -86,7 +120,7 @@ export function BudgetTab() {
     setBusy(true)
     setError(null)
     try {
-      await saveBudgetItem(form, editItem?.id)
+      await saveBudgetItem(next, editItem?.id)
       setModalOpen(false)
     } catch (caught) {
       const failure = saveErrorPresentation(caught)
@@ -102,6 +136,44 @@ export function BudgetTab() {
       setBusy(false)
     }
   }
+  const saveInline = async (item: BudgetItem) => {
+    const problem = wholeRupeeProblem(inlineText)
+    if (problem) {
+      setError(problem)
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      await saveBudgetItem({
+        category: item.category,
+        currency: item.currency,
+        estimated: Number(inlineText),
+        actual: item.actual,
+        paid: item.paid,
+        notes: item.notes,
+        paidBySide: item.paidBySide,
+        splits: item.splits,
+      }, item.id)
+      setInlineId(null)
+    } catch (caught) {
+      setError(toErrorMessage(caught))
+    } finally {
+      setBusy(false)
+    }
+  }
+  const removeCategory = async (item: BudgetItem) => {
+    const linked = tasks.some((task) => task.budgetCategoryId === item.id)
+    if (linked || item.partPayments.length > 0) {
+      setError(MOVE_LINKS_BEFORE_DELETE)
+      return
+    }
+    try {
+      await deleteBudgetItem(item.id)
+    } catch (caught) {
+      setError(toErrorMessage(caught))
+    }
+  }
   const addSplit = () => {
     const pct = Number(splitPct)
     if (!splitName.trim() || !canAddSplit(form.splits, pct)) return
@@ -114,17 +186,22 @@ export function BudgetTab() {
     setSplitPct('')
   }
   const recordPayment = async () => {
-    const invalid = moneyAmountError(Number(payForm.amount), 'Payment', false)
-    if (!payItemId || invalid) {
-      setError(invalid ?? 'Enter a payment amount greater than zero.')
+    const problem = wholeRupeeProblem(payText)
+    if (!payItemId || problem || Number(payText) === 0) {
+      setError(problem && Number(payText) !== 0 ? problem : 'Enter a payment amount greater than zero.')
+      return
+    }
+    if (Number(payText) > MAX_BUDGET_AMOUNT) {
+      setError('Payment cannot be more than ₹10 crore.')
       return
     }
     setBusy(true)
     setError(null)
     try {
-      await addPayment(payItemId, { ...payForm, date: new Date().toISOString().slice(0, 10) })
+      await addPayment(payItemId, { ...payForm, amount: Number(payText), date: new Date().toISOString().slice(0, 10) })
       setPayItemId(null)
-      setPayForm({ amount: 0, paidBy: '', paidBySide: '', notes: '', date: '' })
+      setPayText('')
+      setPayForm({ paidBy: '', paidBySide: '', notes: '', date: '' })
     } catch (caught) {
       setError(toErrorMessage(caught))
     } finally {
@@ -136,121 +213,91 @@ export function BudgetTab() {
     return (
       <div style={{ padding: headerPadding }}>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: COLORS.crimson }}>Budget</div>
-        <p style={{ color: '#5A2020' }}>Friends do not have budget access.</p>
+        <p style={{ color: COLORS.ink }}>Friends do not have budget access.</p>
       </div>
     )
   }
 
+  const cards = rolled.uncategorised ? [...rolled.categories, rolled.uncategorised] : rolled.categories
+
   return (
-    <div style={{ paddingBottom: listAboveFab }}>
-      <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},#5C0000)`, padding: headerPadding, position: 'relative', overflow: 'hidden' }}>
-        <MehendiPattern />
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700, marginBottom: 12 }}>💰 Budget Planner</div>
-          <div style={{ display: 'flex', gap: 10, overflowX: 'auto' }}>
-            {['All', ...CURRENCY_CODES].map((code) => (
-              <button key={code} type="button" onClick={() => setCurrFilter(code)} style={{ padding: '5px 14px', borderRadius: 99, border: `1px solid ${currFilter === code ? '#fff' : 'rgba(255,255,255,0.4)'}`, background: currFilter === code ? 'rgba(255,255,255,0.25)' : 'transparent', color: '#fff', fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>
-                {code === 'All' ? 'All' : `${CURRENCIES[code]?.symbol || code} ${code}`}
-              </button>
-            ))}
-          </div>
-        </div>
+    <div>
+      <div style={{ background: COLORS.appBar, padding: headerPadding }}>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 22, color: '#fff', fontWeight: 700 }}>Budget</div>
+        <p style={{ margin: '6px 0 0', color: COLORS.gold, fontSize: TYPE.small }}>{headline.currency} totals</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, margin: '14px 16px' }}>
-        {[
-          { label: 'Budget', value: totals.estimated, color: COLORS.crimson },
-          { label: 'Spent', value: totals.actual, color: '#CC2222' },
-          { label: 'Remaining', value: totals.estimated - totals.actual, color: totals.estimated - totals.actual >= 0 ? COLORS.green : COLORS.crimson },
-        ].map((card) => (
-          <div key={card.label} style={{ background: `linear-gradient(135deg,${card.color}18,${card.color}08)`, border: `1px solid ${card.color}30`, borderRadius: 14, padding: '12px 10px', textAlign: 'center' }}>
-            <div style={{ fontSize: 10, color: '#7A3030', fontWeight: 600, marginBottom: 4, textTransform: 'uppercase' }}>{card.label}</div>
-            <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 14, fontWeight: 700, color: card.color }}>{symbol}{Math.abs(card.value).toLocaleString('en-IN')}</div>
-          </div>
-        ))}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, margin: '16px' }}>
+        <Tile label="Budget" value={moneyText(rolled.budgetRupees)} tint={COLORS.roseTint} labelColor={COLORS.crimson} icon="budget" />
+        <Tile label="Actual" value={moneyText(rolled.actualRupees)} tint={COLORS.goldTint} labelColor={COLORS.goldText} icon="actual" hint={rolled.categories.some((card) => card.auto) || rolled.uncategorised ? 'auto-calc' : undefined} />
+        <Tile label="Remaining" value={remaining.over ? remaining.text : moneyText(rolled.remainingRupees)} tint={remaining.over ? COLORS.dangerTint : COLORS.greenTint} labelColor={remaining.over ? COLORS.danger : COLORS.greenText} icon="remaining" />
       </div>
-      {otherCurrencies.length > 0 && (
-        <p style={{ margin: '0 16px', fontSize: 12, color: '#7A3030' }}>
-          Rupee totals only. {otherCurrencies.map((line) => `${line.currency} ${money(line.estimated, CURRENCIES[line.currency]?.symbol || '')} estimated`).join(' · ')} is kept separate.
-        </p>
+      {rolled.committedRupees > 0n && (
+        <p style={{ margin: '-8px 16px 12px', color: COLORS.muted, fontSize: TYPE.small }}>Committed (pending) {formatInrGrouped(rolled.committedRupees)}</p>
+      )}
+      {rolled.foreignNotes.length > 0 && (
+        <p style={{ margin: '0 16px 12px', color: COLORS.muted, fontSize: TYPE.small }}>{rolled.foreignNotes.join(' · ')}</p>
+      )}
+      {otherCurrencyTotals(budget).length > 0 && rolled.foreignNotes.length === 0 && (
+        <p style={{ margin: '0 16px 12px', color: COLORS.muted, fontSize: TYPE.small }}>Totals stay in rupees.</p>
       )}
 
-      <Settlement items={budget} />
-
+      <Settlement items={budget} tasks={tasks} />
       {error && !modalOpen && !payItemId && <div style={{ padding: '0 16px 8px' }}><FormError message={error} /></div>}
+
       <div style={{ padding: '0 16px' }}>
-        {filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: '#A07070' }}>
-            <div style={{ fontSize: 48, marginBottom: 12, opacity: 0.3 }}>💰</div>
+        {cards.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px', color: COLORS.muted }}>
             <div style={{ fontSize: 16, fontWeight: 600 }}>No budget items yet</div>
           </div>
-        ) : (
-          filtered.map((item) => {
-            const itemSymbol = CURRENCIES[item.currency]?.symbol || '₹'
-            return (
-              <div key={item.id} style={{ background: COLORS.cardBg, border: '1px solid #E8D4B0', borderRadius: 16, padding: 14, marginBottom: 12, animation: 'fadeIn 0.3s ease' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-                  <div>
-                    <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 700, color: '#2A0A0A' }}>{item.category}</div>
-                    {item.notes && <div style={{ fontSize: 11, color: '#8B5050', marginTop: 2 }}>{item.notes}</div>}
-                  </div>
-                  <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <Badge color={CATEGORY_COLORS[item.category] || '#666'} small>{item.currency}</Badge>
-                    <Badge color={COLORS.saffron} small>{payerLabel(item.paidBySide)}</Badge>
-                    {item.paid && <Badge color={COLORS.green} small>PAID</Badge>}
-                  </div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
-                  <div style={{ background: '#F5EDD8', borderRadius: 10, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, color: '#8B5050', fontWeight: 600 }}>Estimated</div>
-                    <div style={{ fontWeight: 700, color: COLORS.crimson, fontSize: 14 }}>{itemSymbol}{Number(item.estimated || 0).toLocaleString('en-IN')}</div>
-                  </div>
-                  <div style={{ background: '#F5EDD8', borderRadius: 10, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, color: '#8B5050', fontWeight: 600 }}>Actual</div>
-                    <div style={{ fontWeight: 700, color: '#2A7A2A', fontSize: 14 }}>{itemSymbol}{Number(item.actual || 0).toLocaleString('en-IN')}</div>
-                  </div>
-                </div>
-                {item.partPayments.length > 0 && (
-                  <div style={{ background: '#FFF3E0', borderRadius: 10, padding: 10, marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: COLORS.saffron, marginBottom: 6 }}>💰 Payments ({item.partPayments.length})</div>
-                    {item.partPayments.map((payment) => (
-                      <div key={payment.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '3px 0' }}>
-                        <span style={{ color: '#5A3010' }}>{payment.paidBy || '—'} · {payment.date}</span>
-                        <span style={{ fontWeight: 600, color: COLORS.saffron }}>{itemSymbol}{Number(payment.amount).toLocaleString('en-IN')}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {item.splits.length > 0 && (
-                  <div style={{ background: '#F0F8FF', borderRadius: 10, padding: 10, marginBottom: 8 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#1E5F8E', marginBottom: 6 }}>📊 Split Between:</div>
-                    {item.splits.map((split) => (
-                      <div key={split.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '3px 0' }}>
-                        <span style={{ color: '#2A4A6A' }}>{split.name}</span>
-                        <span style={{ fontWeight: 600, color: '#1E5F8E' }}>{split.pct}% · {itemSymbol}{Math.round(item.estimated * (split.pct / 100)).toLocaleString('en-IN')}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {logPayment && <button type="button" onClick={() => { setError(null); setPayItemId(item.id) }} style={{ flex: 1, padding: 8, borderRadius: 10, border: `1px solid ${COLORS.green}`, background: 'transparent', color: COLORS.green, fontSize: 16, fontWeight: 600, cursor: 'pointer' }}>+ Payment</button>}
-                  {editBudget && <button type="button" aria-label="Edit budget item" onClick={() => openEdit(item)} style={{ padding: '8px 12px', borderRadius: 10, border: `1px solid ${COLORS.gold}`, background: 'transparent', color: COLORS.gold, cursor: 'pointer' }}>✏️</button>}
-                  {editBudget && <button type="button" aria-label="Delete budget item" onClick={() => void deleteBudgetItem(item.id).catch((caught) => setError(toErrorMessage(caught)))} style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid #CC4444', background: 'transparent', color: '#CC4444', cursor: 'pointer' }}>🗑️</button>}
-                </div>
-              </div>
-            )
-          })
-        )}
+        ) : cards.map((card) => (
+          <CategoryCardView
+            key={card.key}
+            card={card}
+            narrow={narrow}
+            expanded={Boolean(expanded[card.key])}
+            editBudget={editBudget && card.primaryItemId != null}
+            logPayment={logPayment && card.primaryItemId != null}
+            inline={inlineId === card.primaryItemId}
+            inlineText={inlineText}
+            onInlineText={setInlineText}
+            onToggle={() => setExpanded((current) => ({ ...current, [card.key]: !current[card.key] }))}
+            onEditBudget={() => {
+              const item = budget.find((entry) => entry.id === card.primaryItemId)
+              if (!item) return
+              setInlineId(item.id)
+              setInlineText(String(Math.round(item.estimated)))
+            }}
+            onSaveInline={() => {
+              const item = budget.find((entry) => entry.id === card.primaryItemId)
+              if (item) void saveInline(item)
+            }}
+            onPay={() => {
+              if (!card.primaryItemId) return
+              setError(null)
+              setPayItemId(card.primaryItemId)
+            }}
+            onOpen={(taskId) => navigate(`/planning?edit=${taskId}`)}
+            onRename={() => {
+              const item = budget.find((entry) => entry.id === card.primaryItemId)
+              if (item) openEdit(item)
+            }}
+            onDelete={() => {
+              const item = budget.find((entry) => entry.id === card.primaryItemId)
+              if (item) void removeCategory(item)
+            }}
+          />
+        ))}
       </div>
 
       {editBudget && <FAB onClick={openAdd} />}
 
-      <Modal open={!!payItemId} onClose={() => setPayItemId(null)} title="Add Payment" headerColor={`linear-gradient(135deg,${COLORS.green},#1A5C35)`}>
+      <Modal open={!!payItemId} onClose={() => setPayItemId(null)} title="Record payment">
         <FormError message={error} />
         <Field label="Amount">
-          <input style={inputStyle} type="number" min={0} max={MAX_BUDGET_AMOUNT} step="0.01" value={payForm.amount || ''} onChange={(event) => setPayForm((current) => ({ ...current, amount: Number(event.target.value) }))} placeholder="0" />
+          <input style={inputStyle} inputMode="numeric" value={payText} onChange={(event) => setPayText(event.target.value)} placeholder="0" />
         </Field>
-        <Field label="Paid By">
+        <Field label="Paid by">
           <input style={inputStyle} value={payForm.paidBy} onChange={(event) => setPayForm((current) => ({ ...current, paidBy: event.target.value }))} placeholder="Name" />
         </Field>
         <Field label="Which family">
@@ -262,100 +309,224 @@ export function BudgetTab() {
           </select>
         </Field>
         <Field label="Notes">
-          <input style={inputStyle} value={payForm.notes} onChange={(event) => setPayForm((current) => ({ ...current, notes: event.target.value }))} placeholder="e.g. First installment" />
+          <input style={inputStyle} value={payForm.notes} onChange={(event) => setPayForm((current) => ({ ...current, notes: event.target.value }))} placeholder="First installment" />
         </Field>
-        <button type="button" disabled={busy} onClick={() => void recordPayment()} style={primaryButton(`linear-gradient(135deg,${COLORS.green},#1A5C35)`)}>
+        <button type="button" disabled={busy} onClick={() => void recordPayment()} style={primaryButton(`linear-gradient(135deg,${COLORS.green},${COLORS.greenText})`)}>
           {busy ? 'Saving…' : 'Record Payment'}
         </button>
       </Modal>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Edit Budget Item' : 'New Budget Item'}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Edit category' : 'New category'}>
         <FormError message={error} />
         <Field label="Category">
-          <select style={selectStyle} value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value as Category }))}>
-            {CATEGORIES.map((category) => <option key={category}>{category}</option>)}
-          </select>
+          <input style={inputStyle} value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} placeholder="Venue" />
         </Field>
-        <Field label="Currency">
-          <select style={selectStyle} value={form.currency} onChange={(event) => setForm((current) => ({ ...current, currency: event.target.value as CurrencyCode }))}>
-            {CURRENCY_CODES.map((code) => <option key={code} value={code}>{CURRENCIES[code]?.symbol} {code}</option>)}
-          </select>
+        <Field label="Budget (₹)">
+          <input style={inputStyle} inputMode="numeric" value={estimateText} onChange={(event) => setEstimateText(event.target.value)} />
         </Field>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <Field label="Estimated">
-            <input style={inputStyle} type="number" min={0} max={MAX_BUDGET_AMOUNT} step="0.01" value={form.estimated} onChange={(event) => setForm((current) => ({ ...current, estimated: Number(event.target.value) }))} />
-          </Field>
-          <Field label="Actual">
-            <input style={inputStyle} type="number" min={0} max={MAX_BUDGET_AMOUNT} step="0.01" value={form.actual} onChange={(event) => setForm((current) => ({ ...current, actual: Number(event.target.value) }))} />
-          </Field>
-        </div>
+        {editItem && <p style={{ color: COLORS.muted, fontSize: TYPE.small }}>Actual follows logged payments and done tasks.</p>}
         <Field label="Which family pays">
           <select
             style={selectStyle}
             value={form.paidBySide}
             onChange={(event) => {
               const payer = event.target.value as Payer
-              setForm((current) => ({
-                ...current,
-                paidBySide: payer,
-                splits: payer === 'custom' ? current.splits : splitsForPayer(payer),
-              }))
+              setForm((current) => ({ ...current, paidBySide: payer, splits: payer === 'custom' ? current.splits : splitsForPayer(payer) }))
             }}
           >
             {PAYERS.map((payer) => <option key={payer} value={payer}>{payerLabel(payer)}</option>)}
           </select>
         </Field>
-        <div style={{ background: '#FFF3E0', borderRadius: 12, padding: 12, marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: COLORS.saffron, marginBottom: 10 }}>💸 Split Payment</div>
+        <div style={{ background: COLORS.parchment, borderRadius: 12, padding: 12, marginBottom: 14 }}>
+          <div style={{ ...sectionLabel, marginTop: 0 }}>Split payment</div>
           {form.paidBySide === 'custom' && (
-            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
               <input style={{ ...inputStyle, flex: 2 }} value={splitName} onChange={(event) => setSplitName(event.target.value)} placeholder="Name" />
-              <select style={{ ...selectStyle, flex: 1.4 }} aria-label="Split side" value={splitSide} onChange={(event) => setSplitSide(event.target.value === 'groom' ? 'groom' : 'bride')}>
+              <select style={{ ...selectStyle, flex: 1 }} aria-label="Split side" value={splitSide} onChange={(event) => setSplitSide(event.target.value === 'groom' ? 'groom' : 'bride')}>
                 <option value="bride">Bride's side</option>
                 <option value="groom">Groom's side</option>
               </select>
-              <input style={{ ...inputStyle, flex: 1 }} type="number" value={splitPct} onChange={(event) => setSplitPct(event.target.value)} placeholder="%" />
-              <button type="button" onClick={addSplit} style={{ padding: '10px 14px', borderRadius: 10, background: COLORS.saffron, border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 700 }}>+</button>
+              <input style={{ ...inputStyle, flex: 1 }} inputMode="numeric" value={splitPct} onChange={(event) => setSplitPct(event.target.value)} placeholder="%" />
+              <button type="button" onClick={addSplit} style={{ ...primaryButton(COLORS.crimson), width: 'auto', minWidth: SIZE.tap }}>+</button>
             </div>
           )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {form.splits.map((split, index) => (
-              <div key={`${split.name}-${index}`} style={{ background: `${COLORS.saffron}22`, border: `1px solid ${COLORS.saffron}55`, borderRadius: 99, padding: '4px 10px', fontSize: 11, fontWeight: 600, color: COLORS.saffron, display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div key={`${split.name}-${index}`} style={{ background: COLORS.goldTint, borderRadius: 999, padding: '8px 12px', fontSize: TYPE.small, color: COLORS.ink }}>
                 {split.name} {split.pct}%{split.side === 'bride' || split.side === 'groom' ? ` · ${sideLabel(split.side)}` : ''}
-                {form.paidBySide === 'custom' && (
-                  <button type="button" aria-label="Remove split" onClick={() => setForm((current) => ({ ...current, splits: current.splits.filter((_, splitIndex) => splitIndex !== index) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#AA5500', fontSize: 12 }}>×</button>
-                )}
               </div>
             ))}
           </div>
         </div>
         <Field label="Notes">
-          <textarea style={{ ...inputStyle, minHeight: 60, resize: 'vertical' }} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Notes..." />
+          <textarea style={{ ...inputStyle, height: 'auto', maxHeight: 'none', minHeight: 72, resize: 'vertical' }} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
         </Field>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, minHeight: 44 }}>
-          <input type="checkbox" id="paid" checked={form.paid} onChange={(event) => setForm((current) => ({ ...current, paid: event.target.checked }))} style={{ width: 22, height: 22, accentColor: COLORS.crimson }} />
-          <label htmlFor="paid" style={{ fontSize: 16, color: '#5A2020', fontWeight: 600 }}>Mark as Paid</label>
-        </div>
-        <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton(`linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`)}>
-          {busy ? 'Saving…' : editItem ? 'Save Changes' : 'Add Item'}
+        <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton()}>
+          {busy ? 'Saving…' : editItem ? 'Save changes' : 'Add category'}
         </button>
       </Modal>
     </div>
   )
 }
 
-function Settlement({ items }: { items: BudgetItem[] }) {
-  const settlement = familySettlement(items)
+function Tile({ label, value, tint, labelColor, icon, hint }: { label: string; value: string; tint: string; labelColor: string; icon: 'budget' | 'actual' | 'remaining'; hint?: string }) {
   return (
-    <div style={{ margin: '0 16px 8px', background: '#fff', border: `1px solid ${COLORS.gold}`, borderRadius: 16, padding: 14 }}>
-      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.crimson, marginBottom: 8 }}>Family settlement</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13, color: '#3C1515' }}>
+    <div style={{ background: tint, borderRadius: RADIUS.card, padding: 12, minWidth: 0 }}>
+      <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fff', marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: labelColor }}>
+        <TileIcon name={icon} />
+      </div>
+      <div style={{ fontSize: TYPE.small, color: labelColor, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: COLORS.ink, overflowWrap: 'anywhere' }}>{value}</div>
+      {hint && <div style={{ fontSize: TYPE.small, color: hint === 'Over by' ? COLORS.danger : COLORS.muted }}>{hint}</div>}
+    </div>
+  )
+}
+
+function TileIcon({ name }: { name: 'budget' | 'actual' | 'remaining' }) {
+  const common = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true as const }
+  if (name === 'budget') {
+    return (
+      <svg {...common}>
+        <path d="M4.5 11.5c.4-3.2 3.2-5.5 6.6-5.5 2.4 0 4.4 1.2 5.6 3.1.5-.2 1-.3 1.6-.3 1.8 0 3.2 1.2 3.2 2.8 0 .7-.3 1.4-.7 1.9.4.6.7 1.3.7 2.1 0 2.2-1.8 4.4-5.2 4.4H8.4c-3 0-5.2-1.6-5.2-4 0-1 .4-1.9.9-2.6-.6-.6-1-1.4-1-2.3 0-.2 0-.4.1-.6z" />
+        <path d="M19.2 12.2h2.3M8.2 10.2h.01" />
+      </svg>
+    )
+  }
+  if (name === 'actual') {
+    return (
+      <svg {...common}>
+        <path d="M7 3h10v18l-2-1.4-2 1.4-2-1.4L9 21l-2-1.4L5 21V5a2 2 0 0 1 2-2z" />
+        <path d="M9 8h6M9 12h6M9 16h4" />
+      </svg>
+    )
+  }
+  return (
+    <svg {...common}>
+      <path d="M4 16l5-5 3.5 3.5L20 7" />
+      <path d="M14 7h6v6" />
+    </svg>
+  )
+}
+
+function CategoryCardView({
+  card, narrow, expanded, editBudget, logPayment, inline, inlineText, onInlineText, onToggle, onEditBudget, onSaveInline, onPay, onOpen, onRename, onDelete,
+}: {
+  card: CategoryCard
+  narrow: boolean
+  expanded: boolean
+  editBudget: boolean
+  logPayment: boolean
+  inline: boolean
+  inlineText: string
+  onInlineText: (value: string) => void
+  onToggle: () => void
+  onEditBudget: () => void
+  onSaveInline: () => void
+  onPay: () => void
+  onOpen: (taskId: string) => void
+  onRename: () => void
+  onDelete: () => void
+}) {
+  const actualRupees = roundHalfUpRupees(card.actualPaise)
+  const percent = percentOf(actualRupees, card.budgetRupees)
+  const show = (rupees: bigint) => (narrow ? formatInrShort(rupees) : formatInrGrouped(rupees))
+  return (
+    <article style={{ ...cardStyle, marginBottom: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+        <span style={{ width: 10, height: 10, borderRadius: 99, background: COLORS.crimson, flex: '0 0 auto' }} />
+        <h2 style={{ margin: 0, flex: 1, fontSize: 18, color: COLORS.ink }}>{card.name}</h2>
+        {card.auto && <span style={{ background: COLORS.goldTint, color: COLORS.goldText, fontSize: TYPE.small, borderRadius: 999, padding: '4px 10px' }}>Auto</span>}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+          <div style={{ fontSize: TYPE.small, color: COLORS.muted }}>Budget</div>
+          {inline ? (
+            <input
+              style={inputStyle}
+              inputMode="numeric"
+              value={inlineText}
+              onChange={(event) => onInlineText(event.target.value)}
+              onBlur={onSaveInline}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter') return
+                event.preventDefault()
+                onSaveInline()
+              }}
+            />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <strong style={{ fontSize: 16, color: COLORS.ink }}>{show(card.budgetRupees)}</strong>
+              {editBudget && <button type="button" onClick={onEditBudget} style={{ minHeight: SIZE.tap, border: 'none', background: COLORS.goldTint, color: COLORS.crimson, borderRadius: 999, padding: '0 12px', cursor: 'pointer' }}>Edit</button>}
+            </div>
+          )}
+        </div>
+        <div style={{ flex: '1 1 140px', minWidth: 0 }}>
+          <div style={{ fontSize: TYPE.small, color: COLORS.muted }}>Actual{card.auto ? ' · auto-calc' : ''}</div>
+          <strong style={{ fontSize: 16, color: COLORS.ink }}>{show(actualRupees)}</strong>
+        </div>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 }}>
+        <div style={{ flex: 1, height: 8, borderRadius: 999, background: COLORS.border, overflow: 'hidden' }}>
+          <div style={{ width: `${percent.fill}%`, height: '100%', background: percent.over ? COLORS.danger : COLORS.gold }} />
+        </div>
+        <span style={{ fontSize: TYPE.small, color: percent.over ? COLORS.danger : COLORS.muted, fontWeight: percent.over ? 600 : 400 }}>{percent.label}</span>
+      </div>
+      {!expanded && card.rows.length > 0 && (
+        <button type="button" onClick={onToggle} style={{ marginTop: 8, minHeight: SIZE.tap, width: '100%', border: 'none', background: 'transparent', color: COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: 'pointer', textAlign: 'left', padding: 0 }}>
+          Contributing tasks: {card.rows.length}
+        </button>
+      )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+        <button type="button" onClick={onToggle} style={{ minHeight: SIZE.tap, border: 'none', background: 'transparent', color: COLORS.muted, fontSize: TYPE.small, cursor: 'pointer', padding: 0 }}>
+          {expanded ? 'Hide breakdown' : 'Tap to expand'}
+        </button>
+        <span style={{ color: COLORS.goldText, fontSize: TYPE.small, display: 'block', flex: '1 1 160px', minWidth: 0, lineHeight: 1.4, paddingTop: 12 }}>
+          {splitShareLabel(card.budgetRupees, actualRupees)}
+        </span>
+      </div>
+      {card.foreignNotes.map((note) => <p key={note} style={{ color: COLORS.muted, fontSize: TYPE.small }}>{note}</p>)}
+      {card.committedPaise > 0n && <p style={{ color: COLORS.muted, fontSize: TYPE.small, margin: '4px 0' }}>Committed (pending) {formatInrGrouped(roundHalfUpRupees(card.committedPaise))}</p>}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {logPayment && <button type="button" onClick={onPay} style={{ ...primaryButton('transparent'), width: 'auto', color: COLORS.greenText, border: `1px solid ${COLORS.green}` }}>Record Payment</button>}
+        {editBudget && <button type="button" onClick={onRename} style={{ ...primaryButton('transparent'), width: 'auto', color: COLORS.crimson, border: `1px solid ${COLORS.border}` }}>Rename</button>}
+        {editBudget && <button type="button" onClick={onDelete} style={{ ...primaryButton('transparent'), width: 'auto', color: COLORS.danger, border: `1px solid ${COLORS.dangerBorder}` }}>Delete</button>}
+      </div>
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, marginTop: 12, paddingTop: 12 }}>
+          <div style={sectionLabel}>Contributing tasks</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: TYPE.small, marginBottom: 8 }}>
+            <span style={{ color: COLORS.ink }}>Logged payments</span>
+            <strong style={{ color: COLORS.goldText }}>{formatInrGrouped(roundHalfUpRupees(card.loggedPaise))}</strong>
+          </div>
+          {card.rows.map((row) => (
+            <button key={row.taskId} type="button" onClick={() => onOpen(row.taskId)} style={{ width: '100%', minHeight: SIZE.tap, display: 'flex', justifyContent: 'space-between', gap: 8, border: 'none', background: 'transparent', padding: '4px 0', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ color: COLORS.ink, fontSize: TYPE.small, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.label}</span>
+              <span style={{ color: COLORS.goldText, fontSize: TYPE.small, fontWeight: 600, flex: '0 0 auto' }}>
+                {row.amount == null ? '—' : row.planned ? `Planned ${formatInrGrouped(roundHalfUpRupees(toPaise(row.amount)))}` : formatInrGrouped(roundHalfUpRupees(toPaise(row.amount)))}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </article>
+  )
+}
+
+function Settlement({ items, tasks }: { items: BudgetItem[]; tasks: Task[] }) {
+  const settlement = familySettlement(items, tasks)
+  return (
+    <div style={{ margin: '0 16px 12px', background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: RADIUS.card, padding: 16 }}>
+      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.ink, marginBottom: 8 }}>Family settlement</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: TYPE.small, color: COLORS.ink }}>
         <div>Bride's share<br /><strong>{money(settlement.brideShare, '₹')}</strong></div>
         <div>Groom's share<br /><strong>{money(settlement.groomShare, '₹')}</strong></div>
         <div>Bride's family paid<br /><strong>{money(settlement.bridePaid, '₹')}</strong></div>
         <div>Groom's family paid<br /><strong>{money(settlement.groomPaid, '₹')}</strong></div>
       </div>
-      <p style={{ margin: '10px 0 0', fontSize: 13, fontWeight: 600, color: '#5A2020' }}>{settlementSummary(settlement)}</p>
+      {settlement.unattributed > 0 && (
+        <p style={{ margin: '8px 0 0', fontSize: TYPE.small, color: COLORS.muted }}>Unattributed spend {money(settlement.unattributed, '₹')} (no family payer)</p>
+      )}
+      <p style={{ margin: '10px 0 0', fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>{settlementSummary(settlement)}</p>
     </div>
   )
 }

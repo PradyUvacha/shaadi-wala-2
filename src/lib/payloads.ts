@@ -1,5 +1,12 @@
+import { WHOLE_RUPEE_MESSAGE } from '../config/budgetRules.ts'
 import type { BudgetDraft, GuestDraft, MilestoneDraft, PartPaymentDraft, SplitDraft, TaskDraft } from '../types.ts'
-import { moneyAmountError, validateBudgetAmounts } from './planning.ts'
+import { moneyAmountError } from './planning.ts'
+
+function requireWholeRupees(value: number, label: string, allowZero = true): void {
+  const invalid = moneyAmountError(value, label, allowZero)
+  if (invalid) throw new Error(invalid)
+  if (!Number.isInteger(value)) throw new Error(WHOLE_RUPEE_MESSAGE)
+}
 
 export function taskInsert(weddingId: string, draft: TaskDraft, sortOrder: number) {
   return {
@@ -35,17 +42,31 @@ export function taskUpdate(draft: TaskDraft) {
 }
 
 export function budgetInsert(weddingId: string, draft: BudgetDraft) {
-  const invalid = validateBudgetAmounts(draft.estimated, draft.actual)
+  requireWholeRupees(Number(draft.estimated || 0), 'Estimated')
+  const invalid = moneyAmountError(Number(draft.actual || 0), 'Actual')
   if (invalid) throw new Error(invalid)
   return {
     wedding_id: weddingId,
-    category: draft.category,
+    category: draft.category.trim(),
     currency: draft.currency,
     estimated: Number(draft.estimated || 0),
     actual: Number(draft.actual || 0),
     paid: draft.paid,
     notes: draft.notes.trim(),
     paid_by_side: draft.paidBySide,
+  }
+}
+
+/** Updates keep the stored actual. The ledger, not this column, is the displayed spend. */
+export function budgetUpdate(draft: BudgetDraft) {
+  const row = budgetInsert('unused', draft)
+  return {
+    category: row.category,
+    currency: row.currency,
+    estimated: row.estimated,
+    paid: row.paid,
+    notes: row.notes,
+    paid_by_side: row.paid_by_side,
   }
 }
 
@@ -59,8 +80,7 @@ export function splitInsert(budgetItemId: string, draft: SplitDraft) {
 }
 
 export function paymentInsert(budgetItemId: string, draft: PartPaymentDraft) {
-  const invalid = moneyAmountError(Number(draft.amount), 'Payment', false)
-  if (invalid) throw new Error(invalid)
+  requireWholeRupees(Number(draft.amount), 'Payment', false)
   return {
     budget_item_id: budgetItemId,
     amount: Number(draft.amount || 0),

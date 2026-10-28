@@ -96,7 +96,7 @@ export function InviteScreen() {
     <div className="page-fill" style={{ background: `linear-gradient(160deg,${COLORS.maroon},${COLORS.crimson})`, color: '#fff', padding: 'calc(28px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 20px calc(24px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))', position: 'relative' }}>
       <MehendiPattern />
       <div className="desktop-column" style={{ position: 'relative', zIndex: 1 }}>
-        <Link to={bundle ? '/profile' : '/'} style={{ color: COLORS.lightGold, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>{bundle ? 'Profile' : 'Shaadi Wala'}</Link>
+        <Link to={bundle ? '/profile' : '/'} style={{ color: COLORS.gold, fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', minHeight: 44 }}>{bundle ? 'Profile' : 'Shaadi Wala'}</Link>
         <h1 style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 32 }}>{joining || !bundle ? 'Join a wedding' : 'Invite someone'}</h1>
         {joining || !bundle ? (
           <>
@@ -124,7 +124,7 @@ export function InviteScreen() {
                   </div>
                 )}
                 {joinRole && !joinProblem && (
-                  <p style={{ color: COLORS.lightGold, fontSize: 13 }}>{roleLabel(joinRole, joinSideFor(joinRole, joinSide))}</p>
+                  <p style={{ color: COLORS.gold, fontSize: 14 }}>{roleLabel(joinRole, joinSideFor(joinRole, joinSide))}</p>
                 )}
               </>
             )}
@@ -151,8 +151,8 @@ export function InviteScreen() {
               {invites.map((invite) => (
                 <li key={`${invite.id}-${invite.code}`} style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, marginTop: 10 }}>
                   <div style={{ fontSize: 22, letterSpacing: 3, fontWeight: 800 }}>{invite.code}</div>
-                  <div style={{ fontSize: 13 }}>{inviteRoleLabel(invite.role, invite.side)} · {invite.acceptedAt ? 'Accepted' : 'Waiting'}</div>
-                  {!invite.acceptedAt && <div style={{ fontSize: 12, wordBreak: 'break-all', marginTop: 6 }}>{inviteLink(origin, invite.code, invite.role, invite.side)}</div>}
+                  <div style={{ fontSize: 14 }}>{inviteRoleLabel(invite.role, invite.side)} · {invite.acceptedAt ? 'Accepted' : 'Waiting'}</div>
+                  {!invite.acceptedAt && <div style={{ fontSize: 14, wordBreak: 'break-all', marginTop: 6 }}>{inviteLink(origin, invite.code, invite.role, invite.side)}</div>}
                 </li>
               ))}
             </ul>
@@ -160,7 +160,7 @@ export function InviteScreen() {
         ) : (
           <p>Friends and planners cannot send invites.</p>
         )}
-        {info && <p style={{ color: COLORS.lightGold }}>{info}</p>}
+        {info && <p style={{ color: COLORS.gold }}>{info}</p>}
         {error && <p style={{ color: '#FFE0E0' }}>{error}</p>}
       </div>
     </div>
@@ -168,7 +168,7 @@ export function InviteScreen() {
 }
 
 const field = { width: '100%', padding: '12px 14px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.12)', color: '#fff', fontSize: 20, letterSpacing: 4, marginBottom: 12 }
-const button = { width: '100%', minHeight: 48, border: 'none', borderRadius: 14, background: COLORS.gold, color: '#3C1515', fontWeight: 800, cursor: 'pointer' }
+const button = { width: '100%', height: 52, minHeight: 52, maxHeight: 52, boxSizing: 'border-box' as const, border: 'none', borderRadius: 14, background: COLORS.gold, color: COLORS.ink, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' as const }
 function choice(active: boolean) {
   return { flex: 1, minHeight: 44, borderRadius: 12, border: '1px solid rgba(255,255,255,0.35)', background: active ? 'rgba(255,255,255,0.28)' : 'transparent', color: '#fff', fontWeight: 700, cursor: 'pointer' }
 }

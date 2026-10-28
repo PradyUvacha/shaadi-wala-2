@@ -40,10 +40,10 @@ export function DeleteAccountScreen() {
   return (
     <div style={{ paddingBottom: screenBottom }}>
       <div style={{ background: `linear-gradient(135deg,${COLORS.maroon},${COLORS.crimson})`, padding: headerPadding }}>
-        <button type="button" onClick={() => navigate('/profile/settings')} style={{ background: 'transparent', border: 'none', color: COLORS.lightGold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Settings</button>
+        <button type="button" onClick={() => navigate('/profile/settings')} style={{ background: 'transparent', border: 'none', color: COLORS.gold, padding: '0 0 8px', fontWeight: 700, cursor: 'pointer' }}>Settings</button>
         <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 28, color: '#fff', fontWeight: 700 }}>Delete account</div>
       </div>
-      <div style={{ padding: 16, color: '#3C1515', fontSize: 14, lineHeight: 1.55 }}>
+      <div style={{ padding: 16, color: COLORS.ink, fontSize: 14, lineHeight: 1.55 }}>
         <p>You can delete your account and data at any time.</p>
         <p><strong>What gets deleted.</strong> Your profile and membership. If the bride or groom deletes their account, that slot is freed and the wedding stays so the other can invite a replacement. If both the bride and the groom delete their accounts, the wedding and its data are deleted. If a parent, friend, or planner deletes their account, their membership is removed and tasks assigned to them become unassigned.</p>
         <p><strong>What we may keep.</strong> Payment records we are legally required to retain, for up to 8 years. Everything else is deleted within 30 days.</p>
@@ -52,7 +52,7 @@ export function DeleteAccountScreen() {
           <a href={DELETE_ACCOUNT_URL} target="_blank" rel="noreferrer">shaadi-wala.in/delete-account</a>
           {' '}or email contact@shaadi-wala.in from your registered address with the subject “Delete my account”.
         </p>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, margin: '16px 0 6px' }}>Type DELETE to confirm</label>
+        <label style={{ display: 'block', fontSize: 14, fontWeight: 700, margin: '16px 0 6px' }}>Type DELETE to confirm</label>
         <input style={inputStyle} value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="off" aria-label="Type DELETE to confirm" />
         <FormError message={error} />
         <button type="button" disabled={!ready || busy} onClick={() => void submit()} style={{ ...primaryButton(ready ? '#8B1E1E' : '#C9A8A8'), marginTop: 16 }}>

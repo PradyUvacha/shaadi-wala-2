@@ -1,12 +1,13 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { Badge, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { canEditTimeline } from '../../lib/access.ts'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { formatDate } from '../../lib/format.ts'
 import { useWedding } from '../../state/wedding-context.ts'
-import { COLORS } from '../../styles/tokens.ts'
+import { COLORS, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton, selectStyle } from '../../styles/ui.ts'
-import { headerPadding, listAboveFab } from '../../styles/safeArea.ts'
+import { headerPadding } from '../../styles/safeArea.ts'
 import type { Milestone, MilestoneDraft, MilestoneStatus } from '../../types.ts'
 import { MILESTONE_STATUSES } from '../../types.ts'
 
@@ -61,10 +62,13 @@ export function TimelineTab() {
   }
 
   return (
-    <div style={{ paddingBottom: listAboveFab }}>
-      <div style={{ background: 'linear-gradient(135deg,#1A4060,#0D2A40)', padding: headerPadding }}>
-        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 20, color: '#fff', fontWeight: 700 }}>📅 Wedding Timeline</div>
-        <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 4 }}>{sorted.filter((milestone) => milestone.status === 'Completed').length}/{sorted.length} milestones completed</div>
+    <div>
+      <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, padding: headerPadding }}>
+        <div role="tablist" aria-label="Planning" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 0, background: COLORS.maroon, borderRadius: 12, padding: 4, marginBottom: 10 }}>
+          <span role="tab" aria-selected={true} style={segmentStyle(true)}>Events</span>
+          <Link to="/planning" role="tab" aria-selected={false} style={segmentStyle(false)}>Tasks</Link>
+        </div>
+        <div style={{ fontSize: 14, color: '#fff' }}>{sorted.filter((milestone) => milestone.status === 'Completed').length} / {sorted.length} · milestones</div>
       </div>
       <div style={{ padding: 20 }}>
         {sorted.length === 0 ? (
@@ -86,9 +90,9 @@ export function TimelineTab() {
                 <div style={{ flex: 1, background: COLORS.cardBg, border: `1px solid ${done ? '#4CAF5030' : '#E8D4B0'}`, borderRadius: 14, padding: 14, marginBottom: 12, opacity: done ? 0.85 : 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 15, fontWeight: 700, color: done ? '#4A7A4A' : '#2A0A0A', textDecoration: done ? 'line-through' : 'none' }}>{milestone.name}</div>
-                      <div style={{ fontSize: 11, color: '#8B5050', marginTop: 3 }}>📅 {formatDate(milestone.date)}</div>
-                      {milestone.description && <div style={{ fontSize: 12, color: '#7A5050', marginTop: 6, lineHeight: 1.5 }}>{milestone.description}</div>}
+                      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 16, fontWeight: 700, color: done ? COLORS.greenText : COLORS.ink, textDecoration: done ? 'line-through' : 'none' }}>{milestone.name}</div>
+                      <div style={{ fontSize: TYPE.small, color: COLORS.muted, marginTop: 3 }}>📅 {formatDate(milestone.date)}</div>
+                      {milestone.description && <div style={{ fontSize: TYPE.small, color: COLORS.muted, marginTop: 6, lineHeight: 1.5 }}>{milestone.description}</div>}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-end' }}>
                       <Badge color={done ? COLORS.green : COLORS.gold} small>{done ? 'Completed' : 'Upcoming'}</Badge>
@@ -104,7 +108,7 @@ export function TimelineTab() {
           })
         )}
       </div>
-      {error && !modalOpen && <p style={{ padding: '0 20px 12px', color: COLORS.crimson, fontSize: 13 }}>{error}</p>}
+      {error && !modalOpen && <p style={{ padding: '0 20px 12px', color: COLORS.crimson, fontSize: TYPE.small }}>{error}</p>}
       {canEdit && <FAB onClick={openAdd} />}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editMilestone ? 'Edit Milestone' : 'New Milestone'} headerColor="linear-gradient(135deg,#1A4060,#0D2A40)">
         <FormError message={error} />
@@ -120,7 +124,7 @@ export function TimelineTab() {
           </select>
         </Field>
         <Field label="Description">
-          <textarea style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Details..." />
+          <textarea style={{ ...inputStyle, height: 'auto', maxHeight: 'none', minHeight: 70, resize: 'vertical' }} value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} placeholder="Details..." />
         </Field>
         <button type="button" disabled={busy} onClick={() => void save()} style={primaryButton('linear-gradient(135deg,#1A4060,#0D2A40)')}>
           {busy ? 'Saving…' : editMilestone ? 'Save Changes' : 'Add Milestone'}
@@ -128,4 +132,25 @@ export function TimelineTab() {
       </Modal>
     </div>
   )
+}
+
+function segmentStyle(selected: boolean) {
+  return {
+    minHeight: 48,
+    minWidth: 0,
+    height: 'auto' as const,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    textDecoration: 'none',
+    fontSize: 16,
+    fontWeight: 600,
+    padding: '8px 12px',
+    background: selected ? COLORS.gold : 'transparent',
+    color: selected ? COLORS.crimson : '#fff',
+    whiteSpace: 'normal' as const,
+    textAlign: 'center' as const,
+    lineHeight: 1.2,
+  }
 }

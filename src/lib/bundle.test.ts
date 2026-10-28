@@ -95,6 +95,29 @@ describe('wedding bundle', () => {
     const copied = saveTaskDraft(created, { ...venue!, title: 'Book Wedding Venue', functionId: mehendiFn!.id, ceremony: 'Mehendi' })
     expect(copied.tasks.filter((task) => task.title === 'Book Wedding Venue')).toHaveLength(2)
     expect(() => saveBudgetDraft(created, {
+      category: ' venue ',
+      currency: 'INR',
+      estimated: 1,
+      actual: 0,
+      paid: false,
+      notes: '',
+      paidBySide: 'bride',
+      splits: [],
+    })).toThrow('A category with this name already exists.')
+    const venueItem = created.budget.find((item) => item.category === 'Venue')
+    expect(venueItem).toBeTruthy()
+    const sameName = saveBudgetDraft(created, {
+      category: 'VENUE',
+      currency: venueItem!.currency,
+      estimated: venueItem!.estimated,
+      actual: venueItem!.actual,
+      paid: venueItem!.paid,
+      notes: venueItem!.notes,
+      paidBySide: venueItem!.paidBySide,
+      splits: venueItem!.splits,
+    }, venueItem!.id)
+    expect(sameName.budget.find((item) => item.id === venueItem!.id)?.category).toBe('VENUE')
+    expect(() => saveBudgetDraft(created, {
       category: 'Attire',
       currency: 'INR',
       estimated: -50,

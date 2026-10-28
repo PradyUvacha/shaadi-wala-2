@@ -1,5 +1,5 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react'
-import { COLORS } from '../styles/tokens.ts'
+import { COLORS, TYPE } from '../styles/tokens.ts'
 import { labelStyle } from '../styles/ui.ts'
 
 export function MehendiPattern() {
@@ -106,23 +106,24 @@ export function ProgressRing({
         </div>
       </div>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: '#5A2020' }}>{label}</div>
-        <div style={{ fontSize: 12, color: '#8B5050', lineHeight: 1.3, overflowWrap: 'anywhere' }}>{sublabel}</div>
+        <div style={{ fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>{label}</div>
+        <div style={{ fontSize: TYPE.small, color: COLORS.muted, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{sublabel}</div>
       </div>
     </button>
   )
 }
 
 export function Badge({ color, children, small }: { color: string; children: ReactNode; small?: boolean }) {
+  const textColor = color.toLowerCase() === COLORS.gold.toLowerCase() ? COLORS.goldText : color
   return (
     <span
       style={{
         background: `${color}22`,
-        color,
+        color: textColor,
         border: `1px solid ${color}55`,
         borderRadius: 99,
-        padding: small ? '1px 7px' : '2px 10px',
-        fontSize: small ? 10 : 11,
+        padding: small ? '2px 8px' : '2px 10px',
+        fontSize: TYPE.small,
         fontWeight: 600,
         whiteSpace: 'nowrap',
       }}
@@ -168,7 +169,7 @@ export function Modal({
           }}
         >
           <span style={{ color: '#fff', fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, fontSize: 17 }}>{title}</span>
-          <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 44, height: 44, cursor: 'pointer', fontSize: 16 }}>
+          <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: '50%', width: 48, height: 48, cursor: 'pointer', fontSize: 16 }}>
             ✕
           </button>
         </div>
@@ -190,7 +191,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 export function FAB({ onClick }: { onClick: () => void }) {
   const style: CSSProperties = {
     borderRadius: '50%',
-    background: `linear-gradient(135deg,${COLORS.crimson},${COLORS.saffron})`,
+    background: `linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`,
     border: 'none',
     color: '#fff',
     fontSize: 28,
@@ -211,7 +212,7 @@ export function FAB({ onClick }: { onClick: () => void }) {
 
 export function FormError({ message }: { message: string | null }) {
   if (!message) return null
-  return <p style={{ color: '#8B0000', background: '#F8E4E4', borderRadius: 10, padding: '10px 12px', fontSize: 13, marginBottom: 12 }}>{message}</p>
+  return <p style={{ color: COLORS.danger, background: COLORS.dangerTint, borderRadius: 10, padding: '10px 12px', fontSize: TYPE.small, marginBottom: 12 }}>{message}</p>
 }
 
 export function Splash() {

@@ -1,40 +1,70 @@
 import type { CSSProperties } from 'react'
-import { COLORS } from './tokens.ts'
+import { COLORS, FONT, RADIUS, SIZE, TRACKING, TYPE, WEIGHT } from './tokens.ts'
 
 export const inputStyle: CSSProperties = {
   width: '100%',
-  padding: '10px 12px',
-  borderRadius: 10,
-  border: '1.5px solid #E0CABB',
-  background: '#FFFAF4',
-  fontSize: 16,
+  height: SIZE.input,
+  minHeight: SIZE.input,
+  maxHeight: SIZE.input,
+  boxSizing: 'border-box',
+  padding: '0 14px',
+  borderRadius: RADIUS.input,
+  border: `1px solid ${COLORS.border}`,
+  background: COLORS.cardBg,
+  fontFamily: FONT.body,
+  fontSize: TYPE.body,
   outline: 'none',
-  color: '#2A0A0A',
+  color: COLORS.ink,
 }
 
 export const selectStyle: CSSProperties = { ...inputStyle, appearance: 'none' }
 
 export const labelStyle: CSSProperties = {
   display: 'block',
-  fontSize: 11,
-  fontWeight: 600,
-  color: COLORS.crimson,
-  marginBottom: 5,
+  fontSize: TYPE.small,
+  fontWeight: WEIGHT.semibold,
+  color: COLORS.muted,
+  marginBottom: 6,
   textTransform: 'uppercase',
-  letterSpacing: '0.5px',
+  letterSpacing: TRACKING.label,
 }
 
-export function primaryButton(background: string): CSSProperties {
+export const sectionLabel: CSSProperties = {
+  fontSize: TYPE.small,
+  fontWeight: WEIGHT.semibold,
+  color: COLORS.goldText,
+  textTransform: 'uppercase',
+  letterSpacing: TRACKING.label,
+  margin: '16px 0 8px',
+}
+
+export const cardStyle: CSSProperties = {
+  background: COLORS.cardBg,
+  border: `1px solid ${COLORS.border}`,
+  borderRadius: RADIUS.card,
+  padding: 16,
+  boxShadow: '0 1px 3px rgba(26,5,5,0.06)',
+}
+
+export function primaryButton(background?: string): CSSProperties {
   return {
     width: '100%',
-    padding: '13px',
-    borderRadius: 12,
-    background,
+    height: SIZE.button,
+    minHeight: SIZE.button,
+    maxHeight: SIZE.button,
+    boxSizing: 'border-box',
+    padding: '0 16px',
+    borderRadius: RADIUS.input,
+    background: background ?? `linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`,
     border: 'none',
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 600,
+    fontSize: TYPE.body,
+    fontWeight: WEIGHT.semibold,
     cursor: 'pointer',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    whiteSpace: 'nowrap',
   }
 }
 
@@ -42,6 +72,9 @@ export const iconButton: CSSProperties = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
-  fontSize: 14,
+  fontSize: TYPE.small,
   padding: 0,
+  minWidth: SIZE.tap,
+  minHeight: SIZE.tap,
+  color: COLORS.crimson,
 }
