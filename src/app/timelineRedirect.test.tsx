@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
-import { isPlanningEvents, PLANNING_EVENTS_PATH } from './routes.tsx'
+import { isPlanningEvents, PLANNING_EVENTS_PATH } from './planningTab.ts'
 
 function Probe() {
   const [params] = useSearchParams()

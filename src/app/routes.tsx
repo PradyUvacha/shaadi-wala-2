@@ -4,6 +4,7 @@ import { AppShell } from './AppShell.tsx'
 import { Splash } from '../components/ui.tsx'
 import { COLORS } from '../styles/tokens.ts'
 import { pathWithSurvey } from '../features/surveys/surveys.ts'
+import { isPlanningEvents, PLANNING_EVENTS_PATH } from './planningTab.ts'
 import { useAuth } from '../state/auth-context.ts'
 import { useWedding } from '../state/wedding-context.ts'
 
@@ -20,13 +21,7 @@ const ProfileScreen = lazy(() => import('../features/account/ProfileScreen.tsx')
 const SettingsScreen = lazy(() => import('../features/account/SettingsScreen.tsx').then((m) => ({ default: m.SettingsScreen })))
 const DeleteAccountScreen = lazy(() => import('../features/account/DeleteAccountScreen.tsx').then((m) => ({ default: m.DeleteAccountScreen })))
 const FeedbackScreen = lazy(() => import('../features/feedback/FeedbackScreen.tsx').then((m) => ({ default: m.FeedbackScreen })))
-
-/** /timeline and the Planning Events tab both land here. */
-export const PLANNING_EVENTS_PATH = '/planning?tab=events'
-
-export function isPlanningEvents(params: URLSearchParams): boolean {
-  return params.get('tab') === 'events'
-}
+const FeedScreen = lazy(() => import('../features/feed/FeedScreen.tsx').then((m) => ({ default: m.FeedScreen })))
 
 function PlanningScreen() {
   const [params] = useSearchParams()
@@ -92,6 +87,7 @@ export function AppRoutes() {
           <Route path="/profile/settings" element={<SettingsScreen />} />
           <Route path="/profile/settings/delete-account" element={<DeleteAccountScreen />} />
           <Route path="/profile/feedback" element={<FeedbackScreen />} />
+          <Route path="/feed" element={hasWedding ? <FeedScreen /> : <Navigate to="/setup" replace />} />
           <Route path="/account" element={<AccountRedirect />} />
           <Route element={hasWedding ? <Outlet /> : <Navigate to="/setup" replace />}>
             <Route index element={<HomeTab />} />

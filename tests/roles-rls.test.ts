@@ -253,6 +253,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
   file(`${root}supabase/migrations/20261102120000_guest_ping_payload.sql`)
   file(`${root}supabase/migrations/20261102120000_guest_ping_payload.sql`)
+  file(`${root}supabase/migrations/20261102130000_feed_author_writes.sql`)
+  file(`${root}supabase/migrations/20261102130000_feed_author_writes.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -408,6 +410,22 @@ describe('approved role permissions', () => {
 
   it('planner can post to the feed', () => {
     expect(asUser(planner, `insert into public.wedding_feed (wedding_id, author_id, body) select id, '${planner}', 'From the planner' from public.weddings; select count(*) from public.wedding_feed where body = 'From the planner';`)).toBe('1')
+  })
+
+  it('lets only the author edit or delete a post, and hides the feed from a non-member', () => {
+    const outsider = 'e9e9e9e9-e9e9-e9e9-e9e9-e9e9e9e9e9e9'
+    psql(`insert into auth.users (id, email) values ('${outsider}', 'outsider-feed@example.com') on conflict (id) do nothing;`)
+    expect(dbError(`insert into public.wedding_feed (wedding_id, author_id, body) select id, '${family}', '   ' from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/wedding_feed_body_not_blank|check/i)
+    const postId = asUser(family, `insert into public.wedding_feed (wedding_id, author_id, body) select id, '${family}', 'Author note' from public.weddings where couple_names = 'Role Fixture'; select id from public.wedding_feed where body = 'Author note';`)
+    expect(postId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(asUser(friend, `update public.wedding_feed set body = 'Stolen' where id = '${postId}'; select body from public.wedding_feed where id = '${postId}';`)).toBe('Author note')
+    expect(asUser(bride, `update public.wedding_feed set body = 'Stolen' where id = '${postId}'; select body from public.wedding_feed where id = '${postId}';`)).toBe('Author note')
+    expect(asUser(family, `update public.wedding_feed set body = 'Author note edited' where id = '${postId}'; select body from public.wedding_feed where id = '${postId}';`)).toBe('Author note edited')
+    expect(errorOf(family, `update public.wedding_feed set body = '   ' where id = '${postId}';`)).toMatch(/check|row-level security/i)
+    expect(asUser(outsider, `select count(*) from public.wedding_feed;`)).toBe('0')
+    expect(asUser(family, `delete from public.wedding_feed where id = '${postId}'; select count(*) from public.wedding_feed where id = '${postId}';`)).toBe('0')
+    expect(asUser(planner, `insert into public.wedding_feed (wedding_id, author_id, body) select id, '${planner}', 'Planner keeps this' from public.weddings where couple_names = 'Role Fixture'; select count(*) from public.wedding_feed where body = 'Planner keeps this';`)).toBe('1')
+    expect(asUser(friend, `delete from public.wedding_feed where body = 'Planner keeps this'; select count(*) from public.wedding_feed where body = 'Planner keeps this';`)).toBe('1')
   })
 
   it('parent/family can invite family and friends to their own side', () => {
