@@ -88,6 +88,8 @@ export function AppRoutes() {
           <Route path="/profile/settings/delete-account" element={<DeleteAccountScreen />} />
           <Route path="/profile/feedback" element={<FeedbackScreen />} />
           <Route path="/feed" element={hasWedding ? <FeedScreen /> : <Navigate to="/setup" replace />} />
+          <Route path="/parent-dashboard" element={<Navigate to="/" replace />} />
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/account" element={<AccountRedirect />} />
           <Route element={hasWedding ? <Outlet /> : <Navigate to="/setup" replace />}>
             <Route index element={<HomeTab />} />

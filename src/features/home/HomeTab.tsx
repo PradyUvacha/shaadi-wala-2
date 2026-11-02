@@ -1,12 +1,17 @@
 import { useNavigate } from 'react-router-dom'
 import { MOTIVATIONAL_QUOTES } from '../../data/content.ts'
 import { MehendiPattern, ProgressRing } from '../../components/ui.tsx'
-import { formatDate, formatInrCompact, quoteForDay, weddingCountdown } from '../../lib/format.ts'
-import { percent } from '../../lib/planning.ts'
+import { FeedList } from '../feed/FeedList.tsx'
+import { useAnnouncementFeed } from '../feed/useAnnouncementFeed.ts'
+import { canPostFeed, canSeeBudget } from '../../lib/access.ts'
+import { formatDate, formatInrCompact, money, quoteForDay, weddingCountdown } from '../../lib/format.ts'
+import { priorityTasks, recentActivity, sideGuests } from '../../lib/homeView.ts'
+import { familySettlement, percent } from '../../lib/planning.ts'
 import { rollupWedding } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, TYPE } from '../../styles/tokens.ts'
 import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
+import type { MemberRole, Side, WeddingBundle } from '../../types.ts'
 
 export function HomeTab() {
   const navigate = useNavigate()
@@ -24,6 +29,10 @@ export function HomeTab() {
   const guestPct = percent(confirmedGuests, guests.length)
   const priorityTasks = tasks.filter((task) => task.priority === 'High' && task.status !== 'Completed').slice(0, 3)
   const quote = quoteForDay(MOTIVATIONAL_QUOTES)
+  const role = bundle.membership.role
+  if (role === 'family' || role === 'friend' || role === 'planner') {
+    return <MemberHome bundle={bundle} />
+  }
 
   return (
     <div style={{ paddingBottom: screenBottom }}>
@@ -107,3 +116,107 @@ export function HomeTab() {
     </div>
   )
 }
+
+function MemberHome({ bundle }: { bundle: WeddingBundle }) {
+  const navigate = useNavigate()
+  const role = bundle.membership.role
+  const viewerSide = bundle.membership.side
+  const seeMoney = canSeeBudget(role)
+  const { posts } = useAnnouncementFeed(bundle.wedding.id, true)
+  const countdown = weddingCountdown(bundle.wedding.weddingDate)
+  const tasks = priorityTasks(bundle.tasks, role, viewerSide)
+  const guests = sideGuests(bundle.guests, role, viewerSide)
+  const activity = recentActivity({
+    tasks: bundle.tasks,
+    guests: bundle.guests,
+    posts,
+    authors: bundle.members.map((member) => ({
+      userId: member.userId,
+      role: member.role,
+      side: member.side,
+      displayName: member.displayName,
+    })),
+    members: bundle.members,
+    role,
+    viewerSide,
+  })
+  const settlement = familySettlement(bundle.budget, bundle.tasks)
+  const share = sideShare(settlement, role, viewerSide)
+
+  return (
+    <div style={{ paddingBottom: screenBottom }}>
+      <div style={{ background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 70%,${COLORS.appBar} 100%)`, padding: headerPadding }}>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, color: '#fff', fontWeight: 700 }}>{bundle.displayName}</div>
+        <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.9)', marginTop: 4 }}>{bundle.wedding.coupleNames}</div>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 40, color: '#fff', fontWeight: 700, marginTop: 12 }}>{countdown.headline}</div>
+        <div style={{ fontSize: TYPE.small, color: COLORS.gold }}>{countdown.caption}</div>
+      </div>
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>Priority tasks</h2>
+        {tasks.length === 0 ? <p style={muted}>No tasks on your side.</p> : tasks.map((task) => (
+          <button key={task.id} type="button" onClick={() => navigate('/planning')} style={rowButton}>
+            <strong>{task.title}</strong>
+            <span style={muted}>{task.priority}{task.dueDate ? ` · ${task.dueDate}` : ''}{seeMoney && role === 'planner' && task.actualCost != null ? ` · ${money(task.actualCost, '₹')}` : ''}</span>
+          </button>
+        ))}
+      </section>
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>Recent activity</h2>
+        {activity.length === 0 ? <p style={muted}>No activity yet.</p> : activity.slice(0, 12).map((item) => (
+          <p key={item.id} style={{ margin: '8px 0', fontSize: TYPE.small, color: COLORS.ink }}>
+            {item.text} · {item.who} · {item.at.slice(0, 16).replace('T', ' ')}
+          </p>
+        ))}
+      </section>
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>{role === 'planner' ? 'Guests' : "Your side's guests"}</h2>
+        {guests.length === 0 ? <p style={muted}>No guests yet.</p> : guests.map((guest) => (
+          <p key={guest.id} style={{ margin: '4px 0', fontSize: TYPE.small }}>{guest.name}</p>
+        ))}
+      </section>
+      {seeMoney && share ? (
+        <section style={{ margin: 16 }}>
+          <h2 style={heading}>Budget share</h2>
+          <p style={{ fontSize: TYPE.body, color: COLORS.ink }}>{share}</p>
+        </section>
+      ) : null}
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>Announcements</h2>
+        <FeedList
+          posts={posts}
+          authors={bundle.members.map((member) => ({
+            userId: member.userId,
+            role: member.role,
+            side: member.side,
+            displayName: member.displayName,
+          }))}
+          canPost={false}
+          currentUserId={null}
+          onCreate={() => {}}
+          onUpdate={() => {}}
+          onDelete={() => {}}
+        />
+        {canPostFeed(role) ? (
+          <button type="button" onClick={() => navigate('/feed')} style={{ ...rowButton, color: COLORS.crimson, fontWeight: 700 }}>Post an announcement</button>
+        ) : null}
+      </section>
+    </div>
+  )
+}
+
+function sideShare(
+  settlement: { brideShare: number; groomShare: number },
+  role: MemberRole,
+  side: Side | null,
+): string | null {
+  if (role === 'planner') {
+    return `Bride ${money(settlement.brideShare, '₹')} · Groom ${money(settlement.groomShare, '₹')}`
+  }
+  if (role === 'family' && side === 'bride') return money(settlement.brideShare, '₹')
+  if (role === 'family' && side === 'groom') return money(settlement.groomShare, '₹')
+  return null
+}
+
+const heading = { fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: COLORS.ink, margin: '0 0 8px' }
+const muted = { fontSize: TYPE.small, color: COLORS.muted, margin: 0 }
+const rowButton = { display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', width: '100%', minHeight: 48, border: 'none', background: 'transparent', padding: '8px 0', cursor: 'pointer', color: COLORS.ink }

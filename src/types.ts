@@ -65,6 +65,7 @@ export type Task = {
   position: number
   assignedTo: string | null
   side: Side | null
+  createdAt?: string
   updatedAt: string
   actualCost: number | null
   budgetCategoryId: string | null
@@ -141,7 +142,7 @@ export type GuestDraft = {
   functionIds: string[]
 }
 
-export type Guest = GuestDraft & { id: string }
+export type Guest = GuestDraft & { id: string; createdAt?: string }
 
 export type MilestoneDraft = {
   name: string
