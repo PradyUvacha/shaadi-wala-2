@@ -79,19 +79,19 @@ export function FeedScreen() {
       body,
     })
     if (writeError) setError(toErrorMessage(writeError))
-    else await load()
+    else await pull()
   }
   const update = async (id: string, body: string) => {
     if (!supabase) return
     const { error: writeError } = await supabase.from('wedding_feed').update({ body }).eq('id', id)
     if (writeError) setError(toErrorMessage(writeError))
-    else await load()
+    else await pull()
   }
   const remove = async (id: string) => {
     if (!supabase) return
     const { error: writeError } = await supabase.from('wedding_feed').delete().eq('id', id)
     if (writeError) setError(toErrorMessage(writeError))
-    else await load()
+    else await pull()
   }
 
   return (
