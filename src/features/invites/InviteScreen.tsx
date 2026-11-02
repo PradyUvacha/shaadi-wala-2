@@ -8,6 +8,7 @@ import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS } from '../../styles/tokens.ts'
 import { MEMBER_ROLES, type InviteRole, type MemberRole, type Side, type WeddingInvite } from '../../types.ts'
 import { inviteCodeProblem, inviteLink, isInviteCode, normalizeInviteCode, showInviteChoices } from './code.ts'
+import { shareOnWhatsApp, whatsAppInviteText } from './whatsapp.ts'
 import { joinSelectionError, joinSideFor } from './join.ts'
 
 function initialJoinRole(value: string | null): MemberRole | '' {
@@ -153,6 +154,19 @@ export function InviteScreen() {
                   <div style={{ fontSize: 22, letterSpacing: 3, fontWeight: 800 }}>{invite.code}</div>
                   <div style={{ fontSize: 14 }}>{inviteRoleLabel(invite.role, invite.side)} · {invite.acceptedAt ? 'Accepted' : 'Waiting'}</div>
                   {!invite.acceptedAt && <div style={{ fontSize: 14, wordBreak: 'break-all', marginTop: 6 }}>{inviteLink(origin, invite.code, invite.role, invite.side)}</div>}
+                  {!invite.acceptedAt && (
+                    <button
+                      type="button"
+                      onClick={() => void shareOnWhatsApp(whatsAppInviteText(
+                        bundle.wedding.coupleNames,
+                        invite.code,
+                        inviteLink(origin, invite.code, invite.role, invite.side),
+                      ))}
+                      style={{ ...button, marginTop: 8 }}
+                    >
+                      Share on WhatsApp
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
