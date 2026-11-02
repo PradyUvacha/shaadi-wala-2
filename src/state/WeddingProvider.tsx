@@ -26,7 +26,7 @@ import {
   withTask,
 } from '../lib/bundle.ts'
 import { acceptsChecklistChange, applyChecklistChange, subscribeWeddingChecklist } from '../lib/checklist.ts'
-import { scheduleGuestRefresh, subscribeGuestPings, subscribeWeddingGuests } from '../lib/guestSync.ts'
+import { scheduleGuestRefresh, subscribeGuestPings } from '../lib/guestSync.ts'
 import { applyTaskCostChange, stripTaskCosts, subscribeTaskCosts } from '../lib/taskCosts.ts'
 import { toErrorMessage, type RowGuard } from '../lib/errors.ts'
 import { LEFT_WEDDING_MESSAGE, membershipAccessChanged, subscribeOwnMembership } from '../lib/membershipSync.ts'
@@ -200,7 +200,8 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       })
     }
     const refresher = scheduleGuestRefresh(pull)
-    const stopRows = subscribeWeddingGuests(supabase, weddingId, () => refresher.schedule())
+    // postgres_changes on guests includes the row, and the row includes its id.
+    // Other-side viewers must not receive that. The private ping has no row.
     const stopPings = subscribeGuestPings(supabase, weddingId, () => refresher.schedule(), (down) => {
       if (cancelled) return
       setPingWatch((current) => (current.key === weddingId ? { key: weddingId, down } : current))
@@ -208,7 +209,6 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
       refresher.cancel()
-      stopRows()
       stopPings()
     }
   }, [mode, bundle?.wedding.id, commit])

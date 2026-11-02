@@ -251,6 +251,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
   file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
   file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
+  file(`${root}supabase/migrations/20261102120000_guest_ping_payload.sql`)
+  file(`${root}supabase/migrations/20261102120000_guest_ping_payload.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -1140,9 +1142,10 @@ describe('approved role permissions', () => {
     expect(psql(`select count(*) from pg_trigger where tgname = 'guest_functions_ping_list' and not tgisinternal;`).trim()).toBe('1')
     expect(psql(`select count(*) from pg_trigger where tgname = 'budget_items_unique_name' and not tgisinternal;`).trim()).toBe('1')
     const definition = psql(`select pg_get_functiondef('public.ping_guest_list()'::regprocedure);`)
-    for (const column of ['name', 'side', 'email', 'phone', 'rsvp_status', 'meal', 'plus_ones', 'guest_id']) {
+    for (const column of ['name', 'side', 'email', 'phone', 'rsvp_status', 'meal', 'plus_ones', 'guest_id', 'id']) {
       expect(definition).not.toMatch(new RegExp(`\\b${column}\\b`))
     }
+    expect(definition).not.toMatch(/to_jsonb/)
     psql(`
       insert into auth.users (id, email) values
         ('${otherSide}', 'other-side@example.com'),

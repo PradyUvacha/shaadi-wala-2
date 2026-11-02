@@ -65,6 +65,16 @@ export function guestsInFilter(
   return guests.filter((guest) => guestIncluded(role, viewerSide, filter, guest.side))
 }
 
+/**
+ * A postgres_changes payload for guests or guest_functions includes the row.
+ * That row has `id` or `guest_id`. Other-side viewers must not receive it.
+ * The Guests screen uses the private ping instead, then refetches through RLS.
+ */
+export function postgresGuestChangeCarriesRow(record: Record<string, unknown> | null | undefined): boolean {
+  if (!record) return false
+  return 'id' in record || 'guest_id' in record || 'name' in record || 'side' in record
+}
+
 export function subscribeWeddingGuests(
   client: SupabaseClient,
   weddingId: string,
