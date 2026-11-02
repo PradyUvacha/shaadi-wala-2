@@ -119,6 +119,33 @@ export function canManageTasks(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner' || role === 'family'
 }
 
+/** Couple and planner edit any task. A parent edits only their own side. A friend only completes. */
+export function canEditTaskRow(
+  role: MemberRole | null | undefined,
+  viewerSide: Side | null,
+  taskSide: Side | null,
+): boolean {
+  if (isCouple(role) || role === 'planner') return true
+  if (role === 'family') return viewerSide != null && taskSide === viewerSide
+  return false
+}
+
+export function myTasks<T extends { assignedTo: string | null }>(tasks: readonly T[], userId: string | null | undefined): T[] {
+  if (!userId) return []
+  return tasks.filter((task) => task.assignedTo === userId)
+}
+
+export function assignedSideBlocks<T extends { assignedTo: string | null; side: Side | null }>(
+  tasks: readonly T[],
+): { label: string; tasks: T[] }[] {
+  const assigned = tasks.filter((task) => task.assignedTo)
+  return [
+    { label: "Bride's side", tasks: assigned.filter((task) => task.side === 'bride') },
+    { label: "Groom's side", tasks: assigned.filter((task) => task.side === 'groom') },
+    { label: 'Shared', tasks: assigned.filter((task) => task.side == null) },
+  ].filter((block) => block.tasks.length > 0)
+}
+
 /** Add, rename, reorder, and remove functions. Couple and planner only. */
 export function canEditChecklist(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner'

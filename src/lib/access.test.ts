@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canDeleteGuestRow, canEditGuestRow, guestIncluded, guestListFilters, guestSideChoices, roleLabel, unassignedSideGroups } from './access.ts'
+import { assignedSideBlocks, canDeleteGuestRow, canEditGuestRow, canEditTaskRow, guestIncluded, guestListFilters, guestSideChoices, myTasks, roleLabel, unassignedSideGroups } from './access.ts'
 
 describe('role labels', () => {
   it('names the bride, groom, parent, friend, and planner', () => {
@@ -26,6 +26,16 @@ describe('role labels', () => {
     ])
     expect(unassignedSideGroups(tasks, 'planner', null)).toHaveLength(2)
     expect(unassignedSideGroups(tasks, 'friend', 'bride')).toEqual([])
+    expect(myTasks(tasks, 'friend').map((task) => task.id)).toEqual(['b'])
+    expect(myTasks(tasks, null)).toEqual([])
+    expect(assignedSideBlocks(tasks).map((block) => [block.label, block.tasks.map((task) => task.id)])).toEqual([
+      ["Bride's side", ['b']],
+    ])
+    expect(canEditTaskRow('family', 'bride', 'bride')).toBe(true)
+    expect(canEditTaskRow('family', 'bride', 'groom')).toBe(false)
+    expect(canEditTaskRow('family', 'bride', null)).toBe(false)
+    expect(canEditTaskRow('planner', null, 'groom')).toBe(true)
+    expect(canEditTaskRow('friend', 'bride', 'bride')).toBe(false)
   })
 
   it('lets family on either side edit Mutual guests and keeps Mutual deletes with the couple and planner', () => {

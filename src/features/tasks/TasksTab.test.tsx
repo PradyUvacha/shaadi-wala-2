@@ -191,4 +191,26 @@ describe('ritual editor conflicts', () => {
     expect(refresh).toBeGreaterThan(0)
     await deleted.unmount()
   })
+
+  it('lists only tasks assigned to the member and hides a friend category', async () => {
+    const friendBundle = {
+      ...bundle,
+      membership: { ...bundle.membership, role: 'friend' as const, side: 'bride' as const, userId: 'friend-1' },
+      tasks: [
+        { ...ritual, assignedTo: 'friend-1', side: 'bride', category: 'Venue' as const },
+        { ...ritual, id: 'other', title: 'Someone else', assignedTo: 'bride-1', side: 'groom', category: 'Decor' as const },
+      ],
+    }
+    const view = await renderTab(weddingValue({ bundle: friendBundle }))
+    expect(view.container.textContent).not.toContain('Venue')
+    expect(view.container.textContent).not.toContain('Decor')
+    expect(view.container.textContent).toContain("Bride's side")
+    expect(view.container.textContent).toContain("Groom's side")
+    await act(async () => {
+      clickButton(view.container, 'My tasks · 1')
+    })
+    expect(view.container.textContent).toContain('Book the hall')
+    expect(view.container.textContent).not.toContain('Someone else')
+    await view.unmount()
+  })
 })

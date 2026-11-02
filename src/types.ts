@@ -171,6 +171,7 @@ export type WeddingBundle = {
   }
   membership: {
     id: string
+    userId?: string
     role: MemberRole
     side: Side | null
     displayName: string

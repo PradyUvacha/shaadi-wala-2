@@ -111,6 +111,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       },
       membership: {
         id: String(member.id),
+        userId: String(member.user_id),
         role,
         side,
         displayName,
