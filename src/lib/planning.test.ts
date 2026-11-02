@@ -185,6 +185,31 @@ describe('family settlement and headcount', () => {
     expect(settlementSummary(settlement)).toMatch(/Record a payment/)
   })
 
+  it('splits an odd sided-payment total so both shares add back to it', () => {
+    const settlement = familySettlement([
+      {
+        currency: 'INR',
+        estimated: 1001,
+        actual: 1001,
+        paid: false,
+        paidBySide: 'groom',
+        splits: [],
+        partPayments: [{ id: 'pay-odd', amount: 1001, paidBy: 'Rahul', paidBySide: 'groom', date: '2026-01-01', notes: '' }],
+      },
+    ])
+    const paidTotal = settlement.bridePaid + settlement.groomPaid
+    const brideDue = Math.floor(paidTotal / 2) + (paidTotal % 2)
+    const groomDue = paidTotal - brideDue
+    expect(paidTotal).toBe(1001)
+    expect(brideDue).toBe(501)
+    expect(groomDue).toBe(500)
+    expect(brideDue + groomDue).toBe(paidTotal)
+    expect(settlement.groomOwesBride).toBe(settlement.bridePaid - brideDue)
+    expect(settlement.netSettled).toBe(paidTotal - Math.abs(settlement.groomOwesBride))
+    expect(Number.isInteger(settlement.netSettled)).toBe(true)
+    expect(settlementSummary(settlement)).toBe("Bride's family owes Groom's family ₹501")
+  })
+
   it('counts actual with no payment as unattributed so paid and unattributed add up', () => {
     const open = familySettlement([
       {

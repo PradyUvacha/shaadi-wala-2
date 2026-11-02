@@ -206,6 +206,8 @@ export type FamilySettlement = {
   unattributed: number
   /** Positive when the groom's family owes the bride's family. */
   groomOwesBride: number
+  /** Sided payments minus the amount still owed, in whole rupees. */
+  netSettled: number
 }
 
 function wholeRupees(value: number): number {
@@ -270,13 +272,15 @@ export function familySettlement(
   const bridePaid = wholeRupees(bridePaidRaw)
   const groomPaid = wholeRupees(groomPaidRaw)
   const paidShares = splitRupees(bridePaid + groomPaid)
+  const groomOwesBride = bridePaid + groomPaid === 0 ? 0 : bridePaid - paidShares.bride
   return {
     brideShare: shares.bride,
     groomShare: shares.groom,
     bridePaid,
     groomPaid,
     unattributed: wholeRupees(unattributedRaw),
-    groomOwesBride: bridePaid + groomPaid === 0 ? 0 : bridePaid - paidShares.bride,
+    groomOwesBride,
+    netSettled: bridePaid + groomPaid - Math.abs(groomOwesBride),
   }
 }
 
@@ -288,9 +292,9 @@ export function settlementSummary(settlement: FamilySettlement): string {
     return "Shares are set. Record a payment to see who should settle with whom."
   }
   const amount = Math.abs(settlement.groomOwesBride).toLocaleString('en-IN')
-  if (settlement.groomOwesBride > 0) return `Groom's family owes bride's family ₹${amount}.`
-  if (settlement.groomOwesBride < 0) return `Bride's family owes groom's family ₹${amount}.`
-  return 'The two families are settled for what has been paid so far.'
+  if (settlement.groomOwesBride > 0) return `Groom's family owes Bride's family ₹${amount}`
+  if (settlement.groomOwesBride < 0) return `Bride's family owes Groom's family ₹${amount}`
+  return 'The two families are settled.'
 }
 
 export function unlockedAchievementIds(input: {

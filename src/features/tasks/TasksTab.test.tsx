@@ -197,8 +197,8 @@ describe('ritual editor conflicts', () => {
       ...bundle,
       membership: { ...bundle.membership, role: 'friend' as const, side: 'bride' as const, userId: 'friend-1' },
       tasks: [
-        { ...ritual, assignedTo: 'friend-1', side: 'bride', category: 'Venue' as const },
-        { ...ritual, id: 'other', title: 'Someone else', assignedTo: 'bride-1', side: 'groom', category: 'Decor' as const },
+        { ...ritual, assignedTo: 'friend-1', side: 'bride' as const, category: 'Venue' as const },
+        { ...ritual, id: 'other', title: 'Someone else', assignedTo: 'bride-1', side: 'groom' as const, category: 'Decor' as const },
       ],
     }
     const view = await renderTab(weddingValue({ bundle: friendBundle }))

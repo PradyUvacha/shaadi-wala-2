@@ -275,6 +275,9 @@ export function BudgetTab() {
             onPay={() => {
               if (!card.primaryItemId) return
               setError(null)
+              setError(null)
+              setPayText('')
+              setPayForm({ paidBy: '', paidBySide: role === 'family' && creatorSide ? creatorSide : '', notes: '', date: '' })
               setPayItemId(card.primaryItemId)
             }}
             onOpen={(taskId) => navigate(`/planning?edit=${taskId}`)}
@@ -302,10 +305,16 @@ export function BudgetTab() {
         </Field>
         <Field label="Which family">
           <select style={selectStyle} value={payForm.paidBySide} onChange={(event) => setPayForm((current) => ({ ...current, paidBySide: event.target.value as PaymentSide }))}>
-            <option value="">Not specified</option>
-            <option value="bride">Bride's side</option>
-            <option value="groom">Groom's side</option>
-            <option value="other">Other</option>
+            {role === 'family' && creatorSide ? (
+              <option value={creatorSide}>{creatorSide === 'bride' ? "Bride's side" : "Groom's side"}</option>
+            ) : (
+              <>
+                <option value="">Not specified</option>
+                <option value="bride">Bride's side</option>
+                <option value="groom">Groom's side</option>
+                <option value="other">Other</option>
+              </>
+            )}
           </select>
         </Field>
         <Field label="Notes">
@@ -526,7 +535,10 @@ function Settlement({ items, tasks }: { items: BudgetItem[]; tasks: Task[] }) {
       {settlement.unattributed > 0 && (
         <p style={{ margin: '8px 0 0', fontSize: TYPE.small, color: COLORS.muted }}>Unattributed spend {money(settlement.unattributed, '₹')} (no family payer)</p>
       )}
-      <p style={{ margin: '10px 0 0', fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>{settlementSummary(settlement)}</p>
+      <p style={{ margin: '10px 0 0', fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>
+        {settlementSummary(settlement)}
+        {settlement.bridePaid + settlement.groomPaid > 0 ? ` · Net settled ${money(settlement.netSettled, '₹')}` : ''}
+      </p>
     </div>
   )
 }

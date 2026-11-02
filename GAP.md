@@ -13,12 +13,11 @@ Checked before the M2 code. This file covers settlement (item 5) and tasks by si
 - Parents may insert a payment only when `budget.pay` is `own_side` and `paid_by_side` is their side (`payments_insert_by_permission`). Planners have `budget.view` all, `budget.edit` none, and `budget.pay` none. Friends have `budget.view` none, so `budget_items` and `part_payments` return no rows. Task-cost reads also require `budget.view` all.
 - Non-INR rows are skipped by `familySettlement` and by the INR rollup. Each such card carries `Not in total: …`, and the Budget screen prints those notes.
 
-### Still missing
+### Done in this branch
 
-- The Record payment sheet still offers Bride's side, Groom's side, Other, and Not specified to a parent. The database rejects the other side. The sheet does not limit a parent to their own side.
-- There is no separate whole-rupee "net settled" figure. The screen shows the two budget shares, the two paid totals, unattributed spend, and the owes sentence.
-- The owes sentence names "Groom's family" and "bride's family". It is not a short `X owes Y ₹N` line next to a net settled amount.
-- An odd sided-payment total uses the same split helper, and there is no test that those two responsibility shares add back to that payment total, or that a displayed net settled amount is a whole number of rupees.
+- The Record payment sheet offers a parent only their own side.
+- The owes line is `X owes Y ₹N`, with `Net settled ₹N` beside it. The net settled amount is whole rupees.
+- An odd sided-payment total of ₹1,001 splits into ₹501 for the bride and ₹500 for the groom, and those shares add back to ₹1,001.
 
 ## Item 3 — Tasks by side and My Tasks
 
@@ -33,9 +32,11 @@ Checked before the M2 code. This file covers settlement (item 5) and tasks by si
 - `subscribeWeddingChecklist` listens to `tasks` and `wedding_functions`, so an assignment or status change can reach an open Planning screen without a reload.
 - A friend does not see the rupee chip, because `canSeeBudget` is false for that role. The planner can see costs and cannot edit them while `PLANNER_CAN_EDIT_TASK_COSTS` is false.
 
-### Still missing
+### Done in this branch
 
-- There is no My Tasks list. Nothing filters the open wedding to exactly the tasks whose `assigned_to` is the signed-in member, for every role.
-- A friend's task card still shows the category badge. The spec for this item says a friend sees no cost and no category.
-- Assigned tasks stay under their function. They are not also grouped by side. Only unassigned, side-tagged tasks get a side heading.
-- A parent can still read the other side's tasks, because `tasks.view` for family is `all`. Editing that other side is already refused. This item does not require hiding those rows on the Tasks screen; Home (item 2) is the place that must hide the other side.
+- My Tasks lists exactly the tasks assigned to the signed-in member. The list follows the live task subscription.
+- A friend's card no longer shows the category badge, and still shows no cost.
+- Assigned tasks are grouped under Bride's side, Groom's side, and Shared.
+- A parent can edit or assign only their own side. The couple and the planner can still edit or assign any task. Leave and remove still return tasks to that member's side.
+
+A parent can still read the other side's tasks on the Tasks screen, because `tasks.view` for family is `all`. Home hides that other side.
