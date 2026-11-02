@@ -80,7 +80,7 @@ describe('budget splits', () => {
       {
         currency: 'INR',
         estimated: 1000,
-        actual: 0,
+        actual: 1000,
         paid: false,
         paidBySide: 'bride',
         splits: splitsForSave({ paidBySide: 'bride', splits: [] }).map((split, index) => ({ ...split, id: String(index) })),
@@ -90,7 +90,7 @@ describe('budget splits', () => {
     expect(settlement.brideShare).toBe(500)
     expect(settlement.groomShare).toBe(500)
     expect(settlement.bridePaid).toBe(0)
-    expect(settlement.unattributed).toBe(0)
+    expect(settlement.unattributed).toBe(1000)
     expect(settlementSummary(settlement)).toMatch(/Record a payment/)
   })
 
@@ -158,11 +158,12 @@ describe('family settlement and headcount', () => {
       { status: 'Completed', actualCost: 40000 },
       { status: 'Pending', actualCost: 15000 },
     ])
-    expect(settlement.brideShare).toBe(125000)
-    expect(settlement.groomShare).toBe(125000)
+    expect(settlement.brideShare).toBe(50006)
+    expect(settlement.groomShare).toBe(50005)
     expect(settlement.bridePaid).toBe(100000)
     expect(settlement.groomPaid).toBe(0)
     expect(settlement.groomOwesBride).toBe(50000)
+    expect(settlement.netSettled + Math.abs(settlement.groomOwesBride)).toBe(100000)
     expect(settlement.unattributed).toBe(40011)
     expect(settlementSummary(settlement)).toMatch(/Groom's family owes/)
   })
@@ -179,35 +180,48 @@ describe('family settlement and headcount', () => {
         partPayments: [],
       },
     ])
-    expect(settlement.brideShare).toBe(501)
-    expect(settlement.groomShare).toBe(500)
+    expect(settlement.brideShare).toBe(0)
+    expect(settlement.groomShare).toBe(0)
     expect(settlement.bridePaid).toBe(0)
-    expect(settlementSummary(settlement)).toMatch(/Record a payment/)
+    expect(settlementSummary(settlement)).toMatch(/Add INR items/)
   })
 
-  it('splits an odd sided-payment total so both shares add back to it', () => {
-    const settlement = familySettlement([
-      {
-        currency: 'INR',
-        estimated: 1001,
-        actual: 1001,
-        paid: false,
-        paidBySide: 'groom',
-        splits: [],
-        partPayments: [{ id: 'pay-odd', amount: 1001, paidBy: 'Rahul', paidBySide: 'groom', date: '2026-01-01', notes: '' }],
-      },
-    ])
-    const paidTotal = settlement.bridePaid + settlement.groomPaid
-    const brideDue = Math.floor(paidTotal / 2) + (paidTotal % 2)
-    const groomDue = paidTotal - brideDue
-    expect(paidTotal).toBe(1001)
-    expect(brideDue).toBe(501)
-    expect(groomDue).toBe(500)
-    expect(brideDue + groomDue).toBe(paidTotal)
-    expect(settlement.groomOwesBride).toBe(settlement.bridePaid - brideDue)
-    expect(settlement.netSettled).toBe(paidTotal - Math.abs(settlement.groomOwesBride))
-    expect(Number.isInteger(settlement.netSettled)).toBe(true)
-    expect(settlementSummary(settlement)).toBe("Bride's family owes Groom's family ₹501")
+  it('keeps settled plus owed equal to Actual when the category is fully paid', () => {
+    const category = (payments: { amount: number; paidBySide: 'bride' | 'groom' }[], actual: number) => familySettlement([{
+      currency: 'INR',
+      estimated: actual,
+      actual,
+      paid: true,
+      paidBySide: 'both',
+      splits: [],
+      partPayments: payments.map((payment, index) => ({
+        id: `p-${index}`,
+        amount: payment.amount,
+        paidBy: 'Family',
+        paidBySide: payment.paidBySide,
+        date: '2026-01-01',
+        notes: '',
+      })),
+    }])
+    const even = category([{ amount: 500, paidBySide: 'bride' }, { amount: 500, paidBySide: 'groom' }], 1000)
+    expect(even.groomOwesBride).toBe(0)
+    expect(even.netSettled).toBe(1000)
+    expect(even.netSettled + Math.abs(even.groomOwesBride)).toBe(1000)
+    expect(settlementSummary(even)).toBe('All settled ✓')
+
+    const uneven = category([{ amount: 700, paidBySide: 'bride' }, { amount: 300, paidBySide: 'groom' }], 1000)
+    expect(uneven.groomOwesBride).toBe(200)
+    expect(uneven.netSettled).toBe(800)
+    expect(uneven.netSettled + uneven.groomOwesBride).toBe(1000)
+    expect(settlementSummary(uneven)).toBe("Groom's family owes Bride's family ₹200")
+
+    const odd = category([{ amount: 1001, paidBySide: 'bride' }], 1001)
+    expect(odd.brideShare).toBe(501)
+    expect(odd.groomShare).toBe(500)
+    expect(odd.groomOwesBride).toBe(500)
+    expect(odd.netSettled).toBe(501)
+    expect(odd.netSettled + odd.groomOwesBride).toBe(1001)
+    expect(settlementSummary(odd)).toBe("Groom's family owes Bride's family ₹500")
   })
 
   it('counts actual with no payment as unattributed so paid and unattributed add up', () => {

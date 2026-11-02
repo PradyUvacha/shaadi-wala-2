@@ -69,6 +69,11 @@ export function sideGuests<T extends HomeGuest>(
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 
+/** Generated activity never carries a rupee amount. Typed announcements are left unchanged. */
+function automaticActivity(text: string): string {
+  return text.replace(/₹\s*[\d,]+(?:\.\d+)?/g, '').replace(/\s{2,}/g, ' ').trim()
+}
+
 export function recentActivity(input: {
   tasks: readonly HomeTask[]
   guests: readonly HomeGuest[]
@@ -90,14 +95,14 @@ export function recentActivity(input: {
         id: `task-done-${task.id}`,
         at: task.updatedAt || task.createdAt || '',
         who: whoForTask(task),
-        text: `${task.title} done`,
+        text: automaticActivity(`${task.title} done`),
       })
     } else {
       items.push({
         id: `task-added-${task.id}`,
         at: task.createdAt || task.updatedAt || '',
         who: whoForTask(task),
-        text: `${task.title} added`,
+        text: automaticActivity(`${task.title} added`),
       })
     }
   }
@@ -107,7 +112,7 @@ export function recentActivity(input: {
       id: `guest-${guest.id}`,
       at: guest.createdAt || '',
       who: guest.name,
-      text: `${guest.name} added`,
+      text: automaticActivity(`${guest.name} added`),
     })
   }
   for (const post of input.posts) {

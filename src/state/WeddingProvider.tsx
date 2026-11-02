@@ -25,7 +25,7 @@ import {
   withMilestone,
   withTask,
 } from '../lib/bundle.ts'
-import { acceptsChecklistChange, applyChecklistChange, subscribeWeddingChecklist } from '../lib/checklist.ts'
+import { acceptsChecklistChange, applyChecklistChange, subscribeTaskPings, subscribeWeddingChecklist } from '../lib/checklist.ts'
 import { scheduleGuestRefresh, subscribeGuestPings } from '../lib/guestSync.ts'
 import { applyTaskCostChange, stripTaskCosts, subscribeTaskCosts } from '../lib/taskCosts.ts'
 import { toErrorMessage, type RowGuard } from '../lib/errors.ts'
@@ -62,6 +62,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   const modeRef = useRef<WeddingMode>(null)
   const apiRef = useRef<ReturnType<typeof createWeddingApi> | null>(null)
   const guestEpoch = useRef(0)
+  const taskEpoch = useRef(0)
 
   const ready = !userId || remote?.userId === userId
   const bundle = userId ? (remote?.userId === userId ? remote.bundle : null) : preview
@@ -134,12 +135,37 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     if (!supabase || mode !== 'remote') return
     const weddingId = bundle?.wedding.id
     if (!weddingId) return
-    return subscribeWeddingChecklist(supabase, weddingId, (change) => {
+    let cancelled = false
+    let ticket = 0
+    const stopFunctions = subscribeWeddingChecklist(supabase, weddingId, (change) => {
       const current = bundleRef.current
       if (!current || current.wedding.id !== weddingId) return
       if (!acceptsChecklistChange(change, current.membership.role, userId)) return
       commit(applyChecklistChange(current, change))
     })
+    const pullTasks = () => {
+      const api = apiRef.current
+      const current = bundleRef.current
+      if (!api || !current || current.wedding.id !== weddingId) return
+      const epoch = taskEpoch.current
+      const mine = ++ticket
+      void api.listTasks(weddingId).then((tasks) => {
+        if (cancelled || mine !== ticket || epoch !== taskEpoch.current) return
+        const latest = bundleRef.current
+        if (!latest || latest.wedding.id !== weddingId) return
+        commit({ ...latest, tasks })
+      }).catch((caught: unknown) => {
+        if (!cancelled) setNotice(toErrorMessage(caught))
+      })
+    }
+    const refresher = scheduleGuestRefresh(pullTasks)
+    const stopPings = subscribeTaskPings(supabase, weddingId, () => refresher.schedule())
+    return () => {
+      cancelled = true
+      refresher.cancel()
+      stopFunctions()
+      stopPings()
+    }
   }, [mode, bundle?.wedding.id, commit, userId])
 
   useEffect(() => {
@@ -343,6 +369,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
         if (first) track('first_task_added')
         return
       }
+      taskEpoch.current += 1
       const saved = await apiRef.current.saveTask(current.wedding.id, draft, id, guard, { writeCost })
       const merged = !writeCost && existing
         ? { ...saved, actualCost: existing.actualCost, budgetCategoryId: existing.budgetCategoryId, costUpdatedAt: existing.costUpdatedAt }
@@ -353,7 +380,10 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
     },
     deleteTask: async (id: string) => {
       const current = requireTaskWriter()
-      if (modeRef.current === 'remote') await apiRef.current?.deleteTask(id)
+      if (modeRef.current === 'remote') {
+        taskEpoch.current += 1
+        await apiRef.current?.deleteTask(id)
+      }
       commit(removeTask(current, id))
     },
     toggleTask: async (task: Task) => {
@@ -370,6 +400,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       if (modeRef.current === 'preview' || !apiRef.current) {
         commit(saveTaskDraft(current, draft, task.id))
       } else {
+        taskEpoch.current += 1
         const saved = await apiRef.current.saveTask(
           current.wedding.id,
           draft,

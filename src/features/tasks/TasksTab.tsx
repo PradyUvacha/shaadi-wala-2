@@ -420,6 +420,9 @@ export function TasksTab() {
               </span>
             )}
             {task.dueDate && <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.dueDate}</span>}
+            {role === 'family' && task.side == null && (
+              <span style={{ flexBasis: '100%', fontSize: TYPE.small, color: COLORS.muted }}>Only the couple or planner can edit shared tasks</span>
+            )}
             {task.assignedTo && (
               <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>
                 Assigned to {members.find((member) => member.userId === task.assignedTo)?.displayName ?? 'a member'}

@@ -255,6 +255,8 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261102120000_guest_ping_payload.sql`)
   file(`${root}supabase/migrations/20261102130000_feed_author_writes.sql`)
   file(`${root}supabase/migrations/20261102130000_feed_author_writes.sql`)
+  file(`${root}supabase/migrations/20261102140000_task_ping.sql`)
+  file(`${root}supabase/migrations/20261102140000_task_ping.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -308,6 +310,54 @@ describe('approved role permissions', () => {
     expect(errorOf(family, `update public.tasks set assigned_to = '${groom}' where title = 'Bride task';`)).toMatch(/own side/)
     expect(psql(`select assigned_to::text from public.tasks where title = 'Bride task';`).trim()).toBe(friend)
     expect(asUser(family, `update public.tasks set title = 'Nope' where title = 'Groom task'; select count(*) from public.tasks where title = 'Nope';`)).toBe('0')
+  })
+
+  it('TBS-08 refetches a friend off a task that was reassigned, without sending the row', () => {
+    psql(`
+      insert into public.tasks (wedding_id, title, category, priority, status, side, assigned_to)
+      select id, 'TBS-08 Task', 'Other', 'Low', 'Pending', 'bride', '${friend}'
+      from public.weddings where couple_names = 'Role Fixture';
+    `)
+    const topic = psql(`select 'wedding:' || id::text || ':tasks' from public.weddings where couple_names = 'Role Fixture';`).trim()
+    const weddingId = psql(`select id::text from public.weddings where couple_names = 'Role Fixture';`).trim()
+    const payload = psql(`
+      select (payload - 'table' - 'wedding_id')::text
+        || '|' || (payload->>'table')
+        || '|' || (payload->>'wedding_id')
+      from realtime.messages
+      where event = 'task_ping'
+      order by id desc
+      limit 1;
+    `).trim()
+    expect(payload).toBe(`{}|tasks|${weddingId}`)
+    expect(psql(`select payload::text from realtime.messages where event = 'task_ping' order by id desc limit 1;`).trim()).not.toContain('TBS-08')
+    expect(asUser(friend, `
+      select set_config('realtime.topic', '${topic}', false);
+      select (payload - 'table' - 'wedding_id')::text
+      from realtime.messages
+      where event = 'task_ping'
+      order by id desc
+      limit 1;
+    `)).toBe('{}')
+    expect(asUser(friend, `select count(*) from public.tasks where title = 'TBS-08 Task';`)).toBe('1')
+    psql(`update public.tasks set assigned_to = '${bride}' where title = 'TBS-08 Task';`)
+    expect(asUser(friend, `select count(*) from public.tasks where title = 'TBS-08 Task';`)).toBe('0')
+    expect(psql(`select payload::text from realtime.messages where event = 'task_ping' order by id desc limit 1;`).trim()).not.toContain('TBS-08')
+    const definition = psql(`select pg_get_functiondef('public.ping_task_list()'::regprocedure);`)
+    expect(definition).not.toMatch(/\b(title|assigned_to)\b/)
+    psql(`delete from public.tasks where title = 'TBS-08 Task';`)
+  })
+
+  it('B54 lets a parent read a shared task and blocks the edit', () => {
+    psql(`
+      insert into public.tasks (wedding_id, title, category, priority, status, side)
+      select id, 'Shared Task', 'Other', 'Low', 'Pending', null
+      from public.weddings where couple_names = 'Role Fixture';
+    `)
+    expect(asUser(family, `select count(*) from public.tasks where title = 'Shared Task';`)).toBe('1')
+    expect(asUser(family, `update public.tasks set title = 'Changed shared' where title = 'Shared Task'; select count(*) from public.tasks where title = 'Changed shared';`)).toBe('0')
+    expect(asUser(bride, `select title from public.tasks where title = 'Shared Task';`)).toBe('Shared Task')
+    psql(`delete from public.tasks where title = 'Shared Task';`)
   })
 
   it('friend can view and complete only tasks assigned to them', () => {

@@ -49,6 +49,18 @@ describe('parent home', () => {
     ])
     expect(activity.some((item) => item.text.includes('Groom'))).toBe(false)
     expect(activity.some((item) => item.text.includes('₹'))).toBe(false)
+    const withCost = recentActivity({
+      tasks: [{ id: 'cost', title: 'Book hall', priority: 'High', status: 'Pending', dueDate: '', side: 'bride', assignedTo: null, updatedAt: '2026-11-01T00:00:00.000Z', actualCost: 40000 }],
+      guests: [],
+      posts: [{ id: 'typed', body: 'Bring ₹500 exactly', createdAt: '2026-11-02T00:00:00.000Z', authorId: 'bride-parent' }],
+      authors: [{ userId: 'bride-parent', role: 'family', side: 'bride', displayName: 'Bride Parent' }],
+      members: [],
+      role: 'friend',
+      viewerSide: 'bride',
+    })
+    expect(withCost.find((item) => item.id === 'task-added-cost')?.text).toBe('Book hall added')
+    expect(withCost.find((item) => item.id === 'post-typed')?.text).toBe('Bring ₹500 exactly')
+    expect(withCost.find((item) => item.id === 'task-added-cost')?.text).not.toMatch(/₹|40000/)
     expect(activity[0]).toMatchObject({ who: 'Bride Aunt', text: 'Bride Aunt added' })
     expect(activity.find((item) => item.id === 'task-done-done')).toMatchObject({ who: 'Parent', text: 'Finished done' })
     expect(sideGuests([

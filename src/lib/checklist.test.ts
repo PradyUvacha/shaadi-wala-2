@@ -7,8 +7,12 @@ import {
   checklistChannelFilters,
   communityLabel,
   moveByPosition,
+  subscribeTaskPings,
   subscribeWeddingChecklist,
+  taskPingPayload,
+  TASK_PING_EVENT,
 } from './checklist.ts'
+import { myTasks } from './access.ts'
 
 describe('checklist order', () => {
   const items = [
@@ -126,35 +130,24 @@ describe('checklist realtime', () => {
     expect(acceptsChecklistChange({ ...change, eventType: 'DELETE' }, 'friend', 'friend-1')).toBe(true)
   })
 
-  it('listens to functions and rituals for one wedding', () => {
+  it('TBS-08 drops a task the friend can no longer see once the allowed list is refetched', () => {
+    const assigned = [{ id: 't1', assignedTo: 'friend-1' }]
+    expect(myTasks(assigned, 'friend-1')).toEqual(assigned)
+    expect(myTasks([], 'friend-1')).toEqual([])
+    const ping = taskPingPayload('wedding-1')
+    expect(ping).toEqual({ table: 'tasks', wedding_id: 'wedding-1' })
+    expect(Object.keys(ping).sort()).toEqual(['table', 'wedding_id'])
+  })
+
+  it('listens to function rows only, because a task payload includes the row id', () => {
     const filters = checklistChannelFilters('wedding-1')
-    expect(filters.map((filter) => filter.table)).toEqual(['tasks', 'wedding_functions'])
+    expect(filters.map((filter) => filter.table)).toEqual(['wedding_functions'])
     expect(filters.every((filter) => filter.filter === 'wedding_id=eq.wedding-1')).toBe(true)
     const seen: string[] = []
     let removed = false
     const channel = {
-      on(_event: string, filter: { table: string }, callback: (payload: { eventType: 'INSERT'; new: Record<string, unknown>; old: Record<string, unknown> }) => void) {
+      on(_event: string, filter: { table: string }) {
         seen.push(filter.table)
-        if (filter.table === 'tasks') {
-          callback({
-            eventType: 'INSERT',
-            new: {
-              id: 't2',
-              title: 'Extra rite',
-              description: '',
-              category: 'Other',
-              priority: 'Low',
-              ceremony: 'Roka',
-              status: 'Pending',
-              due_date: null,
-              template_title: null,
-              sort_order: 2,
-              function_id: 'fn-roka',
-              position: 2,
-            },
-            old: {},
-          })
-        }
         return channel
       },
       subscribe() {
@@ -166,12 +159,38 @@ describe('checklist realtime', () => {
       removeChannel: () => {
         removed = true
       },
-    } as unknown as SupabaseClient, 'wedding-1', (change) => {
-      const next = applyChecklistChange(openWedding(), change)
-      expect(next.tasks.map((task) => task.title)).toEqual(['Roka Ceremony', 'Extra rite'])
+    } as unknown as SupabaseClient, 'wedding-1', () => {
+      seen.push('applied')
     })
-    expect(seen).toEqual(['tasks', 'wedding_functions'])
+    expect(seen).toEqual(['wedding_functions'])
     stop()
     expect(removed).toBe(true)
+
+    let pingArgs: unknown[] | null = null
+    const pingChannel = {
+      on(event: string, filter: { event: string }, callback: (message: { payload: Record<string, unknown> }) => void) {
+        seen.push(`${event}:${filter.event}`)
+        callback({ payload: { table: 'tasks', wedding_id: 'wedding-1', id: 'secret-task' } })
+        return pingChannel
+      },
+      subscribe() {
+        return pingChannel
+      },
+    }
+    const stopPing = subscribeTaskPings({
+      channel: (name: string, opts: { config: { private: boolean } }) => {
+        seen.push(`${name}:${opts.config.private}`)
+        return pingChannel
+      },
+      removeChannel: () => {
+        seen.push('ping-removed')
+      },
+    } as unknown as SupabaseClient, 'wedding-1', (...args: unknown[]) => {
+      pingArgs = args
+    })
+    expect(seen).toContain('wedding:wedding-1:tasks:true')
+    expect(seen).toContain(`broadcast:${TASK_PING_EVENT}`)
+    expect(pingArgs).toEqual([])
+    stopPing()
   })
 })

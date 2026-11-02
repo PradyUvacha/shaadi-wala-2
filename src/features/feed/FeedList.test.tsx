@@ -61,7 +61,31 @@ describe('announcement feed', () => {
 
     const friend = await renderList(false, 'friend')
     expect(friend.container.querySelector('textarea[aria-label="Announcement"]')).toBeNull()
-    expect(friend.container.textContent).not.toContain('₹')
+    expect(friend.container.textContent).toContain('Haldi is at 4')
     await friend.unmount()
+  })
+
+  it('shows a typed announcement exactly, including an amount', async () => {
+    ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root: Root = createRoot(container)
+    const exact = 'Bring ₹500 exactly'
+    await act(async () => {
+      root.render(
+        <FeedList
+          posts={[{ id: 'exact', body: exact, createdAt: '2026-11-02T10:00:00.000Z', authorId: 'parent' }]}
+          authors={authors}
+          canPost={false}
+          currentUserId="friend"
+          onCreate={() => {}}
+          onUpdate={() => {}}
+          onDelete={() => {}}
+        />,
+      )
+    })
+    expect(container.textContent).toContain(exact)
+    await act(async () => root.unmount())
+    container.remove()
   })
 })
