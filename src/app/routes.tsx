@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AppShell } from './AppShell.tsx'
 import { Splash } from '../components/ui.tsx'
 import { COLORS } from '../styles/tokens.ts'
@@ -20,6 +20,18 @@ const ProfileScreen = lazy(() => import('../features/account/ProfileScreen.tsx')
 const SettingsScreen = lazy(() => import('../features/account/SettingsScreen.tsx').then((m) => ({ default: m.SettingsScreen })))
 const DeleteAccountScreen = lazy(() => import('../features/account/DeleteAccountScreen.tsx').then((m) => ({ default: m.DeleteAccountScreen })))
 const FeedbackScreen = lazy(() => import('../features/feedback/FeedbackScreen.tsx').then((m) => ({ default: m.FeedbackScreen })))
+
+/** /timeline and the Planning Events tab both land here. */
+export const PLANNING_EVENTS_PATH = '/planning?tab=events'
+
+export function isPlanningEvents(params: URLSearchParams): boolean {
+  return params.get('tab') === 'events'
+}
+
+function PlanningScreen() {
+  const [params] = useSearchParams()
+  return isPlanningEvents(params) ? <TimelineTab /> : <TasksTab />
+}
 
 function useAuthCallback(finishingAuth: boolean, hasSession: boolean) {
   const [expired, setExpired] = useState(false)
@@ -83,11 +95,11 @@ export function AppRoutes() {
           <Route path="/account" element={<AccountRedirect />} />
           <Route element={hasWedding ? <Outlet /> : <Navigate to="/setup" replace />}>
             <Route index element={<HomeTab />} />
-            <Route path="planning" element={<TasksTab />} />
+            <Route path="planning" element={<PlanningScreen />} />
             <Route path="tasks" element={<Navigate to="/planning" replace />} />
             <Route path="budget" element={<BudgetTab />} />
             <Route path="guests" element={<GuestsTab />} />
-            <Route path="timeline" element={<TimelineTab />} />
+            <Route path="timeline" element={<Navigate to={PLANNING_EVENTS_PATH} replace />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to={canEnter ? home : pathWithSurvey('/auth', location.search)} replace />} />

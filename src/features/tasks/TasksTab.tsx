@@ -446,7 +446,7 @@ export function TasksTab() {
       <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, padding: headerPadding }}>
         <h1 style={{ fontFamily: FONT.display, fontSize: TYPE.title, fontWeight: 700, color: '#fff', margin: '0 0 10px' }}>Planning</h1>
         <div role="tablist" aria-label="Planning" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 0, background: COLORS.maroon, borderRadius: 12, padding: 4, marginBottom: 10 }}>
-          <Link to="/timeline" role="tab" aria-selected={false} style={segmentStyle(false)}>Events</Link>
+          <Link to="/planning?tab=events" role="tab" aria-selected={false} style={segmentStyle(false)}>Events</Link>
           <span role="tab" aria-selected={true} style={segmentStyle(true)}>Tasks</span>
         </div>
         {weddingDate ? <div style={{ fontSize: 14, color: '#fff', marginBottom: 8 }}>{weddingDate}</div> : null}

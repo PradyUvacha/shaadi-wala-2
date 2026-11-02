@@ -136,6 +136,8 @@ describe('ritual editor conflicts', () => {
     expect(stale.container.textContent).toContain('Community ·')
     expect(stale.container.textContent).toContain('Planning')
     expect(stale.container.querySelector('h1')?.textContent).toBe('Planning')
+    const events = [...stale.container.querySelectorAll('a')].find((link) => link.textContent?.trim() === 'Events')
+    expect(events?.getAttribute('href')).toBe('/planning?tab=events')
     const banner = stale.container.querySelector('img')
     expect(banner?.getAttribute('alt')).toBe('Wedding planning banner')
     expect(banner?.getAttribute('src')).toBe('/planning-strip.webp')
