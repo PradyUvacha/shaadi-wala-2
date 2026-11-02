@@ -213,4 +213,30 @@ describe('ritual editor conflicts', () => {
     expect(view.container.textContent).not.toContain('Someone else')
     await view.unmount()
   })
+
+  it('counts My tasks when the membership row id is not the auth user id', async () => {
+    const memberRowId = 'member-row-9f3a'
+    const authUserId = 'auth-user-4c2e'
+    const roles = [
+      ['bride', 'bride'],
+      ['groom', 'groom'],
+      ['family', 'bride'],
+      ['family', 'groom'],
+      ['friend', 'bride'],
+      ['friend', 'groom'],
+      ['planner', null],
+    ] as const
+    for (const [role, side] of roles) {
+      const shaped = {
+        ...bundle,
+        membership: { id: memberRowId, userId: 'undefined', role, side, displayName: 'Asha' },
+        members: [{ id: memberRowId, userId: authUserId, role, side, displayName: 'Asha' }],
+        tasks: [{ ...ritual, assignedTo: authUserId, side: 'bride' as const }],
+      }
+      const view = await renderTab(weddingValue({ bundle: shaped }))
+      expect(view.container.textContent).toContain('My tasks · 1')
+      expect(view.container.textContent).toContain('Assigned to Asha')
+      await view.unmount()
+    }
+  })
 })

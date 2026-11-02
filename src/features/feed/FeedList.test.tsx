@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { FeedAuthor } from './feedAuthors.ts'
 import { FeedList, type FeedPost } from './FeedList.tsx'
 
@@ -51,6 +51,22 @@ describe('announcement feed', () => {
     expect(parent.container.textContent).toContain("Parent · Bride's side")
     expect(parent.container.textContent).toContain('Bride')
     expect(parent.container.textContent).toContain('Delete')
+    expect(parent.container.querySelector('textarea[aria-label="Edit announcement"]')).toBeNull()
+    expect(parent.container.querySelector('time')?.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T/)
+    const confirm = vi.fn(() => false)
+    window.confirm = confirm
+    const deleteButton = [...parent.container.querySelectorAll('button')].find((button) => button.textContent === 'Delete')
+    if (!(deleteButton instanceof HTMLButtonElement)) throw new Error('missing delete')
+    await act(async () => {
+      deleteButton.click()
+    })
+    expect(confirm).toHaveBeenCalledWith('Delete this announcement?')
+    const edit = [...parent.container.querySelectorAll('button')].find((button) => button.textContent === 'Edit')
+    if (!(edit instanceof HTMLButtonElement)) throw new Error('missing edit')
+    await act(async () => {
+      edit.click()
+    })
+    expect(parent.container.querySelector('textarea[aria-label="Edit announcement"]')).toBeTruthy()
     const form = parent.container.querySelector('form')
     if (!(form instanceof HTMLFormElement)) throw new Error('missing composer')
     await act(async () => {
@@ -85,6 +101,7 @@ describe('announcement feed', () => {
       )
     })
     expect(container.textContent).toContain(exact)
+    expect(container.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T/)
     await act(async () => root.unmount())
     container.remove()
   })

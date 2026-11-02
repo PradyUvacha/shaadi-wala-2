@@ -44,6 +44,7 @@ function bundle(role: WeddingBundle['membership']['role'], side: WeddingBundle['
     guests: [
       { id: 'g1', name: 'Bride Aunt', email: '', phone: '', status: 'Pending', meal: '', plusOnes: 0, side: 'bride', functionIds: [] },
       { id: 'g2', name: 'Groom Uncle', email: '', phone: '', status: 'Pending', meal: '', plusOnes: 0, side: 'groom', functionIds: [] },
+      { id: 'g3', name: 'Mutual Cousin', email: '', phone: '', status: 'Pending', meal: '', plusOnes: 0, side: 'both', functionIds: [] },
     ],
     milestones: [],
   }
@@ -110,6 +111,7 @@ describe('member home', () => {
     expect(container.textContent).toContain('Shared decor')
     expect(container.textContent).not.toContain('Groom decor')
     expect(container.textContent).toContain('Bride Aunt')
+    expect(container.textContent).toContain('Mutual Cousin')
     expect(container.textContent).not.toContain('Groom Uncle')
     expect(container.textContent).not.toContain('Your wedding progress')
 
@@ -124,7 +126,10 @@ describe('member home', () => {
     })
     expect(container.textContent).toContain('Bride decor')
     expect(container.textContent).not.toContain('Shared decor')
+    expect(container.textContent).toContain('Mutual Cousin')
+    expect(container.textContent).not.toContain('Groom Uncle')
     expect(container.textContent).not.toContain('₹')
+    expect(container.textContent).not.toMatch(/\d{4}-\d{2}-\d{2}T/)
     expect(container.textContent).not.toContain('Post an announcement')
     await act(async () => root.unmount())
     container.remove()

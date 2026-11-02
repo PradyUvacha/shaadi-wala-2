@@ -5,6 +5,7 @@ import { FeedList } from '../feed/FeedList.tsx'
 import { useAnnouncementFeed } from '../feed/useAnnouncementFeed.ts'
 import { canPostFeed, canSeeBudget } from '../../lib/access.ts'
 import { formatDate, formatInrCompact, money, quoteForDay, weddingCountdown } from '../../lib/format.ts'
+import { formatWhen } from '../../lib/when.ts'
 import { priorityTasks, recentActivity, sideGuests } from '../../lib/homeView.ts'
 import { familySettlement, percent } from '../../lib/planning.ts'
 import { rollupWedding } from '../../lib/rollup.ts'
@@ -164,7 +165,7 @@ function MemberHome({ bundle }: { bundle: WeddingBundle }) {
         <h2 style={heading}>Recent activity</h2>
         {activity.length === 0 ? <p style={muted}>No activity yet.</p> : activity.slice(0, 12).map((item) => (
           <p key={item.id} style={{ margin: '8px 0', fontSize: TYPE.small, color: COLORS.ink }}>
-            {item.text} · {item.who} · {item.at.slice(0, 16).replace('T', ' ')}
+            {item.text} · {item.who} · {formatWhen(item.at)}
           </p>
         ))}
       </section>

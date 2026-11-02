@@ -130,6 +130,30 @@ export function canEditTaskRow(
   return false
 }
 
+/**
+ * `tasks.assigned_to` is `auth.users.id`, the same value as `wedding_members.user_id`.
+ * `wedding_members.id` is the membership row and must not be used for My Tasks.
+ * A select that omitted `user_id` used to become the string "undefined".
+ */
+export function membershipUserId(row: { user_id?: unknown }, sessionUserId: string): string {
+  const value = row.user_id
+  if (typeof value === 'string' && value.trim() && value !== 'undefined') return value
+  return sessionUserId
+}
+
+/** Prefer the membership's auth id. Fall back to the member row, never the row id and never "undefined". */
+export function signedInAssigneeId(
+  membership: { id: string; userId?: string | null } | null | undefined,
+  members: readonly { id: string; userId: string }[],
+): string | null {
+  if (!membership) return null
+  const claimed = membership.userId?.trim() ?? ''
+  if (claimed && claimed !== 'undefined') return claimed
+  const fromRow = members.find((member) => member.id === membership.id)?.userId?.trim() ?? ''
+  if (fromRow && fromRow !== 'undefined') return fromRow
+  return null
+}
+
 export function myTasks<T extends { assignedTo: string | null }>(tasks: readonly T[], userId: string | null | undefined): T[] {
   if (!userId) return []
   return tasks.filter((task) => task.assignedTo === userId)

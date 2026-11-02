@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { assignedSideBlocks, canDeleteGuestRow, canEditGuestRow, canEditTaskRow, guestIncluded, guestListFilters, guestSideChoices, myTasks, roleLabel, unassignedSideGroups } from './access.ts'
+import { assignedSideBlocks, canDeleteGuestRow, canEditGuestRow, canEditTaskRow, guestIncluded, guestListFilters, guestSideChoices, membershipUserId, myTasks, roleLabel, signedInAssigneeId, unassignedSideGroups } from './access.ts'
 
 describe('role labels', () => {
   it('names the bride, groom, parent, friend, and planner', () => {
@@ -36,6 +36,25 @@ describe('role labels', () => {
     expect(canEditTaskRow('family', 'bride', null)).toBe(false)
     expect(canEditTaskRow('planner', null, 'groom')).toBe(true)
     expect(canEditTaskRow('friend', 'bride', 'bride')).toBe(false)
+  })
+
+  it('counts My tasks by the auth user id, not the membership row id', () => {
+    const memberRowId = 'member-row-9f3a'
+    const authUserId = 'auth-user-4c2e'
+    const members = [{ id: memberRowId, userId: authUserId }]
+    const tasks = [
+      { id: 'mine', assignedTo: authUserId },
+      { id: 'row-id', assignedTo: memberRowId },
+    ]
+    expect(membershipUserId({ user_id: authUserId }, authUserId)).toBe(authUserId)
+    expect(membershipUserId({}, authUserId)).toBe(authUserId)
+    expect(membershipUserId({}, authUserId)).not.toBe('undefined')
+    expect(membershipUserId({}, authUserId)).not.toBe(memberRowId)
+    const userId = signedInAssigneeId({ id: memberRowId, userId: 'undefined' }, members)
+    expect(userId).toBe(authUserId)
+    expect(myTasks(tasks, userId).map((task) => task.id)).toEqual(['mine'])
+    expect(signedInAssigneeId({ id: memberRowId, userId: authUserId }, members)).toBe(authUserId)
+    expect(myTasks(tasks, signedInAssigneeId({ id: memberRowId, userId: authUserId }, members)).map((task) => task.id)).toEqual(['mine'])
   })
 
   it('lets family on either side edit Mutual guests and keeps Mutual deletes with the couple and planner', () => {

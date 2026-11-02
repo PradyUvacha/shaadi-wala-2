@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { FUNCTION_PHASES, PHASE_HEADERS, PHASE_LABELS, type FunctionPhase } from '../../config/phases.ts'
-import { assignableMembers, assignedSideBlocks, canEditChecklist, canEditTaskCost, canEditTaskRow, canManageTasks, canSeeBudget, myTasks, unassignedSideGroups } from '../../lib/access.ts'
+import { assignableMembers, assignedSideBlocks, canEditChecklist, canEditTaskCost, canEditTaskRow, canManageTasks, canSeeBudget, myTasks, signedInAssigneeId, unassignedSideGroups } from '../../lib/access.ts'
 import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
 import { DELETED_ITEM_MESSAGE, STALE_WRITE_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
@@ -144,9 +144,7 @@ export function TasksTab() {
   }
   const editParam = params.get('edit')
 
-  const myUserId = bundle?.membership.userId
-    ?? members.find((member) => member.id === bundle?.membership.id)?.userId
-    ?? null
+  const myUserId = signedInAssigneeId(bundle?.membership, members)
   const mine = myTasks(tasks, myUserId)
   const statusFiltered = filter === 'All' ? tasks : tasks.filter((task) => (filter === 'Done' ? task.status === 'Completed' : task.status !== 'Completed'))
   const filtered = mineOnly ? statusFiltered.filter((task) => task.assignedTo === myUserId) : statusFiltered
@@ -421,7 +419,7 @@ export function TasksTab() {
             )}
             {task.dueDate && <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.dueDate}</span>}
             {role === 'family' && task.side == null && (
-              <span style={{ flexBasis: '100%', fontSize: TYPE.small, color: COLORS.muted }}>Only the couple or planner can edit shared tasks</span>
+              <span style={{ flexBasis: '100%', fontSize: TYPE.small, color: COLORS.muted }}>Only the couple or planner can edit shared tasks.</span>
             )}
             {task.assignedTo && (
               <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>

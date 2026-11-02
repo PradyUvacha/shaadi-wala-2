@@ -25,6 +25,7 @@ import {
   withMilestone,
   withTask,
 } from '../lib/bundle.ts'
+import { subscribeBudgetPings } from '../lib/budgetFeedPing.ts'
 import { acceptsChecklistChange, applyChecklistChange, subscribeTaskPings, subscribeWeddingChecklist } from '../lib/checklist.ts'
 import { scheduleGuestRefresh, subscribeGuestPings } from '../lib/guestSync.ts'
 import { applyTaskCostChange, stripTaskCosts, subscribeTaskCosts } from '../lib/taskCosts.ts'
@@ -63,6 +64,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
   const apiRef = useRef<ReturnType<typeof createWeddingApi> | null>(null)
   const guestEpoch = useRef(0)
   const taskEpoch = useRef(0)
+  const budgetEpoch = useRef(0)
 
   const ready = !userId || remote?.userId === userId
   const bundle = userId ? (remote?.userId === userId ? remote.bundle : null) : preview
@@ -167,6 +169,36 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       stopPings()
     }
   }, [mode, bundle?.wedding.id, commit, userId])
+
+  useEffect(() => {
+    if (!supabase || mode !== 'remote') return
+    const weddingId = bundle?.wedding.id
+    if (!weddingId || !canSeeBudget(bundle?.membership.role)) return
+    let cancelled = false
+    let ticket = 0
+    const pullBudget = () => {
+      const api = apiRef.current
+      const current = bundleRef.current
+      if (!api || !current || current.wedding.id !== weddingId) return
+      const epoch = budgetEpoch.current
+      const mine = ++ticket
+      void api.listBudget(weddingId).then((budget) => {
+        if (cancelled || mine !== ticket || epoch !== budgetEpoch.current) return
+        const latest = bundleRef.current
+        if (!latest || latest.wedding.id !== weddingId) return
+        commit({ ...latest, budget })
+      }).catch((caught: unknown) => {
+        if (!cancelled) setNotice(toErrorMessage(caught))
+      })
+    }
+    const refresher = scheduleGuestRefresh(pullBudget)
+    const stopBudget = subscribeBudgetPings(supabase, weddingId, () => refresher.schedule())
+    return () => {
+      cancelled = true
+      refresher.cancel()
+      stopBudget()
+    }
+  }, [mode, bundle?.wedding.id, bundle?.membership.role, commit])
 
   useEffect(() => {
     if (!supabase || mode !== 'remote') return
@@ -457,13 +489,17 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
         if (first) track('first_budget_item_added')
         return
       }
+      budgetEpoch.current += 1
       const saved = await apiRef.current.saveBudgetItem(current.wedding.id, draft, id)
       commit(replaceBudgetItem(requireBundle(), saved))
       if (first) track('first_budget_item_added')
     },
     deleteBudgetItem: async (id: string) => {
       const current = requireEditor()
-      if (modeRef.current === 'remote') await apiRef.current?.deleteBudgetItem(id)
+      if (modeRef.current === 'remote') {
+        budgetEpoch.current += 1
+        await apiRef.current?.deleteBudgetItem(id)
+      }
       commit(removeBudgetItem(current, id))
     },
     addPayment: async (budgetItemId: string, payment: PartPaymentDraft) => {
@@ -474,6 +510,7 @@ export function WeddingProvider({ children }: { children: ReactNode }) {
       }
       const item = current.budget.find((entry) => entry.id === budgetItemId)
       if (!item) throw new Error('That budget item is no longer here.')
+      budgetEpoch.current += 1
       const saved = await apiRef.current.addPayment(item, payment)
       commit(replaceBudgetItem(requireBundle(), saved))
     },

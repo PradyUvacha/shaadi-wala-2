@@ -202,7 +202,7 @@ export type FamilySettlement = {
   groomShare: number
   bridePaid: number
   groomPaid: number
-  /** Done task costs, payments with no bride or groom payer, and logged actual that no payment covers. Not a family debt. */
+  /** Done task costs, payments with no bride or groom side, and logged actual that no payment covers. Not a family debt. */
   unattributed: number
   /** Positive when the groom's family owes the bride's family. */
   groomOwesBride: number
@@ -265,13 +265,9 @@ export function familySettlement(
       else if (payment.paidBySide === 'groom') groomPaidRaw += amount
       else unattributedRaw += amount
     }
-    const gap = loggedAmount(item) - paymentTotal(item.partPayments)
-    if (gap > 0) unattributedRaw += gap
-    const linked = tasks.reduce((sum, task) => {
-      if (!countsInActual(task) || !item.id || task.budgetCategoryId !== item.id) return sum
-      return sum + (Number(task.actualCost) || 0)
-    }, 0)
-    const actual = wholeRupees(loggedAmount(item) + linked)
+    const gap = Math.max(0, loggedAmount(item) - paymentTotal(item.partPayments))
+    unattributedRaw += gap
+    const actual = wholeRupees(bridePaidRaw + groomPaidRaw + gap)
     const shares = splitRupees(actual)
     const sideBride = wholeRupees(bridePaidRaw)
     const sideGroom = wholeRupees(groomPaidRaw)
@@ -287,7 +283,7 @@ export function familySettlement(
     groomOwesBride += Math.min(brideExtra, groomShort) - Math.min(groomExtra, brideShort)
   }
   for (const task of tasks) {
-    if (!countsInActual(task) || task.budgetCategoryId) continue
+    if (!countsInActual(task)) continue
     unattributedRaw += Number(task.actualCost) || 0
   }
   return {

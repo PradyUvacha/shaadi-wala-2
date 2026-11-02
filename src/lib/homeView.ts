@@ -65,7 +65,10 @@ export function sideGuests<T extends HomeGuest>(
   viewerSide: Side | null,
 ): T[] {
   return guests
-    .filter((guest) => homeSideVisible(guest.side, role, viewerSide))
+    .filter((guest) => {
+      if (role === 'friend') return guest.side === viewerSide || guest.side === 'both'
+      return homeSideVisible(guest.side, role, viewerSide)
+    })
     .sort((left, right) => left.name.localeCompare(right.name))
 }
 

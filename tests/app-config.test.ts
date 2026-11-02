@@ -24,8 +24,8 @@ describe('app.config.json', () => {
   })
 
   it('follows SW_<version>_<key features>_<date> and keeps versionCode an integer', () => {
-    expect(appConfig.versionName).toBe('SW_0.4_m2_2026-11-02')
-    expect(appConfig.versionCode).toBe(11)
+    expect(appConfig.versionName).toBe('SW_0.4.1_m2fix_2026-11-02')
+    expect(appConfig.versionCode).toBe(12)
     const provider = readFileSync(new URL('../src/state/WeddingProvider.tsx', import.meta.url), 'utf8')
     expect(provider).not.toContain('subscribeWeddingGuests')
     expect(isValidVersionName(appConfig.versionName)).toBe(true)

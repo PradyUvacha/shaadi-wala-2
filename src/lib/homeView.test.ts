@@ -68,5 +68,10 @@ describe('parent home', () => {
       { id: 'gg', name: 'Groom Uncle', side: 'groom' },
       { id: 'gm', name: 'Shared Aunt', side: 'both' },
     ], 'family', 'bride').map((guest) => guest.id)).toEqual(['gb', 'gm'])
+    expect(sideGuests([
+      { id: 'gb', name: 'Bride Aunt', side: 'bride' },
+      { id: 'gg', name: 'Groom Uncle', side: 'groom' },
+      { id: 'gm', name: 'Shared Aunt', side: 'both' },
+    ], 'friend', 'bride').map((guest) => guest.id)).toEqual(['gb', 'gm'])
   })
 })

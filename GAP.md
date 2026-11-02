@@ -16,8 +16,12 @@ Checked before the M2 code. This file covers settlement (item 5) and tasks by si
 ### Done in this branch
 
 - The Record payment sheet offers a parent only their own side.
-- The owes line is `X owes Y ₹N`, with `Net settled ₹N` beside it. The net settled amount is whole rupees.
-- An odd sided-payment total of ₹1,001 splits into ₹501 for the bride and ₹500 for the groom, and those shares add back to ₹1,001.
+- Each side's share is half of the sided settlement total: bride and groom payments, plus any logged actual that no payment covers. Payments with no family side, including Not specified, and Done task costs stay out of that total and show under Unattributed spend. The odd ₹1 goes to the bride.
+- Owed comes only from the under-paying side, so an overpayment is not added again. When the sided total is fully paid, net settled plus owed equals that total. An unsided payment or a Done task cost does not change who owes whom.
+- My Tasks matches `tasks.assigned_to` to the auth user id (`wedding_members.user_id`), not the membership row id.
+- When owed is 0 and a payment exists, the line is `All settled ✓`, and Net settled stays beside it.
+- Otherwise the line is `X owes Y ₹N · Net settled ₹N`.
+- Even, uneven, and odd-rupee cases are tested.
 
 ## Item 3 — Tasks by side and My Tasks
 

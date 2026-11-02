@@ -19,7 +19,7 @@ import type {
 } from '../types.ts'
 import type { FunctionPhase } from '../config/phases.ts'
 import { defaultPhaseForFunction } from '../config/phases.ts'
-import { rosterDisplayName } from './access.ts'
+import { membershipUserId, rosterDisplayName } from './access.ts'
 import { DUPLICATE_FUNCTION_MESSAGE, DUPLICATE_RITUAL_MESSAGE, duplicateRitualName, moveByPosition } from './checklist.ts'
 import { assertNoError, DeletedItemError, isOptionalSchemaMiss, throwIfWriteMissed, type RowGuard } from './errors.ts'
 import { splitsForSave } from './planning.ts'
@@ -53,6 +53,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
     addTasks,
     listFunctions,
     listTasks,
+    listBudget,
     listGuests,
     addFunction,
     renameFunction,
@@ -76,7 +77,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
   async function getMine(): Promise<WeddingBundle | null> {
     const { data, error } = await client
       .from('wedding_members')
-      .select('id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, city, community, created_at)')
+      .select('id, user_id, role, side, display_name, created_at, weddings (id, couple_names, wedding_date, city, community, created_at)')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -111,7 +112,7 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
       },
       membership: {
         id: String(member.id),
-        userId: String(member.user_id),
+        userId: membershipUserId(member, user.id),
         role,
         side,
         displayName,
@@ -316,6 +317,10 @@ export function createWeddingApi(client: SupabaseClient, user: User) {
 
   async function listTasks(weddingId: string): Promise<Task[]> {
     return loadTasks(weddingId)
+  }
+
+  async function listBudget(weddingId: string): Promise<BudgetItem[]> {
+    return loadBudget(weddingId)
   }
 
   async function listGuests(weddingId: string) {

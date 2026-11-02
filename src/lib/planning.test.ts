@@ -158,8 +158,8 @@ describe('family settlement and headcount', () => {
       { status: 'Completed', actualCost: 40000 },
       { status: 'Pending', actualCost: 15000 },
     ])
-    expect(settlement.brideShare).toBe(50006)
-    expect(settlement.groomShare).toBe(50005)
+    expect(settlement.brideShare).toBe(50000)
+    expect(settlement.groomShare).toBe(50000)
     expect(settlement.bridePaid).toBe(100000)
     expect(settlement.groomPaid).toBe(0)
     expect(settlement.groomOwesBride).toBe(50000)
@@ -222,6 +222,55 @@ describe('family settlement and headcount', () => {
     expect(odd.netSettled).toBe(501)
     expect(odd.netSettled + odd.groomOwesBride).toBe(1001)
     expect(settlementSummary(odd)).toBe("Groom's family owes Bride's family ₹500")
+  })
+
+  it('keeps unsided payments and done task costs out of the 50/50', () => {
+    const sidedPayments = [
+      { id: 'bride', amount: 701, paidBy: 'Bride', paidBySide: 'bride' as const, date: '2026-01-01', notes: '' },
+      { id: 'groom', amount: 200, paidBy: 'Groom', paidBySide: 'groom' as const, date: '2026-01-01', notes: '' },
+      { id: 'parent', amount: 100, paidBy: "Groom's parent", paidBySide: 'groom' as const, date: '2026-01-01', notes: '' },
+    ]
+    const item = {
+      id: 'hall',
+      currency: 'INR' as const,
+      estimated: 1001,
+      actual: 1001,
+      paid: true,
+      paidBySide: 'both' as const,
+      splits: [],
+      partPayments: sidedPayments,
+    }
+    const sided = familySettlement([item])
+    expect(sided.brideShare).toBe(501)
+    expect(sided.groomShare).toBe(500)
+    expect(sided.groomOwesBride).toBe(200)
+    expect(sided.netSettled + sided.groomOwesBride).toBe(1001)
+    expect(settlementSummary(sided)).toBe("Groom's family owes Bride's family ₹200")
+
+    const unsided = familySettlement([{
+      ...item,
+      actual: 3001,
+      partPayments: [
+        ...sidedPayments,
+        { id: 'open', amount: 2000, paidBy: 'Someone', paidBySide: '' as const, date: '2026-01-01', notes: '' },
+      ],
+    }])
+    expect(unsided.groomOwesBride).toBe(200)
+    expect(unsided.brideShare).toBe(501)
+    expect(unsided.groomShare).toBe(500)
+    expect(unsided.netSettled).toBe(sided.netSettled)
+    expect(unsided.unattributed).toBe(2000)
+    expect(settlementSummary(unsided)).toBe("Groom's family owes Bride's family ₹200")
+
+    const doneTask = familySettlement([item], [
+      { status: 'Completed', actualCost: 5000, budgetCategoryId: 'hall' },
+    ])
+    expect(doneTask.groomOwesBride).toBe(200)
+    expect(doneTask.brideShare).toBe(501)
+    expect(doneTask.groomShare).toBe(500)
+    expect(doneTask.netSettled).toBe(sided.netSettled)
+    expect(doneTask.unattributed).toBe(5000)
+    expect(settlementSummary(doneTask)).toBe("Groom's family owes Bride's family ₹200")
   })
 
   it('counts actual with no payment as unattributed so paid and unattributed add up', () => {
