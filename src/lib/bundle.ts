@@ -56,6 +56,7 @@ function blankBundle(input: {
     },
     membership: {
       id: membershipId,
+      userId: membershipId,
       role,
       side: input.side,
       displayName,

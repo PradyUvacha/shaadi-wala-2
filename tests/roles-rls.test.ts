@@ -251,6 +251,14 @@ beforeAll(() => {
   file(`${root}supabase/migrations/20261028160000_guest_realtime.sql`)
   file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
   file(`${root}supabase/migrations/20261028170000_guest_ping_category_name.sql`)
+  file(`${root}supabase/migrations/20261102120000_guest_ping_payload.sql`)
+  file(`${root}supabase/migrations/20261102120000_guest_ping_payload.sql`)
+  file(`${root}supabase/migrations/20261102130000_feed_author_writes.sql`)
+  file(`${root}supabase/migrations/20261102130000_feed_author_writes.sql`)
+  file(`${root}supabase/migrations/20261102140000_task_ping.sql`)
+  file(`${root}supabase/migrations/20261102140000_task_ping.sql`)
+  file(`${root}supabase/migrations/20261102150000_budget_feed_ping.sql`)
+  file(`${root}supabase/migrations/20261102150000_budget_feed_ping.sql`)
   psql(`
     insert into auth.users (id, email) values
       ('${bride}', 'bride@example.com'),
@@ -304,6 +312,134 @@ describe('approved role permissions', () => {
     expect(errorOf(family, `update public.tasks set assigned_to = '${groom}' where title = 'Bride task';`)).toMatch(/own side/)
     expect(psql(`select assigned_to::text from public.tasks where title = 'Bride task';`).trim()).toBe(friend)
     expect(asUser(family, `update public.tasks set title = 'Nope' where title = 'Groom task'; select count(*) from public.tasks where title = 'Nope';`)).toBe('0')
+  })
+
+  it('TBS-08 refetches a friend off a task that was reassigned, without sending the row', () => {
+    psql(`
+      insert into public.tasks (wedding_id, title, category, priority, status, side, assigned_to)
+      select id, 'TBS-08 Task', 'Other', 'Low', 'Pending', 'bride', '${friend}'
+      from public.weddings where couple_names = 'Role Fixture';
+    `)
+    const topic = psql(`select 'wedding:' || id::text || ':tasks' from public.weddings where couple_names = 'Role Fixture';`).trim()
+    const weddingId = psql(`select id::text from public.weddings where couple_names = 'Role Fixture';`).trim()
+    const payload = psql(`
+      select (payload - 'table' - 'wedding_id')::text
+        || '|' || (payload->>'table')
+        || '|' || (payload->>'wedding_id')
+      from realtime.messages
+      where event = 'task_ping'
+      order by id desc
+      limit 1;
+    `).trim()
+    expect(payload).toBe(`{}|tasks|${weddingId}`)
+    expect(psql(`select payload::text from realtime.messages where event = 'task_ping' order by id desc limit 1;`).trim()).not.toContain('TBS-08')
+    expect(asUser(friend, `
+      select set_config('realtime.topic', '${topic}', false);
+      select (payload - 'table' - 'wedding_id')::text
+      from realtime.messages
+      where event = 'task_ping'
+      order by id desc
+      limit 1;
+    `)).toBe('{}')
+    expect(asUser(friend, `select count(*) from public.tasks where title = 'TBS-08 Task';`)).toBe('1')
+    psql(`update public.tasks set assigned_to = '${bride}' where title = 'TBS-08 Task';`)
+    expect(asUser(friend, `select count(*) from public.tasks where title = 'TBS-08 Task';`)).toBe('0')
+    expect(psql(`select payload::text from realtime.messages where event = 'task_ping' order by id desc limit 1;`).trim()).not.toContain('TBS-08')
+    const definition = psql(`select pg_get_functiondef('public.ping_task_list()'::regprocedure);`)
+    expect(definition).not.toMatch(/\b(title|assigned_to)\b/)
+    psql(`delete from public.tasks where title = 'TBS-08 Task';`)
+  })
+
+  it('B54 lets a parent read a shared task and blocks the edit', () => {
+    psql(`
+      insert into public.tasks (wedding_id, title, category, priority, status, side)
+      select id, 'Shared Task', 'Other', 'Low', 'Pending', null
+      from public.weddings where couple_names = 'Role Fixture';
+    `)
+    expect(asUser(family, `select count(*) from public.tasks where title = 'Shared Task';`)).toBe('1')
+    expect(asUser(family, `update public.tasks set title = 'Changed shared' where title = 'Shared Task'; select count(*) from public.tasks where title = 'Changed shared';`)).toBe('0')
+    expect(asUser(bride, `select title from public.tasks where title = 'Shared Task';`)).toBe('Shared Task')
+    psql(`delete from public.tasks where title = 'Shared Task';`)
+  })
+
+  it('pings budget and feed changes without row fields, including a deleted post', () => {
+    const outsider = 'b57b57b5-b57b-b57b-b57b-b57b57b57b57'
+    const pingFile = `${root}supabase/migrations/20261102150000_budget_feed_ping.sql`
+    file(pingFile)
+    expect(psql(`select count(*) from pg_trigger where tgname = 'budget_items_ping_list' and not tgisinternal;`).trim()).toBe('1')
+    expect(psql(`select count(*) from pg_trigger where tgname = 'part_payments_ping_list' and not tgisinternal;`).trim()).toBe('1')
+    expect(psql(`select count(*) from pg_trigger where tgname = 'wedding_feed_ping_list' and not tgisinternal;`).trim()).toBe('1')
+    for (const name of ['ping_budget_item_list()', 'ping_payment_list()', 'ping_feed_list()', 'send_wedding_list_ping(uuid, text, text, text)']) {
+      const definition = psql(`select pg_get_functiondef('public.${name}'::regprocedure);`)
+      expect(definition).not.toMatch(/\b(amount|paid_by|notes|body|title)\b/)
+      expect(definition).not.toMatch(/to_jsonb\s*\(\s*(new|old)\s*\)/)
+    }
+    psql(`
+      insert into public.budget_items (wedding_id, category, currency, estimated, actual, notes, paid_by_side)
+      select id, 'B57 Catering', 'INR', 1001, 1001, 'b57-item', 'both'
+      from public.weddings where couple_names = 'Role Fixture';
+      insert into public.part_payments (budget_item_id, amount, paid_by, paid_by_side, notes)
+      select id, 701, 'Bride', 'bride', 'b57-pay'
+      from public.budget_items where notes = 'b57-item';
+    `)
+    const weddingId = psql(`select id::text from public.weddings where couple_names = 'Role Fixture';`).trim()
+    const budgetTopic = `wedding:${weddingId}:budget`
+    const paymentPing = psql(`
+      select (payload - 'table' - 'wedding_id')::text
+        || '|' || (select string_agg(item.key, ',' order by item.key) from jsonb_each(payload) as item(key, value))
+        || '|' || (payload->>'table')
+        || '|' || (payload->>'wedding_id')
+      from realtime.messages
+      where event = 'budget_ping'
+      order by id desc
+      limit 1;
+    `).trim()
+    expect(paymentPing).toBe(`{}|table,wedding_id|part_payments|${weddingId}`)
+    expect(psql(`select payload::text from realtime.messages where event = 'budget_ping' order by id desc limit 1;`).trim()).not.toContain('b57-pay')
+    expect(asUser(family, `
+      select set_config('realtime.topic', '${budgetTopic}', false);
+      select (payload - 'table' - 'wedding_id')::text
+      from realtime.messages
+      where event = 'budget_ping'
+      order by id desc
+      limit 1;
+    `)).toBe('{}')
+    expect(asUser(outsider, `
+      select set_config('realtime.topic', '${budgetTopic}', false);
+      select count(*) from realtime.messages;
+    `)).toBe('0')
+    psql(`update public.budget_items set estimated = 1002 where notes = 'b57-item';`)
+    expect(psql(`select payload->>'table' from realtime.messages where event = 'budget_ping' order by id desc limit 1;`).trim()).toBe('budget_items')
+    psql(`
+      insert into public.wedding_feed (wedding_id, author_id, body)
+      select id, '${bride}', 'B58 secret post'
+      from public.weddings where couple_names = 'Role Fixture';
+      delete from public.wedding_feed where body = 'B58 secret post';
+    `)
+    const feedTopic = `wedding:${weddingId}:feed`
+    const feedPing = psql(`
+      select (payload - 'table' - 'wedding_id')::text
+        || '|' || (payload->>'table')
+        || '|' || (payload->>'wedding_id')
+      from realtime.messages
+      where event = 'feed_ping'
+      order by id desc
+      limit 1;
+    `).trim()
+    expect(feedPing).toBe(`{}|wedding_feed|${weddingId}`)
+    expect(psql(`select payload::text from realtime.messages where event = 'feed_ping' order by id desc limit 1;`).trim()).not.toContain('B58 secret')
+    expect(asUser(friend, `
+      select set_config('realtime.topic', '${feedTopic}', false);
+      select payload->>'table'
+      from realtime.messages
+      where event = 'feed_ping'
+      order by id desc
+      limit 1;
+    `)).toBe('wedding_feed')
+    psql(`
+      delete from public.part_payments where notes = 'b57-pay';
+      delete from public.budget_items where notes = 'b57-item';
+    `)
   })
 
   it('friend can view and complete only tasks assigned to them', () => {
@@ -406,6 +542,22 @@ describe('approved role permissions', () => {
 
   it('planner can post to the feed', () => {
     expect(asUser(planner, `insert into public.wedding_feed (wedding_id, author_id, body) select id, '${planner}', 'From the planner' from public.weddings; select count(*) from public.wedding_feed where body = 'From the planner';`)).toBe('1')
+  })
+
+  it('lets only the author edit or delete a post, and hides the feed from a non-member', () => {
+    const outsider = 'e9e9e9e9-e9e9-e9e9-e9e9-e9e9e9e9e9e9'
+    psql(`insert into auth.users (id, email) values ('${outsider}', 'outsider-feed@example.com') on conflict (id) do nothing;`)
+    expect(dbError(`insert into public.wedding_feed (wedding_id, author_id, body) select id, '${family}', '   ' from public.weddings where couple_names = 'Role Fixture';`)).toMatch(/wedding_feed_body_not_blank|check/i)
+    const postId = asUser(family, `insert into public.wedding_feed (wedding_id, author_id, body) select id, '${family}', 'Author note' from public.weddings where couple_names = 'Role Fixture'; select id from public.wedding_feed where body = 'Author note';`)
+    expect(postId).toMatch(/^[0-9a-f-]{36}$/)
+    expect(asUser(friend, `update public.wedding_feed set body = 'Stolen' where id = '${postId}'; select body from public.wedding_feed where id = '${postId}';`)).toBe('Author note')
+    expect(asUser(bride, `update public.wedding_feed set body = 'Stolen' where id = '${postId}'; select body from public.wedding_feed where id = '${postId}';`)).toBe('Author note')
+    expect(asUser(family, `update public.wedding_feed set body = 'Author note edited' where id = '${postId}'; select body from public.wedding_feed where id = '${postId}';`)).toBe('Author note edited')
+    expect(errorOf(family, `update public.wedding_feed set body = '   ' where id = '${postId}';`)).toMatch(/check|row-level security/i)
+    expect(asUser(outsider, `select count(*) from public.wedding_feed;`)).toBe('0')
+    expect(asUser(family, `delete from public.wedding_feed where id = '${postId}'; select count(*) from public.wedding_feed where id = '${postId}';`)).toBe('0')
+    expect(asUser(planner, `insert into public.wedding_feed (wedding_id, author_id, body) select id, '${planner}', 'Planner keeps this' from public.weddings where couple_names = 'Role Fixture'; select count(*) from public.wedding_feed where body = 'Planner keeps this';`)).toBe('1')
+    expect(asUser(friend, `delete from public.wedding_feed where body = 'Planner keeps this'; select count(*) from public.wedding_feed where body = 'Planner keeps this';`)).toBe('1')
   })
 
   it('parent/family can invite family and friends to their own side', () => {
@@ -1140,9 +1292,10 @@ describe('approved role permissions', () => {
     expect(psql(`select count(*) from pg_trigger where tgname = 'guest_functions_ping_list' and not tgisinternal;`).trim()).toBe('1')
     expect(psql(`select count(*) from pg_trigger where tgname = 'budget_items_unique_name' and not tgisinternal;`).trim()).toBe('1')
     const definition = psql(`select pg_get_functiondef('public.ping_guest_list()'::regprocedure);`)
-    for (const column of ['name', 'side', 'email', 'phone', 'rsvp_status', 'meal', 'plus_ones', 'guest_id']) {
+    for (const column of ['name', 'side', 'email', 'phone', 'rsvp_status', 'meal', 'plus_ones', 'guest_id', 'id']) {
       expect(definition).not.toMatch(new RegExp(`\\b${column}\\b`))
     }
+    expect(definition).not.toMatch(/to_jsonb/)
     psql(`
       insert into auth.users (id, email) values
         ('${otherSide}', 'other-side@example.com'),

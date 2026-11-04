@@ -35,6 +35,7 @@ export function SettingsScreen() {
       </div>
       <div style={{ padding: 16 }}>
         <FormError message={error} />
+        <button type="button" onClick={() => navigate('/feed')} style={{ ...linkRow, width: '100%', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>Announcements</button>
         <a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer" style={linkRow}>Privacy Policy</a>
         <a href={TERMS_OF_SERVICE_URL} target="_blank" rel="noreferrer" style={linkRow}>Terms of Service</a>
         <button type="button" onClick={() => void leave().catch((caught) => setError(toErrorMessage(caught)))} style={{ ...primaryButton('transparent'), color: COLORS.crimson, border: `1px solid ${COLORS.gold}`, marginTop: 16 }}>

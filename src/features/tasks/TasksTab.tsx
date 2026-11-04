@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Badge, Celebration, FAB, Field, FormError, Modal } from '../../components/ui.tsx'
 import { FUNCTION_PHASES, PHASE_HEADERS, PHASE_LABELS, type FunctionPhase } from '../../config/phases.ts'
-import { assignableMembers, canEditChecklist, canEditTaskCost, canManageTasks, canSeeBudget, unassignedSideGroups } from '../../lib/access.ts'
+import { assignableMembers, assignedSideBlocks, canEditChecklist, canEditTaskCost, canEditTaskRow, canManageTasks, canSeeBudget, myTasks, signedInAssigneeId, unassignedSideGroups } from '../../lib/access.ts'
 import { communityLabel, functionRemovalCopy } from '../../lib/checklist.ts'
 import { DELETED_ITEM_MESSAGE, STALE_WRITE_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
 import { percent } from '../../lib/planning.ts'
@@ -28,6 +28,23 @@ const emptyForm = (fn?: WeddingFunction): TaskDraft => ({
   assignedTo: null,
 })
 
+function SideTaskBlocks({ tasks, render }: { tasks: Task[]; render: (task: Task, count: number) => ReactNode }) {
+  const blocks = assignedSideBlocks(tasks)
+  const grouped = new Set(blocks.flatMap((block) => block.tasks.map((task) => task.id)))
+  const rest = tasks.filter((task) => !grouped.has(task.id))
+  return (
+    <>
+      {blocks.map((block) => (
+        <div key={block.label}>
+          <h3 style={{ fontSize: TYPE.small, color: COLORS.goldText, margin: '8px 0' }}>{block.label}</h3>
+          {block.tasks.map((task) => render(task, block.tasks.length))}
+        </div>
+      ))}
+      {rest.map((task) => render(task, rest.length))}
+    </>
+  )
+}
+
 export function TasksTab() {
   const { bundle, mode, saveTask, deleteTask, toggleTask, saveFunction, deleteFunction, moveFunction, moveTask, refreshWedding } = useWedding()
   const role = bundle?.membership.role
@@ -39,6 +56,7 @@ export function TasksTab() {
   const ownSide = bundle?.membership.side ?? null
   const functions = [...(bundle?.functions ?? [])].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
   const [filter, setFilter] = useState<'All' | 'Pending' | 'Done'>('All')
+  const [mineOnly, setMineOnly] = useState(false)
   const [params, setParams] = useSearchParams()
   const [costText, setCostText] = useState('')
   const [costDirty, setCostDirty] = useState(false)
@@ -126,7 +144,10 @@ export function TasksTab() {
   }
   const editParam = params.get('edit')
 
-  const filtered = filter === 'All' ? tasks : tasks.filter((task) => (filter === 'Done' ? task.status === 'Completed' : task.status !== 'Completed'))
+  const myUserId = signedInAssigneeId(bundle?.membership, members)
+  const mine = myTasks(tasks, myUserId)
+  const statusFiltered = filter === 'All' ? tasks : tasks.filter((task) => (filter === 'Done' ? task.status === 'Completed' : task.status !== 'Completed'))
+  const filtered = mineOnly ? statusFiltered.filter((task) => task.assignedTo === myUserId) : statusFiltered
   const pendingCount = tasks.filter((task) => task.status !== 'Completed').length
   const doneCount = tasks.filter((task) => task.status === 'Completed').length
   const seeCosts = mode === 'preview' || canSeeBudget(role)
@@ -386,7 +407,7 @@ export function TasksTab() {
           <div style={{ fontSize: 14, fontWeight: 600, color: COLORS.ink, textDecoration: task.status === 'Completed' ? 'line-through' : 'none', marginBottom: 4 }}>{task.title}</div>
           {task.description && <div style={{ fontSize: TYPE.small, color: COLORS.muted, marginBottom: 6 }}>{task.description}</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-            <Badge color={CATEGORY_COLORS[task.category] || '#666'} small>{task.category}</Badge>
+            {role !== 'friend' && <Badge color={CATEGORY_COLORS[task.category] || '#666'} small>{task.category}</Badge>}
             <Badge color={PRIORITY_COLORS[task.priority] || COLORS.gold} small>{task.priority}</Badge>
             {seeCosts && chipRupees(task.actualCost) != null && (
               <span style={{ display: 'inline-flex', alignItems: 'center', minHeight: SIZE.tap }}>
@@ -397,6 +418,9 @@ export function TasksTab() {
               </span>
             )}
             {task.dueDate && <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.dueDate}</span>}
+            {role === 'family' && task.side == null && (
+              <span style={{ flexBasis: '100%', fontSize: TYPE.small, color: COLORS.muted }}>Only the couple or planner can edit shared tasks.</span>
+            )}
             {task.assignedTo && (
               <span style={{ fontSize: TYPE.small, color: COLORS.muted }}>
                 Assigned to {members.find((member) => member.userId === task.assignedTo)?.displayName ?? 'a member'}
@@ -404,7 +428,7 @@ export function TasksTab() {
             )}
           </div>
         </div>
-        {(canEdit || canStructure) && (
+        {((mode === 'preview' || canEditTaskRow(role, ownSide, task.side)) || canStructure) && (
           <div style={{ position: 'relative', flex: '0 0 auto' }}>
             <button
               type="button"
@@ -424,7 +448,7 @@ export function TasksTab() {
                     <button type="button" role="menuitem" aria-label={`Move ${task.title} down`} onClick={() => { closeMenu(); void moveTask(task.id, 1).catch((caught) => setError(toErrorMessage(caught))) }} style={menuItem}>Move down</button>
                   </>
                 )}
-                {canEdit && (
+                {(mode === 'preview' || canEditTaskRow(role, ownSide, task.side)) && (
                   <>
                     <button type="button" role="menuitem" aria-label="Edit task" onClick={() => { closeMenu(); openEdit(task) }} style={menuItem}>Edit</button>
                     <button type="button" role="menuitem" aria-label="Delete task" onClick={() => { closeMenu(); setError(null); setPendingRitual(task) }} style={{ ...menuItem, color: COLORS.danger }}>Delete</button>
@@ -446,7 +470,7 @@ export function TasksTab() {
       <div style={{ background: `linear-gradient(135deg,${COLORS.appBar},${COLORS.maroon})`, padding: headerPadding }}>
         <h1 style={{ fontFamily: FONT.display, fontSize: TYPE.title, fontWeight: 700, color: '#fff', margin: '0 0 10px' }}>Planning</h1>
         <div role="tablist" aria-label="Planning" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, minWidth: 0, background: COLORS.maroon, borderRadius: 12, padding: 4, marginBottom: 10 }}>
-          <Link to="/timeline" role="tab" aria-selected={false} style={segmentStyle(false)}>Events</Link>
+          <Link to="/planning?tab=events" role="tab" aria-selected={false} style={segmentStyle(false)}>Events</Link>
           <span role="tab" aria-selected={true} style={segmentStyle(true)}>Tasks</span>
         </div>
         {weddingDate ? <div style={{ fontSize: 14, color: '#fff', marginBottom: 8 }}>{weddingDate}</div> : null}
@@ -479,6 +503,11 @@ export function TasksTab() {
             </button>
           )
         })}
+      </div>
+      <div style={{ padding: '0 16px 8px' }}>
+        <button type="button" aria-pressed={mineOnly} onClick={() => setMineOnly((current) => !current)} style={{ minHeight: SIZE.tap, borderRadius: 999, border: `1.5px solid ${COLORS.gold}`, background: mineOnly ? COLORS.crimson : '#fff', color: mineOnly ? '#fff' : COLORS.ink, fontWeight: 600, cursor: 'pointer', padding: '0 16px' }}>
+          My tasks · {mine.length}
+        </button>
       </div>
 
       {error && !modalOpen && !functionEditor && !pendingDelete && !pendingRitual && <div style={{ padding: '0 16px' }}><FormError message={error} /></div>}
@@ -527,7 +556,7 @@ export function TasksTab() {
                     </div>
                   )}
                 </div>
-                {rituals.map((task) => ritualCard(task, rituals.length))}
+                <SideTaskBlocks tasks={rituals} render={(task, count) => ritualCard(task, count)} />
               </section>
             ))}
             {loose.length > 0 && (
@@ -540,7 +569,7 @@ export function TasksTab() {
                     <span className="event-count-pill">{loose.length} {loose.length === 1 ? 'task' : 'tasks'}</span>
                   </div>
                 </div>
-                {loose.map((task) => ritualCard(task, loose.length))}
+                <SideTaskBlocks tasks={loose} render={(task, count) => ritualCard(task, count)} />
               </section>
             )}
           </>

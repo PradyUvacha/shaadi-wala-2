@@ -23,6 +23,7 @@ export function mapTask(row: Record<string, unknown>): Task {
     position: row.position == null ? Number(row.sort_order ?? 0) : Number(row.position),
     assignedTo: row.assigned_to ? String(row.assigned_to) : null,
     side: row.side === 'bride' || row.side === 'groom' ? row.side : null,
+    createdAt: row.created_at ? String(row.created_at) : '',
     updatedAt: row.updated_at ? String(row.updated_at) : '',
     actualCost: row.actual_cost == null || row.actual_cost === '' ? null : Number(row.actual_cost),
     budgetCategoryId: row.budget_category_id ? String(row.budget_category_id) : null,
@@ -70,6 +71,7 @@ export function mapGuest(row: Record<string, unknown>): Guest {
     meal: String(row.meal ?? ''),
     plusOnes: Number(row.plus_ones ?? 0),
     side: side === 'bride' || side === 'groom' || side === 'both' ? side : '',
+    createdAt: row.created_at ? String(row.created_at) : '',
     functionIds: [],
   }
 }

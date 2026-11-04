@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { MehendiPattern } from '../../components/ui.tsx'
 import { isSupabaseConfigured } from '../../lib/supabase.ts'
-import { signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../lib/auth.ts'
+import { authNextFromSearch, googleAuthEnabled, signInWithEmail, signInWithGoogle, signUpWithEmail } from '../../lib/auth.ts'
 import { track } from '../../lib/analytics.ts'
 import { PRIVACY_POLICY_URL, TERMS_OF_SERVICE_URL } from '../../lib/legal.ts'
 import { toErrorMessage } from '../../lib/errors.ts'
@@ -54,7 +54,7 @@ export function AuthScreen() {
     setBusy(true)
     setError(null)
     try {
-      await signInWithGoogle()
+      await signInWithGoogle(authNextFromSearch(location.search))
     } catch (caught) {
       setError(toErrorMessage(caught))
       setBusy(false)
@@ -99,9 +99,11 @@ export function AuthScreen() {
           <button type="button" disabled={busy} onClick={() => void submit()} style={{ ...authControl, width: '100%', border: 'none', background: `linear-gradient(135deg,${COLORS.crimson},${COLORS.maroon})`, color: '#fff', fontWeight: 700, boxShadow: '0 4px 20px rgba(201,168,76,0.5)' }}>
             {busy ? 'Please wait…' : mode === 'sign-up' ? '🎉 Create account' : 'Sign in'}
           </button>
-          <button type="button" disabled={busy} onClick={() => void google()} style={{ ...authControl, width: '100%', marginTop: 10, border: 'none', background: '#fff', color: COLORS.ink, fontWeight: 700 }}>
-            Continue with Google
-          </button>
+          {googleAuthEnabled() && (
+            <button type="button" disabled={busy} onClick={() => void google()} style={{ ...authControl, width: '100%', marginTop: 10, border: 'none', background: '#fff', color: COLORS.ink, fontWeight: 700 }}>
+              Continue with Google
+            </button>
+          )}
           <button type="button" onClick={preview} style={{ ...authControl, width: '100%', marginTop: 10, background: 'transparent', border: '1px solid rgba(255,255,255,0.35)', color: '#fff', fontWeight: 600 }}>
             Preview demo
           </button>

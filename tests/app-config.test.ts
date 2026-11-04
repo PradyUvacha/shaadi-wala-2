@@ -24,8 +24,10 @@ describe('app.config.json', () => {
   })
 
   it('follows SW_<version>_<key features>_<date> and keeps versionCode an integer', () => {
-    expect(appConfig.versionName).toBe('SW_0.3_uiport_2026-10-27')
-    expect(appConfig.versionCode).toBe(10)
+    expect(appConfig.versionName).toBe('SW_0.4.2_m2_2026-11-04')
+    expect(appConfig.versionCode).toBe(13)
+    const provider = readFileSync(new URL('../src/state/WeddingProvider.tsx', import.meta.url), 'utf8')
+    expect(provider).not.toContain('subscribeWeddingGuests')
     expect(isValidVersionName(appConfig.versionName)).toBe(true)
     expect(isValidVersionName('SW_1.0_Checklist-Budget-Guests_2026-11-17')).toBe(true)
     const appSource = readFileSync(new URL('../src/config/app.ts', import.meta.url), 'utf8')
