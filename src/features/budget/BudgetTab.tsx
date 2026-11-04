@@ -525,15 +525,15 @@ function Settlement({ items, tasks }: { items: BudgetItem[]; tasks: Task[] }) {
   const settlement = familySettlement(items, tasks)
   return (
     <div style={{ margin: '0 16px 12px', background: '#fff', border: `1px solid ${COLORS.border}`, borderRadius: RADIUS.card, padding: 16 }}>
-      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.ink, marginBottom: 8 }}>Family settlement</div>
+      <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontWeight: 700, color: COLORS.ink, marginBottom: 8 }}>Settlement</div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: TYPE.small, color: COLORS.ink }}>
         <div>Bride's share<br /><strong>{money(settlement.brideShare, '₹')}</strong></div>
         <div>Groom's share<br /><strong>{money(settlement.groomShare, '₹')}</strong></div>
-        <div>Bride's family paid<br /><strong>{money(settlement.bridePaid, '₹')}</strong></div>
-        <div>Groom's family paid<br /><strong>{money(settlement.groomPaid, '₹')}</strong></div>
+        <div>Bride's side paid<br /><strong>{money(settlement.bridePaid, '₹')}</strong></div>
+        <div>Groom's side paid<br /><strong>{money(settlement.groomPaid, '₹')}</strong></div>
       </div>
       {settlement.unattributed > 0 && (
-        <p style={{ margin: '8px 0 0', fontSize: TYPE.small, color: COLORS.muted }}>Unattributed spend {money(settlement.unattributed, '₹')} (no family payer)</p>
+        <p style={{ margin: '8px 0 0', fontSize: TYPE.small, color: COLORS.muted }}>Unattributed spend {money(settlement.unattributed, '₹')} (no side)</p>
       )}
       <p style={{ margin: '10px 0 0', fontSize: TYPE.small, fontWeight: 600, color: COLORS.ink }}>
         {settlementSummary(settlement)}

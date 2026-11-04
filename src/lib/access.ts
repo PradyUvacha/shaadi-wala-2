@@ -111,6 +111,17 @@ export function guestSideChoices(role: MemberRole | null | undefined, viewerSide
   return ['', 'bride', 'groom', 'both']
 }
 
+/** Couple share any guest. Parents share only a guest on their own side. Friends and planners do not. */
+export function canShareGuestInvite(
+  role: MemberRole | null | undefined,
+  viewerSide: Side | null,
+  guestSide: GuestSide,
+): boolean {
+  if (isCouple(role)) return true
+  if (role === 'family') return viewerSide != null && guestSide === viewerSide
+  return false
+}
+
 export function canEditTimeline(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner'
 }

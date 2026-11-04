@@ -239,4 +239,25 @@ describe('ritual editor conflicts', () => {
       await view.unmount()
     }
   })
+
+  it('shows a parent every task and edits only their own side', async () => {
+    const parent = {
+      ...bundle,
+      membership: { ...bundle.membership, role: 'family' as const, side: 'bride' as const, displayName: 'Parent' },
+      tasks: [
+        { ...ritual, id: 'own', title: 'Bride ritual', side: 'bride' as const },
+        { ...ritual, id: 'other', title: 'Groom ritual', side: 'groom' as const },
+        { ...ritual, id: 'shared', title: 'Shared ritual', side: null },
+      ],
+    }
+    const view = await renderTab(weddingValue({ bundle: parent }))
+    expect(view.container.textContent).toContain('Bride ritual')
+    expect(view.container.textContent).toContain('Groom ritual')
+    expect(view.container.textContent).toContain('Shared ritual')
+    expect(view.container.querySelector('[aria-label="Actions for Bride ritual"]')).toBeTruthy()
+    expect(view.container.querySelector('[aria-label="Actions for Groom ritual"]')).toBeNull()
+    expect(view.container.querySelector('[aria-label="Actions for Shared ritual"]')).toBeNull()
+    expect(view.container.textContent).toContain('Only the couple or planner can edit shared tasks.')
+    await view.unmount()
+  })
 })

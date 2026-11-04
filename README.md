@@ -115,14 +115,26 @@ CI on GitHub runs those three commands on Node 22. A second job, on push only, b
 
 ## Google sign-in
 
-1. In Google Cloud, create an OAuth client of type **Web application**.
-2. Authorized redirect URI: `https://ujglzkfxgewqupkeqyek.supabase.co/auth/v1/callback`
-3. In Supabase → Authentication → Providers → Google, paste that client id and secret.
-4. In Supabase → Authentication → URL configuration, set the site URL to `https://shaadi-wala-2.vercel.app` and allow these redirects:
-   - `https://shaadi-wala-2.vercel.app/auth`
-   - `http://localhost:5173/auth`
-   - `http://127.0.0.1:5173/auth`
-   - `in.shaadiwala.app://auth/callback`
+Continue with Google is hidden until `VITE_ENABLE_GOOGLE_AUTH=true`. Leave it unset until the OAuth client below is in place. Email and password work without it. Do not commit a Google client secret. The secret is entered only in the Supabase Google provider.
+
+The app calls `signInWithOAuth({ provider: 'google', redirectTo })`. `redirectTo` is the current origin plus `/auth`. An invite join keeps `?role` and `&side` inside the `next` value, for example `https://shaadi-wala-2.vercel.app/auth?next=%2Finvite%2F123456%3Frole%3Dfriend%26side%3Dbride`.
+
+Register these URLs. Google Cloud does not accept a wildcard, so the preview hosts are allowed in Supabase, and Google itself only redirects to Supabase.
+
+Google Cloud → OAuth client → Web application:
+
+- Authorized redirect URI: `https://ujglzkfxgewqupkeqyek.supabase.co/auth/v1/callback`
+- Authorized JavaScript origins: `https://shaadi-wala-2.vercel.app`, `http://localhost:5173`, and `http://127.0.0.1:5173`
+
+Supabase → Authentication → URL configuration. Site URL `https://shaadi-wala-2.vercel.app`. Redirect URLs:
+
+- `https://shaadi-wala-2.vercel.app/auth`
+- `https://shaadi-wala-2-*-gosaviprathamesh28-5538s-projects.vercel.app/auth`
+- `http://localhost:5173/auth`
+- `http://127.0.0.1:5173/auth`
+- `in.shaadiwala.app://auth/callback`
+
+Then in Supabase → Authentication → Providers → Google, paste the client id and secret, and set `VITE_ENABLE_GOOGLE_AUTH=true` on the host that should show the button.
 
 Email and password work without Google. On the Free plan, confirmation emails are rate-limited. For the first couples, either turn off “Confirm email” in Supabase Auth or configure custom SMTP.
 

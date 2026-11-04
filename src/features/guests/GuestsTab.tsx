@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { FAB, FormError } from '../../components/ui.tsx'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
-import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
+import { canDeleteGuestRow, canEditGuestRow, canEditGuests, canShareGuestInvite, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
 import { GUEST_LIST_FALLBACK_MS } from '../../lib/guestSync.ts'
 import { compareGuestNames, guestAvatarColor, guestEmailProblem, guestFunctionLine, guestInitials, guestMatchesQuery, guestNameProblem, guestPhoneProblem, guestStatCounts, mealPillLabel, mealUsesLeaf } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
@@ -9,6 +9,7 @@ import { COLORS, FONT, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton } from '../../styles/ui.ts'
 import { headerPadding, safeBottom } from '../../styles/safeArea.ts'
 import type { Guest, GuestDraft, GuestSide, RsvpStatus } from '../../types.ts'
+import { guestInviteText, shareGuestInvite } from '../invites/whatsapp.ts'
 import { rsvpBySideEnabled } from '../onboarding/flag.ts'
 
 const SIDE_OPTIONS: { value: GuestSide; label: string }[] = [
@@ -397,6 +398,16 @@ export function GuestsTab() {
                 </button>
                 {guest.plusOnes > 0 && (
                   <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600, flexShrink: 0 }}>+{guest.plusOnes}</span>
+                )}
+                {canShareGuestInvite(role, ownSide, guest.side) && (
+                  <button
+                    type="button"
+                    aria-label={`Share ${guest.name} on WhatsApp`}
+                    onClick={() => void shareGuestInvite(guest.phone, guestInviteText(bundle?.wedding.coupleNames ?? '', guest.name))}
+                    style={{ minHeight: SIZE.tap, padding: '0 12px', borderRadius: 12, border: `1px solid ${COLORS.border}`, background: '#fff', color: COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Share on WhatsApp
+                  </button>
                 )}
               </div>
             )

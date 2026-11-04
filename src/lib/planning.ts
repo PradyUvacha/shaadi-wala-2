@@ -109,9 +109,9 @@ export function splitsForPayer(payer: Payer, custom: SplitDraft[] = []): SplitDr
 }
 
 export function payerLabel(payer: Payer): string {
-  if (payer === 'bride') return "Bride's family"
-  if (payer === 'groom') return "Groom's family"
-  if (payer === 'both') return 'Both families'
+  if (payer === 'bride') return "Bride's side"
+  if (payer === 'groom') return "Groom's side"
+  if (payer === 'both') return 'Both sides'
   return 'Custom split'
 }
 
@@ -204,7 +204,7 @@ export type FamilySettlement = {
   groomPaid: number
   /** Done task costs, payments with no bride or groom side, and logged actual that no payment covers. Not a family debt. */
   unattributed: number
-  /** Positive when the groom's family owes the bride's family. */
+  /** Positive when the groom's side owes the bride's side. */
   groomOwesBride: number
   /** Sided payments minus the amount still owed, in whole rupees. */
   netSettled: number
@@ -306,9 +306,9 @@ export function settlementSummary(settlement: FamilySettlement): string {
   }
   if (settlement.groomOwesBride === 0 && settlement.bridePaid + settlement.groomPaid > 0) return 'All settled ✓'
   const amount = Math.abs(settlement.groomOwesBride).toLocaleString('en-IN')
-  if (settlement.groomOwesBride > 0) return `Groom's family owes Bride's family ₹${amount}`
-  if (settlement.groomOwesBride < 0) return `Bride's family owes Groom's family ₹${amount}`
-  return 'The two families are settled.'
+  if (settlement.groomOwesBride > 0) return `Groom's side owes Bride's side ₹${amount}`
+  if (settlement.groomOwesBride < 0) return `Bride's side owes Groom's side ₹${amount}`
+  return 'The two sides are settled.'
 }
 
 export function unlockedAchievementIds(input: {

@@ -135,6 +135,47 @@ describe('member home', () => {
     container.remove()
   })
 
+  it('shows the top 5 priority tasks and opens the rest with See all', async () => {
+    ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const current = bundle('family', 'bride')
+    current.tasks = [
+      task({ id: 'a', title: 'First', side: 'bride', priority: 'High', dueDate: '2026-01-01' }),
+      task({ id: 'b', title: 'Second', side: 'bride', priority: 'High', dueDate: '2026-01-02' }),
+      task({ id: 'c', title: 'Third', side: 'bride', priority: 'High', dueDate: '2026-01-03' }),
+      task({ id: 'd', title: 'Fourth', side: 'bride', priority: 'Medium', dueDate: '2026-01-01' }),
+      task({ id: 'e', title: 'Fifth', side: 'bride', priority: 'Low', dueDate: '2026-01-01' }),
+      task({ id: 'f', title: 'Sixth later', side: 'bride', priority: 'Low', dueDate: '2026-06-01' }),
+      task({ id: 'g', title: 'Groom decor', side: 'groom', priority: 'High', dueDate: '2026-01-01' }),
+    ]
+    const container = document.createElement('div')
+    document.body.append(container)
+    const root: Root = createRoot(container)
+    await act(async () => {
+      root.render(
+        <MemoryRouter>
+          <WeddingContext.Provider value={value(current)}>
+            <HomeTab />
+          </WeddingContext.Provider>
+        </MemoryRouter>,
+      )
+    })
+    const priority = [...container.querySelectorAll('section')].find((section) => section.querySelector('h2')?.textContent === 'Priority tasks')
+    if (!priority) throw new Error('missing priority tasks')
+    expect(priority.textContent).toContain('First')
+    expect(priority.textContent).toContain('Fifth')
+    expect(priority.textContent).not.toContain('Sixth later')
+    expect(priority.textContent).not.toContain('Groom decor')
+    const seeAll = [...priority.querySelectorAll('button')].find((button) => button.textContent === 'See all (6)')
+    if (!(seeAll instanceof HTMLButtonElement)) throw new Error('missing See all')
+    await act(async () => {
+      seeAll.click()
+    })
+    expect(priority.textContent).toContain('Sixth later')
+    expect(priority.textContent).not.toContain('Groom decor')
+    await act(async () => root.unmount())
+    container.remove()
+  })
+
   it('leaves the couple home on the progress rings', async () => {
     ;(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
     const container = document.createElement('div')

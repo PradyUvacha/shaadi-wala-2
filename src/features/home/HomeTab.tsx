@@ -1,3 +1,4 @@
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MOTIVATIONAL_QUOTES } from '../../data/content.ts'
 import { MehendiPattern, ProgressRing } from '../../components/ui.tsx'
@@ -28,9 +29,9 @@ export function HomeTab() {
   const taskPct = percent(completedTasks, tasks.length)
   const budgetPct = percent(Number(rolled.actualRupees), Number(rolled.budgetRupees))
   const guestPct = percent(confirmedGuests, guests.length)
-  const priorityTasks = tasks.filter((task) => task.priority === 'High' && task.status !== 'Completed').slice(0, 3)
-  const quote = quoteForDay(MOTIVATIONAL_QUOTES)
   const role = bundle.membership.role
+  const rankedTasks = priorityTasks(tasks, role, bundle.membership.side)
+  const quote = quoteForDay(MOTIVATIONAL_QUOTES)
   if (role === 'family' || role === 'friend' || role === 'planner') {
     return <MemberHome bundle={bundle} />
   }
@@ -91,15 +92,10 @@ export function HomeTab() {
         ))}
       </div>
 
-      {priorityTasks.length > 0 && (
+      {rankedTasks.length > 0 && (
         <div style={{ margin: '0 16px 16px', background: COLORS.cardBg, borderRadius: 16, padding: 18, border: `1px solid ${COLORS.border}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: COLORS.ink }}>Priority tasks</div>
-            <button type="button" onClick={() => navigate('/planning')} style={{ background: 'none', border: 'none', color: COLORS.goldText, fontSize: TYPE.body, cursor: 'pointer', fontWeight: 600, minHeight: 48 }}>
-              View all
-            </button>
-          </div>
-          {priorityTasks.map((task) => (
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: COLORS.ink, marginBottom: 12 }}>Priority tasks</div>
+          <PriorityList tasks={rankedTasks} render={(task) => (
             <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${COLORS.border}` }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.crimson, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -107,7 +103,7 @@ export function HomeTab() {
                 <div style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.category} · {task.dueDate || 'No date'}</div>
               </div>
             </div>
-          ))}
+          )} />
         </div>
       )}
 
@@ -154,12 +150,14 @@ function MemberHome({ bundle }: { bundle: WeddingBundle }) {
       </div>
       <section style={{ margin: 16 }}>
         <h2 style={heading}>Priority tasks</h2>
-        {tasks.length === 0 ? <p style={muted}>No tasks on your side.</p> : tasks.map((task) => (
-          <button key={task.id} type="button" onClick={() => navigate('/planning')} style={rowButton}>
-            <strong>{task.title}</strong>
-            <span style={muted}>{task.priority}{task.dueDate ? ` · ${task.dueDate}` : ''}{seeMoney && role === 'planner' && task.actualCost != null ? ` · ${money(task.actualCost, '₹')}` : ''}</span>
-          </button>
-        ))}
+        {tasks.length === 0 ? <p style={muted}>No tasks on your side.</p> : (
+          <PriorityList tasks={tasks} render={(task) => (
+            <button key={task.id} type="button" onClick={() => navigate('/planning')} style={rowButton}>
+              <strong>{task.title}</strong>
+              <span style={muted}>{task.priority}{task.dueDate ? ` · ${task.dueDate}` : ''}{seeMoney && role === 'planner' && task.actualCost != null ? ` · ${money(task.actualCost, '₹')}` : ''}</span>
+            </button>
+          )} />
+        )}
       </section>
       <section style={{ margin: 16 }}>
         <h2 style={heading}>Recent activity</h2>
@@ -202,6 +200,21 @@ function MemberHome({ bundle }: { bundle: WeddingBundle }) {
         ) : null}
       </section>
     </div>
+  )
+}
+
+function PriorityList<T extends { id: string }>({ tasks, render }: { tasks: readonly T[]; render: (task: T) => ReactNode }) {
+  const [expanded, setExpanded] = useState(false)
+  const shown = expanded ? tasks : tasks.slice(0, 5)
+  return (
+    <>
+      {shown.map((task) => render(task))}
+      {tasks.length > 5 && !expanded ? (
+        <button type="button" onClick={() => setExpanded(true)} style={{ minHeight: 48, marginTop: 8, border: 'none', background: 'transparent', color: COLORS.goldText, fontSize: TYPE.body, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+          See all ({tasks.length})
+        </button>
+      ) : null}
+    </>
   )
 }
 

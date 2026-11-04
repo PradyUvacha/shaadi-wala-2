@@ -165,6 +165,35 @@ describe('Mutual guest side', () => {
   })
 })
 
+describe('guest WhatsApp share', () => {
+  it('lets the couple share any guest and a parent only their own side', async () => {
+    const guests = [
+      mutual,
+      ownSide,
+      { ...ownSide, id: 'g-groom', name: 'Groom Uncle', side: 'groom' as const },
+    ]
+    const coupleBundle = { ...bundle('bride', 'bride'), guests }
+    const couple = await renderTab(weddingValue(coupleBundle))
+    expect(couple.container.querySelector('[aria-label="Share Bride Aunt on WhatsApp"]')).toBeTruthy()
+    expect(couple.container.querySelector('[aria-label="Share Shared Aunt on WhatsApp"]')).toBeTruthy()
+    expect(couple.container.querySelector('[aria-label="Share Groom Uncle on WhatsApp"]')).toBeTruthy()
+    await couple.unmount()
+
+    const parent = await renderTab(weddingValue({ ...bundle('family', 'bride'), guests }))
+    expect(parent.container.querySelector('[aria-label="Share Bride Aunt on WhatsApp"]')).toBeTruthy()
+    expect(parent.container.querySelector('[aria-label="Share Shared Aunt on WhatsApp"]')).toBeNull()
+    expect(parent.container.querySelector('[aria-label="Share Groom Uncle on WhatsApp"]')).toBeNull()
+    await parent.unmount()
+
+    const friend = await renderTab(weddingValue(bundle('friend', 'bride')))
+    const planner = await renderTab(weddingValue(bundle('planner', null)))
+    expect(friend.container.textContent).not.toContain('Share on WhatsApp')
+    expect(planner.container.textContent).not.toContain('Share on WhatsApp')
+    await friend.unmount()
+    await planner.unmount()
+  })
+})
+
 describe('guest list fallback', () => {
   it('refetches the allowed list while the private ping is down', async () => {
     let pulls = 0
