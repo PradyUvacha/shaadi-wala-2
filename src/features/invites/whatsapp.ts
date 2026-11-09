@@ -12,15 +12,20 @@ export function guestInviteText(coupleNames: string, guestName: string): string 
   return guest ? `${couple} invited ${guest} to their wedding.` : `${couple} invited you to their wedding.`
 }
 
-/** Digits only, with 91 added to a 10-digit Indian number. Anything else is not a sendable number. */
+/** Digits only. A 10-digit Indian mobile, with or without a trunk 0, becomes 91 plus those digits. */
 export function normalizeGuestPhone(raw: string | null | undefined): string | null {
-  if (!raw?.trim()) return null
-  let digits = raw.replace(/\D/g, '')
-  if (digits.startsWith('00')) digits = digits.slice(2)
-  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1)
+  if (raw == null) return null
+  const text = String(raw).trim()
+  if (!text) return null
+  let digits = text.replace(/[^\d]/g, '')
+  if (!digits) return null
+  digits = digits.replace(/^00+/, '')
+  if (digits.startsWith('91') && digits.length === 13 && digits[2] === '0') digits = `91${digits.slice(3)}`
+  if (digits.startsWith('0')) digits = digits.replace(/^0+/, '')
   if (digits.length === 10) digits = `91${digits}`
-  if (digits.length < 11 || digits.length > 15 || digits.startsWith('0')) return null
-  return digits
+  if (digits.length === 12 && digits.startsWith('91')) return digits
+  if (digits.length >= 11 && digits.length <= 15) return digits
+  return null
 }
 
 export function whatsAppGuestUrl(digits: string, text: string): string {

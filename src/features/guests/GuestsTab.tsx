@@ -117,6 +117,39 @@ function SearchIcon() {
   )
 }
 
+function GuestShareButton({
+  guestId,
+  guestName,
+  phone,
+  coupleNames,
+}: {
+  guestId: string
+  guestName: string
+  phone: string
+  coupleNames: string
+}) {
+  return (
+    <button
+      type="button"
+      data-guest-id={guestId}
+      data-guest-name={guestName}
+      data-guest-phone={phone}
+      aria-label={`Share ${guestName} on WhatsApp`}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        const button = event.currentTarget
+        const name = button.dataset.guestName ?? guestName
+        const number = button.dataset.guestPhone ?? phone
+        void shareGuestInvite(number, guestInviteText(coupleNames, name))
+      }}
+      style={{ minHeight: SIZE.tap, padding: '0 12px', borderRadius: 12, border: `1px solid ${COLORS.border}`, background: '#fff', color: COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+    >
+      Share on WhatsApp
+    </button>
+  )
+}
+
 function rsvpStyle(status: string): CSSProperties {
   if (status === 'Confirmed') return { background: COLORS.greenTint, color: COLORS.greenText, border: '1px solid transparent' }
   if (status === 'Declined') return { background: COLORS.dangerTint, color: COLORS.danger, border: '1px solid transparent' }
@@ -400,14 +433,13 @@ export function GuestsTab() {
                   <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600, flexShrink: 0 }}>+{guest.plusOnes}</span>
                 )}
                 {canShareGuestInvite(role, ownSide, guest.side) && (
-                  <button
-                    type="button"
-                    aria-label={`Share ${guest.name} on WhatsApp`}
-                    onClick={() => void shareGuestInvite(guest.phone, guestInviteText(bundle?.wedding.coupleNames ?? '', guest.name))}
-                    style={{ minHeight: SIZE.tap, padding: '0 12px', borderRadius: 12, border: `1px solid ${COLORS.border}`, background: '#fff', color: COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    Share on WhatsApp
-                  </button>
+                  <GuestShareButton
+                    key={guest.id}
+                    guestId={guest.id}
+                    guestName={guest.name}
+                    phone={guest.phone}
+                    coupleNames={bundle?.wedding.coupleNames ?? ''}
+                  />
                 )}
               </div>
             )

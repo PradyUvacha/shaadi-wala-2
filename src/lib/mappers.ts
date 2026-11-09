@@ -60,13 +60,19 @@ export function mapBudgetItem(row: Record<string, unknown>): BudgetItem {
   }
 }
 
+function guestPhoneFromRow(row: Record<string, unknown>): string {
+  const value = row.phone ?? row.phone_number
+  if (value == null) return ''
+  return String(value).trim()
+}
+
 export function mapGuest(row: Record<string, unknown>): Guest {
   const side = row.side == null ? '' : String(row.side)
   return {
     id: String(row.id),
     name: String(row.name ?? ''),
     email: String(row.email ?? ''),
-    phone: String(row.phone ?? ''),
+    phone: guestPhoneFromRow(row),
     status: asOneOf(row.rsvp_status, RSVP_STATUSES, 'Pending'),
     meal: String(row.meal ?? ''),
     plusOnes: Number(row.plus_ones ?? 0),

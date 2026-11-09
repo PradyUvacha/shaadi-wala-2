@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { WeddingContext, type WeddingContextValue } from '../../state/wedding-context.ts'
 import type { Guest, GuestDraft, WeddingBundle } from '../../types.ts'
 import { GuestsTab } from './GuestsTab.tsx'
@@ -191,6 +191,37 @@ describe('guest WhatsApp share', () => {
     expect(planner.container.textContent).not.toContain('Share on WhatsApp')
     await friend.unmount()
     await planner.unmount()
+  })
+
+  it('shares the guest that was tapped and opens wa.me for that phone', async () => {
+    const open = vi.fn()
+    const previous = window.open
+    window.open = open as unknown as typeof window.open
+    try {
+      const current = bundle('bride', 'bride')
+      current.guests = [
+        { ...ownSide, id: 'g-first', name: 'First Guest', phone: '', side: 'bride' },
+        { ...ownSide, id: 'g-second', name: 'Second Guest', phone: '+91 98765 43210', side: 'bride' },
+      ]
+      const view = await renderTab(weddingValue(current))
+      const button = view.container.querySelector('[aria-label="Share Second Guest on WhatsApp"]')
+      if (!(button instanceof HTMLButtonElement)) throw new Error('missing second share button')
+      expect(button.dataset.guestId).toBe('g-second')
+      expect(button.dataset.guestName).toBe('Second Guest')
+      expect(button.dataset.guestPhone).toBe('+91 98765 43210')
+      await act(async () => {
+        button.click()
+      })
+      expect(open).toHaveBeenCalledTimes(1)
+      const url = String((open.mock.calls as unknown[][])[0]?.[0])
+      expect(url.startsWith('https://wa.me/919876543210?text=')).toBe(true)
+      const text = decodeURIComponent(url.split('text=')[1] ?? '')
+      expect(text).toContain('Second Guest')
+      expect(text).not.toContain('First Guest')
+      await view.unmount()
+    } finally {
+      window.open = previous
+    }
   })
 })
 
