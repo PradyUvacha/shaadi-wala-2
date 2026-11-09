@@ -109,9 +109,9 @@ export function splitsForPayer(payer: Payer, custom: SplitDraft[] = []): SplitDr
 }
 
 export function payerLabel(payer: Payer): string {
-  if (payer === 'bride') return "Bride's family"
-  if (payer === 'groom') return "Groom's family"
-  if (payer === 'both') return 'Both families'
+  if (payer === 'bride') return "Bride's side"
+  if (payer === 'groom') return "Groom's side"
+  if (payer === 'both') return 'Both sides'
   return 'Custom split'
 }
 
@@ -202,10 +202,12 @@ export type FamilySettlement = {
   groomShare: number
   bridePaid: number
   groomPaid: number
-  /** Done task costs, payments with no bride or groom payer, and logged actual that no payment covers. Not a family debt. */
+  /** Done task costs, payments with no bride or groom side, and logged actual that no payment covers. Not a family debt. */
   unattributed: number
-  /** Positive when the groom's family owes the bride's family. */
+  /** Positive when the groom's side owes the bride's side. */
   groomOwesBride: number
+  /** Sided payments minus the amount still owed, in whole rupees. */
+  netSettled: number
 }
 
 function wholeRupees(value: number): number {
@@ -243,40 +245,55 @@ function loggedAmount(item: Pick<BudgetItem, 'actual' | 'partPayments'>): number
 }
 
 export function familySettlement(
-  items: Pick<BudgetItem, 'currency' | 'estimated' | 'actual' | 'paid' | 'paidBySide' | 'splits' | 'partPayments'>[],
-  tasks: readonly Pick<Task, 'status' | 'actualCost'>[] = [],
+  items: (Pick<BudgetItem, 'currency' | 'estimated' | 'actual' | 'paid' | 'paidBySide' | 'splits' | 'partPayments'> & { id?: string })[],
+  tasks: readonly (Pick<Task, 'status' | 'actualCost'> & { budgetCategoryId?: string | null })[] = [],
 ): FamilySettlement {
-  let estimated = 0
-  let bridePaidRaw = 0
-  let groomPaidRaw = 0
+  let brideShare = 0
+  let groomShare = 0
+  let bridePaid = 0
+  let groomPaid = 0
+  let netSettled = 0
+  let groomOwesBride = 0
   let unattributedRaw = 0
   for (const item of items) {
     if (item.currency !== 'INR') continue
-    estimated += Number(item.estimated) || 0
+    let bridePaidRaw = 0
+    let groomPaidRaw = 0
     for (const payment of item.partPayments) {
       const amount = Number(payment.amount) || 0
       if (payment.paidBySide === 'bride') bridePaidRaw += amount
       else if (payment.paidBySide === 'groom') groomPaidRaw += amount
       else unattributedRaw += amount
     }
-    const gap = loggedAmount(item) - paymentTotal(item.partPayments)
-    if (gap > 0) unattributedRaw += gap
+    const gap = Math.max(0, loggedAmount(item) - paymentTotal(item.partPayments))
+    unattributedRaw += gap
+    const actual = wholeRupees(bridePaidRaw + groomPaidRaw + gap)
+    const shares = splitRupees(actual)
+    const sideBride = wholeRupees(bridePaidRaw)
+    const sideGroom = wholeRupees(groomPaidRaw)
+    brideShare += shares.bride
+    groomShare += shares.groom
+    bridePaid += sideBride
+    groomPaid += sideGroom
+    netSettled += Math.min(sideBride, shares.bride) + Math.min(sideGroom, shares.groom)
+    const brideShort = Math.max(0, shares.bride - sideBride)
+    const groomShort = Math.max(0, shares.groom - sideGroom)
+    const brideExtra = Math.max(0, sideBride - shares.bride)
+    const groomExtra = Math.max(0, sideGroom - shares.groom)
+    groomOwesBride += Math.min(brideExtra, groomShort) - Math.min(groomExtra, brideShort)
   }
   for (const task of tasks) {
     if (!countsInActual(task)) continue
     unattributedRaw += Number(task.actualCost) || 0
   }
-  const shares = splitRupees(estimated)
-  const bridePaid = wholeRupees(bridePaidRaw)
-  const groomPaid = wholeRupees(groomPaidRaw)
-  const paidShares = splitRupees(bridePaid + groomPaid)
   return {
-    brideShare: shares.bride,
-    groomShare: shares.groom,
+    brideShare,
+    groomShare,
     bridePaid,
     groomPaid,
     unattributed: wholeRupees(unattributedRaw),
-    groomOwesBride: bridePaid + groomPaid === 0 ? 0 : bridePaid - paidShares.bride,
+    groomOwesBride,
+    netSettled,
   }
 }
 
@@ -287,10 +304,11 @@ export function settlementSummary(settlement: FamilySettlement): string {
   if (settlement.bridePaid === 0 && settlement.groomPaid === 0) {
     return "Shares are set. Record a payment to see who should settle with whom."
   }
+  if (settlement.groomOwesBride === 0 && settlement.bridePaid + settlement.groomPaid > 0) return 'All settled ✓'
   const amount = Math.abs(settlement.groomOwesBride).toLocaleString('en-IN')
-  if (settlement.groomOwesBride > 0) return `Groom's family owes bride's family ₹${amount}.`
-  if (settlement.groomOwesBride < 0) return `Bride's family owes groom's family ₹${amount}.`
-  return 'The two families are settled for what has been paid so far.'
+  if (settlement.groomOwesBride > 0) return `Groom's side owes Bride's side ₹${amount}`
+  if (settlement.groomOwesBride < 0) return `Bride's side owes Groom's side ₹${amount}`
+  return 'The two sides are settled.'
 }
 
 export function unlockedAchievementIds(input: {

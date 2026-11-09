@@ -56,9 +56,19 @@ export function moveByPosition<T extends { id: string; position: number }>(
   return swapped.map((item, position) => ({ ...item, position: position + 1 }))
 }
 
+export const TASK_PING_EVENT = 'task_ping'
+
+export function taskPingTopic(weddingId: string): string {
+  return `wedding:${weddingId}:tasks`
+}
+
+/** The only fields a task ping is allowed to carry. */
+export function taskPingPayload(weddingId: string): { table: 'tasks'; wedding_id: string } {
+  return { table: 'tasks', wedding_id: weddingId }
+}
+
 export function checklistChannelFilters(weddingId: string) {
   return [
-    { event: '*' as const, schema: 'public' as const, table: 'tasks' as const, filter: `wedding_id=eq.${weddingId}` },
     { event: '*' as const, schema: 'public' as const, table: 'wedding_functions' as const, filter: `wedding_id=eq.${weddingId}` },
   ]
 }
@@ -137,6 +147,24 @@ export function subscribeWeddingChecklist(
   }
   channel.subscribe()
   return () => {
+    void client.removeChannel(channel)
+  }
+}
+
+/** Private broadcast. The payload has no task fields. The handler refetches through RLS. */
+export function subscribeTaskPings(
+  client: SupabaseClient,
+  weddingId: string,
+  onPing: () => void,
+): () => void {
+  let cancelled = false
+  const channel = client.channel(taskPingTopic(weddingId), { config: { private: true } })
+  channel.on('broadcast', { event: TASK_PING_EVENT }, () => {
+    if (!cancelled) onPing()
+  })
+  channel.subscribe()
+  return () => {
+    cancelled = true
     void client.removeChannel(channel)
   }
 }

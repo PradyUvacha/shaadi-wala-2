@@ -111,12 +111,74 @@ export function guestSideChoices(role: MemberRole | null | undefined, viewerSide
   return ['', 'bride', 'groom', 'both']
 }
 
+/** Couple share any guest. Parents share only a guest on their own side. Friends and planners do not. */
+export function canShareGuestInvite(
+  role: MemberRole | null | undefined,
+  viewerSide: Side | null,
+  guestSide: GuestSide,
+): boolean {
+  if (isCouple(role)) return true
+  if (role === 'family') return viewerSide != null && guestSide === viewerSide
+  return false
+}
+
 export function canEditTimeline(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner'
 }
 
 export function canManageTasks(role: MemberRole | null | undefined): boolean {
   return isCouple(role) || role === 'planner' || role === 'family'
+}
+
+/** Couple and planner edit any task. A parent edits only their own side. A friend only completes. */
+export function canEditTaskRow(
+  role: MemberRole | null | undefined,
+  viewerSide: Side | null,
+  taskSide: Side | null,
+): boolean {
+  if (isCouple(role) || role === 'planner') return true
+  if (role === 'family') return viewerSide != null && taskSide === viewerSide
+  return false
+}
+
+/**
+ * `tasks.assigned_to` is `auth.users.id`, the same value as `wedding_members.user_id`.
+ * `wedding_members.id` is the membership row and must not be used for My Tasks.
+ * A select that omitted `user_id` used to become the string "undefined".
+ */
+export function membershipUserId(row: { user_id?: unknown }, sessionUserId: string): string {
+  const value = row.user_id
+  if (typeof value === 'string' && value.trim() && value !== 'undefined') return value
+  return sessionUserId
+}
+
+/** Prefer the membership's auth id. Fall back to the member row, never the row id and never "undefined". */
+export function signedInAssigneeId(
+  membership: { id: string; userId?: string | null } | null | undefined,
+  members: readonly { id: string; userId: string }[],
+): string | null {
+  if (!membership) return null
+  const claimed = membership.userId?.trim() ?? ''
+  if (claimed && claimed !== 'undefined') return claimed
+  const fromRow = members.find((member) => member.id === membership.id)?.userId?.trim() ?? ''
+  if (fromRow && fromRow !== 'undefined') return fromRow
+  return null
+}
+
+export function myTasks<T extends { assignedTo: string | null }>(tasks: readonly T[], userId: string | null | undefined): T[] {
+  if (!userId) return []
+  return tasks.filter((task) => task.assignedTo === userId)
+}
+
+export function assignedSideBlocks<T extends { assignedTo: string | null; side: Side | null }>(
+  tasks: readonly T[],
+): { label: string; tasks: T[] }[] {
+  const assigned = tasks.filter((task) => task.assignedTo)
+  return [
+    { label: "Bride's side", tasks: assigned.filter((task) => task.side === 'bride') },
+    { label: "Groom's side", tasks: assigned.filter((task) => task.side === 'groom') },
+    { label: 'Shared', tasks: assigned.filter((task) => task.side == null) },
+  ].filter((block) => block.tasks.length > 0)
 }
 
 /** Add, rename, reorder, and remove functions. Couple and planner only. */

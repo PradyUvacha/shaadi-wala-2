@@ -136,6 +136,8 @@ describe('ritual editor conflicts', () => {
     expect(stale.container.textContent).toContain('Community ·')
     expect(stale.container.textContent).toContain('Planning')
     expect(stale.container.querySelector('h1')?.textContent).toBe('Planning')
+    const events = [...stale.container.querySelectorAll('a')].find((link) => link.textContent?.trim() === 'Events')
+    expect(events?.getAttribute('href')).toBe('/planning?tab=events')
     const banner = stale.container.querySelector('img')
     expect(banner?.getAttribute('alt')).toBe('Wedding planning banner')
     expect(banner?.getAttribute('src')).toBe('/planning-strip.webp')
@@ -188,5 +190,74 @@ describe('ritual editor conflicts', () => {
     expect(deleted.container.textContent).not.toContain('Cannot coerce')
     expect(refresh).toBeGreaterThan(0)
     await deleted.unmount()
+  })
+
+  it('lists only tasks assigned to the member and hides a friend category', async () => {
+    const friendBundle = {
+      ...bundle,
+      membership: { ...bundle.membership, role: 'friend' as const, side: 'bride' as const, userId: 'friend-1' },
+      tasks: [
+        { ...ritual, assignedTo: 'friend-1', side: 'bride' as const, category: 'Venue' as const },
+        { ...ritual, id: 'other', title: 'Someone else', assignedTo: 'bride-1', side: 'groom' as const, category: 'Decor' as const },
+      ],
+    }
+    const view = await renderTab(weddingValue({ bundle: friendBundle }))
+    expect(view.container.textContent).not.toContain('Venue')
+    expect(view.container.textContent).not.toContain('Decor')
+    expect(view.container.textContent).toContain("Bride's side")
+    expect(view.container.textContent).toContain("Groom's side")
+    await act(async () => {
+      clickButton(view.container, 'My tasks · 1')
+    })
+    expect(view.container.textContent).toContain('Book the hall')
+    expect(view.container.textContent).not.toContain('Someone else')
+    await view.unmount()
+  })
+
+  it('counts My tasks when the membership row id is not the auth user id', async () => {
+    const memberRowId = 'member-row-9f3a'
+    const authUserId = 'auth-user-4c2e'
+    const roles = [
+      ['bride', 'bride'],
+      ['groom', 'groom'],
+      ['family', 'bride'],
+      ['family', 'groom'],
+      ['friend', 'bride'],
+      ['friend', 'groom'],
+      ['planner', null],
+    ] as const
+    for (const [role, side] of roles) {
+      const shaped = {
+        ...bundle,
+        membership: { id: memberRowId, userId: 'undefined', role, side, displayName: 'Asha' },
+        members: [{ id: memberRowId, userId: authUserId, role, side, displayName: 'Asha' }],
+        tasks: [{ ...ritual, assignedTo: authUserId, side: 'bride' as const }],
+      }
+      const view = await renderTab(weddingValue({ bundle: shaped }))
+      expect(view.container.textContent).toContain('My tasks · 1')
+      expect(view.container.textContent).toContain('Assigned to Asha')
+      await view.unmount()
+    }
+  })
+
+  it('shows a parent every task and edits only their own side', async () => {
+    const parent = {
+      ...bundle,
+      membership: { ...bundle.membership, role: 'family' as const, side: 'bride' as const, displayName: 'Parent' },
+      tasks: [
+        { ...ritual, id: 'own', title: 'Bride ritual', side: 'bride' as const },
+        { ...ritual, id: 'other', title: 'Groom ritual', side: 'groom' as const },
+        { ...ritual, id: 'shared', title: 'Shared ritual', side: null },
+      ],
+    }
+    const view = await renderTab(weddingValue({ bundle: parent }))
+    expect(view.container.textContent).toContain('Bride ritual')
+    expect(view.container.textContent).toContain('Groom ritual')
+    expect(view.container.textContent).toContain('Shared ritual')
+    expect(view.container.querySelector('[aria-label="Actions for Bride ritual"]')).toBeTruthy()
+    expect(view.container.querySelector('[aria-label="Actions for Groom ritual"]')).toBeNull()
+    expect(view.container.querySelector('[aria-label="Actions for Shared ritual"]')).toBeNull()
+    expect(view.container.textContent).toContain('Only the couple or planner can edit shared tasks.')
+    await view.unmount()
   })
 })

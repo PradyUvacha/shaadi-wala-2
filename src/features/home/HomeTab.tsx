@@ -1,12 +1,19 @@
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MOTIVATIONAL_QUOTES } from '../../data/content.ts'
 import { MehendiPattern, ProgressRing } from '../../components/ui.tsx'
-import { formatDate, formatInrCompact, quoteForDay, weddingCountdown } from '../../lib/format.ts'
-import { percent } from '../../lib/planning.ts'
+import { FeedList } from '../feed/FeedList.tsx'
+import { useAnnouncementFeed } from '../feed/useAnnouncementFeed.ts'
+import { canPostFeed, canSeeBudget } from '../../lib/access.ts'
+import { formatDate, formatInrCompact, money, quoteForDay, weddingCountdown } from '../../lib/format.ts'
+import { formatWhen } from '../../lib/when.ts'
+import { priorityTasks, recentActivity, sideGuests } from '../../lib/homeView.ts'
+import { familySettlement, percent } from '../../lib/planning.ts'
 import { rollupWedding } from '../../lib/rollup.ts'
 import { useWedding } from '../../state/wedding-context.ts'
 import { COLORS, TYPE } from '../../styles/tokens.ts'
 import { headerPadding, screenBottom } from '../../styles/safeArea.ts'
+import type { MemberRole, Side, WeddingBundle } from '../../types.ts'
 
 export function HomeTab() {
   const navigate = useNavigate()
@@ -22,8 +29,12 @@ export function HomeTab() {
   const taskPct = percent(completedTasks, tasks.length)
   const budgetPct = percent(Number(rolled.actualRupees), Number(rolled.budgetRupees))
   const guestPct = percent(confirmedGuests, guests.length)
-  const priorityTasks = tasks.filter((task) => task.priority === 'High' && task.status !== 'Completed').slice(0, 3)
+  const role = bundle.membership.role
+  const rankedTasks = priorityTasks(tasks, role, bundle.membership.side)
   const quote = quoteForDay(MOTIVATIONAL_QUOTES)
+  if (role === 'family' || role === 'friend' || role === 'planner') {
+    return <MemberHome bundle={bundle} />
+  }
 
   return (
     <div style={{ paddingBottom: screenBottom }}>
@@ -81,15 +92,10 @@ export function HomeTab() {
         ))}
       </div>
 
-      {priorityTasks.length > 0 && (
+      {rankedTasks.length > 0 && (
         <div style={{ margin: '0 16px 16px', background: COLORS.cardBg, borderRadius: 16, padding: 18, border: `1px solid ${COLORS.border}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: COLORS.ink }}>Priority tasks</div>
-            <button type="button" onClick={() => navigate('/planning')} style={{ background: 'none', border: 'none', color: COLORS.goldText, fontSize: TYPE.body, cursor: 'pointer', fontWeight: 600, minHeight: 48 }}>
-              View all
-            </button>
-          </div>
-          {priorityTasks.map((task) => (
+          <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, fontWeight: 700, color: COLORS.ink, marginBottom: 12 }}>Priority tasks</div>
+          <PriorityList tasks={rankedTasks} render={(task) => (
             <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: `1px solid ${COLORS.border}` }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: COLORS.crimson, flexShrink: 0 }} />
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -97,7 +103,7 @@ export function HomeTab() {
                 <div style={{ fontSize: TYPE.small, color: COLORS.muted }}>{task.category} · {task.dueDate || 'No date'}</div>
               </div>
             </div>
-          ))}
+          )} />
         </div>
       )}
 
@@ -107,3 +113,124 @@ export function HomeTab() {
     </div>
   )
 }
+
+function MemberHome({ bundle }: { bundle: WeddingBundle }) {
+  const navigate = useNavigate()
+  const role = bundle.membership.role
+  const viewerSide = bundle.membership.side
+  const seeMoney = canSeeBudget(role)
+  const { posts } = useAnnouncementFeed(bundle.wedding.id, true)
+  const countdown = weddingCountdown(bundle.wedding.weddingDate)
+  const tasks = priorityTasks(bundle.tasks, role, viewerSide)
+  const guests = sideGuests(bundle.guests, role, viewerSide)
+  const activity = recentActivity({
+    tasks: bundle.tasks,
+    guests: bundle.guests,
+    posts,
+    authors: bundle.members.map((member) => ({
+      userId: member.userId,
+      role: member.role,
+      side: member.side,
+      displayName: member.displayName,
+    })),
+    members: bundle.members,
+    role,
+    viewerSide,
+  })
+  const settlement = familySettlement(bundle.budget, bundle.tasks)
+  const share = sideShare(settlement, role, viewerSide)
+
+  return (
+    <div style={{ paddingBottom: screenBottom }}>
+      <div style={{ background: `linear-gradient(160deg,${COLORS.maroon} 0%,${COLORS.crimson} 70%,${COLORS.appBar} 100%)`, padding: headerPadding }}>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 24, color: '#fff', fontWeight: 700 }}>{bundle.displayName}</div>
+        <div style={{ fontSize: TYPE.small, color: 'rgba(255,255,255,0.9)', marginTop: 4 }}>{bundle.wedding.coupleNames}</div>
+        <div style={{ fontFamily: "'Playfair Display', Georgia, serif", fontSize: 40, color: '#fff', fontWeight: 700, marginTop: 12 }}>{countdown.headline}</div>
+        <div style={{ fontSize: TYPE.small, color: COLORS.gold }}>{countdown.caption}</div>
+      </div>
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>Priority tasks</h2>
+        {tasks.length === 0 ? <p style={muted}>No tasks on your side.</p> : (
+          <PriorityList tasks={tasks} render={(task) => (
+            <button key={task.id} type="button" onClick={() => navigate('/planning')} style={rowButton}>
+              <strong>{task.title}</strong>
+              <span style={muted}>{task.priority}{task.dueDate ? ` · ${task.dueDate}` : ''}{seeMoney && role === 'planner' && task.actualCost != null ? ` · ${money(task.actualCost, '₹')}` : ''}</span>
+            </button>
+          )} />
+        )}
+      </section>
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>Recent activity</h2>
+        {activity.length === 0 ? <p style={muted}>No activity yet.</p> : activity.slice(0, 12).map((item) => (
+          <p key={item.id} style={{ margin: '8px 0', fontSize: TYPE.small, color: COLORS.ink }}>
+            {item.text} · {item.who} · {formatWhen(item.at)}
+          </p>
+        ))}
+      </section>
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>{role === 'planner' ? 'Guests' : "Your side's guests"}</h2>
+        {guests.length === 0 ? <p style={muted}>No guests yet.</p> : guests.map((guest) => (
+          <p key={guest.id} style={{ margin: '4px 0', fontSize: TYPE.small }}>{guest.name}</p>
+        ))}
+      </section>
+      {seeMoney && share ? (
+        <section style={{ margin: 16 }}>
+          <h2 style={heading}>Budget share</h2>
+          <p style={{ fontSize: TYPE.body, color: COLORS.ink }}>{share}</p>
+        </section>
+      ) : null}
+      <section style={{ margin: 16 }}>
+        <h2 style={heading}>Announcements</h2>
+        <FeedList
+          posts={posts}
+          authors={bundle.members.map((member) => ({
+            userId: member.userId,
+            role: member.role,
+            side: member.side,
+            displayName: member.displayName,
+          }))}
+          canPost={false}
+          currentUserId={null}
+          onCreate={() => {}}
+          onUpdate={() => {}}
+          onDelete={() => {}}
+        />
+        {canPostFeed(role) ? (
+          <button type="button" onClick={() => navigate('/feed')} style={{ ...rowButton, color: COLORS.crimson, fontWeight: 700 }}>Post an announcement</button>
+        ) : null}
+      </section>
+    </div>
+  )
+}
+
+function PriorityList<T extends { id: string }>({ tasks, render }: { tasks: readonly T[]; render: (task: T) => ReactNode }) {
+  const [expanded, setExpanded] = useState(false)
+  const shown = expanded ? tasks : tasks.slice(0, 5)
+  return (
+    <>
+      {shown.map((task) => render(task))}
+      {tasks.length > 5 && !expanded ? (
+        <button type="button" onClick={() => setExpanded(true)} style={{ minHeight: 48, marginTop: 8, border: 'none', background: 'transparent', color: COLORS.goldText, fontSize: TYPE.body, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+          See all ({tasks.length})
+        </button>
+      ) : null}
+    </>
+  )
+}
+
+function sideShare(
+  settlement: { brideShare: number; groomShare: number },
+  role: MemberRole,
+  side: Side | null,
+): string | null {
+  if (role === 'planner') {
+    return `Bride ${money(settlement.brideShare, '₹')} · Groom ${money(settlement.groomShare, '₹')}`
+  }
+  if (role === 'family' && side === 'bride') return money(settlement.brideShare, '₹')
+  if (role === 'family' && side === 'groom') return money(settlement.groomShare, '₹')
+  return null
+}
+
+const heading = { fontFamily: "'Playfair Display', Georgia, serif", fontSize: 18, color: COLORS.ink, margin: '0 0 8px' }
+const muted = { fontSize: TYPE.small, color: COLORS.muted, margin: 0 }
+const rowButton = { display: 'flex', flexDirection: 'column' as const, alignItems: 'flex-start', width: '100%', minHeight: 48, border: 'none', background: 'transparent', padding: '8px 0', cursor: 'pointer', color: COLORS.ink }

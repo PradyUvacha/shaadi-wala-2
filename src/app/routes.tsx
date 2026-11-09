@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
 import { AppShell } from './AppShell.tsx'
 import { Splash } from '../components/ui.tsx'
 import { COLORS } from '../styles/tokens.ts'
 import { pathWithSurvey } from '../features/surveys/surveys.ts'
+import { isPlanningEvents, PLANNING_EVENTS_PATH } from './planningTab.ts'
 import { useAuth } from '../state/auth-context.ts'
 import { useWedding } from '../state/wedding-context.ts'
 
@@ -20,6 +21,12 @@ const ProfileScreen = lazy(() => import('../features/account/ProfileScreen.tsx')
 const SettingsScreen = lazy(() => import('../features/account/SettingsScreen.tsx').then((m) => ({ default: m.SettingsScreen })))
 const DeleteAccountScreen = lazy(() => import('../features/account/DeleteAccountScreen.tsx').then((m) => ({ default: m.DeleteAccountScreen })))
 const FeedbackScreen = lazy(() => import('../features/feedback/FeedbackScreen.tsx').then((m) => ({ default: m.FeedbackScreen })))
+const FeedScreen = lazy(() => import('../features/feed/FeedScreen.tsx').then((m) => ({ default: m.FeedScreen })))
+
+function PlanningScreen() {
+  const [params] = useSearchParams()
+  return isPlanningEvents(params) ? <TimelineTab /> : <TasksTab />
+}
 
 function useAuthCallback(finishingAuth: boolean, hasSession: boolean) {
   const [expired, setExpired] = useState(false)
@@ -80,14 +87,17 @@ export function AppRoutes() {
           <Route path="/profile/settings" element={<SettingsScreen />} />
           <Route path="/profile/settings/delete-account" element={<DeleteAccountScreen />} />
           <Route path="/profile/feedback" element={<FeedbackScreen />} />
+          <Route path="/feed" element={hasWedding ? <FeedScreen /> : <Navigate to="/setup" replace />} />
+          <Route path="/parent-dashboard" element={<Navigate to="/" replace />} />
+          <Route path="/dashboard" element={<Navigate to="/" replace />} />
           <Route path="/account" element={<AccountRedirect />} />
           <Route element={hasWedding ? <Outlet /> : <Navigate to="/setup" replace />}>
             <Route index element={<HomeTab />} />
-            <Route path="planning" element={<TasksTab />} />
+            <Route path="planning" element={<PlanningScreen />} />
             <Route path="tasks" element={<Navigate to="/planning" replace />} />
             <Route path="budget" element={<BudgetTab />} />
             <Route path="guests" element={<GuestsTab />} />
-            <Route path="timeline" element={<TimelineTab />} />
+            <Route path="timeline" element={<Navigate to={PLANNING_EVENTS_PATH} replace />} />
           </Route>
         </Route>
         <Route path="*" element={<Navigate to={canEnter ? home : pathWithSurvey('/auth', location.search)} replace />} />

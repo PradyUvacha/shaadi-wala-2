@@ -9,6 +9,7 @@ import {
   guestPingPayload,
   guestPingTopic,
   guestsInFilter,
+  postgresGuestChangeCarriesRow,
   scheduleGuestRefresh,
   subscribeGuestPings,
   subscribeWeddingGuests,
@@ -89,6 +90,8 @@ describe('guest realtime', () => {
     expect(Object.keys(payload).sort()).toEqual(['table', 'wedding_id'])
     expect(guestPingLeaksGuest(payload)).toBe(false)
     expect(guestPingLeaksGuest({ ...payload, name: 'Secret Guest', side: 'groom', email: 'a@b.c' })).toBe(true)
+    expect(postgresGuestChangeCarriesRow({ id: 'guest-1', wedding_id: 'wedding-1' })).toBe(true)
+    expect(postgresGuestChangeCarriesRow({ guest_id: 'guest-1', function_id: 'fn-1' })).toBe(true)
 
     const seen: unknown[] = []
     const statuses: boolean[] = []

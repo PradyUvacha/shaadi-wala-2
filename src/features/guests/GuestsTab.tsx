@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties } from 'react'
 import { FAB, FormError } from '../../components/ui.tsx'
 import { DELETED_ITEM_MESSAGE, saveErrorPresentation, toErrorMessage } from '../../lib/errors.ts'
-import { canDeleteGuestRow, canEditGuestRow, canEditGuests, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
+import { canDeleteGuestRow, canEditGuestRow, canEditGuests, canShareGuestInvite, guestIncluded, guestListFilters, guestSideChoices, type GuestListFilter } from '../../lib/access.ts'
 import { GUEST_LIST_FALLBACK_MS } from '../../lib/guestSync.ts'
 import { compareGuestNames, guestAvatarColor, guestEmailProblem, guestFunctionLine, guestInitials, guestMatchesQuery, guestNameProblem, guestPhoneProblem, guestStatCounts, mealPillLabel, mealUsesLeaf } from '../../lib/guestTiles.ts'
 import { useWedding } from '../../state/wedding-context.ts'
@@ -9,6 +9,7 @@ import { COLORS, FONT, SIZE, TYPE } from '../../styles/tokens.ts'
 import { inputStyle, primaryButton } from '../../styles/ui.ts'
 import { headerPadding, safeBottom } from '../../styles/safeArea.ts'
 import type { Guest, GuestDraft, GuestSide, RsvpStatus } from '../../types.ts'
+import { guestInviteText, shareGuestInvite } from '../invites/whatsapp.ts'
 import { rsvpBySideEnabled } from '../onboarding/flag.ts'
 
 const SIDE_OPTIONS: { value: GuestSide; label: string }[] = [
@@ -113,6 +114,39 @@ function SearchIcon() {
       <circle cx="11" cy="11" r="7" />
       <path d="M20 20l-3.5-3.5" />
     </svg>
+  )
+}
+
+function GuestShareButton({
+  guestId,
+  guestName,
+  phone,
+  coupleNames,
+}: {
+  guestId: string
+  guestName: string
+  phone: string
+  coupleNames: string
+}) {
+  return (
+    <button
+      type="button"
+      data-guest-id={guestId}
+      data-guest-name={guestName}
+      data-guest-phone={phone}
+      aria-label={`Share ${guestName} on WhatsApp`}
+      onClick={(event) => {
+        event.preventDefault()
+        event.stopPropagation()
+        const button = event.currentTarget
+        const name = button.dataset.guestName ?? guestName
+        const number = button.dataset.guestPhone ?? phone
+        void shareGuestInvite(number, guestInviteText(coupleNames, name))
+      }}
+      style={{ minHeight: SIZE.tap, padding: '0 12px', borderRadius: 12, border: `1px solid ${COLORS.border}`, background: '#fff', color: COLORS.ink, fontSize: TYPE.small, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}
+    >
+      Share on WhatsApp
+    </button>
   )
 }
 
@@ -397,6 +431,15 @@ export function GuestsTab() {
                 </button>
                 {guest.plusOnes > 0 && (
                   <span style={{ background: COLORS.goldTint, color: COLORS.goldText, borderRadius: 999, padding: '4px 10px', fontSize: TYPE.small, fontWeight: 600, flexShrink: 0 }}>+{guest.plusOnes}</span>
+                )}
+                {canShareGuestInvite(role, ownSide, guest.side) && (
+                  <GuestShareButton
+                    key={guest.id}
+                    guestId={guest.id}
+                    guestName={guest.name}
+                    phone={guest.phone}
+                    coupleNames={bundle?.wedding.coupleNames ?? ''}
+                  />
                 )}
               </div>
             )
